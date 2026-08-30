@@ -1,0 +1,1 @@
+PASS: no import scribe3 / SCRIBE3_ / s3_ in product code

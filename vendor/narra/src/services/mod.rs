@@ -1,5 +1,11 @@
 pub mod annotation_pipeline;
 pub mod arc;
+pub mod canon;
+pub mod circumstances;
+pub mod constrain;
+pub mod ferry;
+pub mod materialize;
+pub mod world;
 pub mod clustering;
 pub mod composite;
 pub mod progress;
@@ -68,6 +74,9 @@ pub use theme::{LocalThemeService, NoopThemeService, ThemeService, DEFAULT_NARRA
 pub use vector_ops::{
     ConvergenceResult, GrowthVectorResult, MidpointResult, MisperceptionResult, VectorOpsService,
 };
+
+pub use canon::SettingBook;
+pub use world::{BeatDraft, Canon, World, world_at, knows_at};
 
 pub use annotation_pipeline::{AnnotationPipeline, BatchAnnotationReport, PipelineConfig};
 pub use progress::{noop_progress, NoopProgressReporter, ProgressReporter};

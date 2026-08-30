@@ -58,6 +58,9 @@ const SCHEMA_018: &str = include_str!("migrations/018_phases.surql");
 /// Annotations: generic ML model outputs cached per entity
 const SCHEMA_019: &str = include_str!("migrations/019_annotations.surql");
 
+/// 设定图正史：三时钟、在场边、情状窗口、知情挂场
+const SCHEMA_020: &str = include_str!("migrations/020_setting_canon.surql");
+
 /// Apply the database schema to an initialized database connection.
 ///
 /// This executes all DEFINE statements in the schema files, creating tables,
@@ -125,5 +128,6 @@ pub async fn apply_schema(db: &NarraDb) -> Result<(), NarraError> {
     db.query(SCHEMA_017).await?;
     db.query(SCHEMA_018).await?;
     db.query(SCHEMA_019).await?;
+    db.query(SCHEMA_020).await?;
     Ok(())
 }

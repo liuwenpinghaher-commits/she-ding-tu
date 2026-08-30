@@ -11,3 +11,5 @@ pub mod session;
 pub mod utils;
 
 pub use error::NarraError;
+pub use services::canon::SettingBook;
+pub use services::world::{BeatDraft, Canon, World};

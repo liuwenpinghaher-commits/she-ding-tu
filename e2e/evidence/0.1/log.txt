@@ -1,0 +1,47 @@
+   Compiling narra v0.1.0 (/Users/miaoma/Downloads/写作设定项目/vendor/narra)
+warning: type `FoldState` is more private than the item `fold_incremental`
+   --> src/services/world.rs:404:1
+    |
+404 | / pub fn fold_incremental(
+405 | |     canon: &Canon,
+406 | |     t: i64,
+407 | |     as_of: Option<i64>,
+408 | |     prev: FoldState,
+409 | |     after_seq: i64,
+410 | | ) -> Result<World, String> {
+    | |__________________________^ function `fold_incremental` is reachable at visibility `pub`
+    |
+note: but type `FoldState` is only usable at visibility `pub(crate)`
+   --> src/services/world.rs:206:1
+    |
+206 | pub(crate) struct FoldState {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = note: `#[warn(private_interfaces)]` on by default
+
+warning: type `FoldState` is more private than the item `fold_state_for_materialize`
+   --> src/services/world.rs:500:1
+    |
+500 | pub fn fold_state_for_materialize(canon: &Canon, as_of: Option<i64>) -> Result<FoldState, String> {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ function `fold_state_for_materialize` is reachable at visibility `pub`
+    |
+note: but type `FoldState` is only usable at visibility `pub(crate)`
+   --> src/services/world.rs:206:1
+    |
+206 | pub(crate) struct FoldState {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: `narra` (lib) generated 2 warnings
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 18.42s
+     Running tests/setting_empty_world.rs (target/debug/deps/setting_empty_world-354da25d4846b237)
+
+running 7 tests
+test common::builders::tests::test_event_builder ... ok
+test common::builders::tests::test_location_builder ... ok
+test common::builders::tests::test_character_builder ... ok
+test common::builders::tests::test_scene_builder ... ok
+test common::harness::tests::test_harness_creates_database ... ok
+test empty_world_has_no_playing_beats ... ok
+test ferry_cast_is_identity_not_canon ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.19s
+

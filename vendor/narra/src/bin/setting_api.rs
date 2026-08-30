@@ -836,7 +836,12 @@ async fn export_md(State(app): State<App>) -> Result<String, (StatusCode, String
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     let mut md = format!("# {name}\n\n");
-    let mut beats = canon.beats.clone();
+    let mut beats: Vec<_> = canon
+        .beats
+        .iter()
+        .filter(|b| b.status == STATUS_COMMITTED)
+        .cloned()
+        .collect();
     if sess.reading_order {
         beats.sort_by_key(|b| b.telling_ord.unwrap_or(b.commit_seq));
     } else {
@@ -979,7 +984,7 @@ async fn structure_preview(
             proposed_columns: None,
             target_beat: None,
             target_entity: None,
-            target_column: None,
+            target_column: body.column_id.clone(),
             impacts: vec![],
         },
         "invade" => Pending {
@@ -1157,36 +1162,177 @@ async fn structure_confirm(
     match pending.op.as_str() {
         "add_column" => {
             let mut cols = pending.original_columns;
+            cols.sort_by_key(|c| c.display_ord);
+            let after_idx = pending
+                .target_column
+                .as_ref()
+                .and_then(|id| cols.iter().position(|c| &c.id == id))
+                .unwrap_or(cols.len().saturating_sub(1));
             let next = cols.iter().map(|c| c.display_ord).max().unwrap_or(-1) + 1;
-            let last_to = cols.iter().map(|c| c.clock_to).max().unwrap_or(0);
-            cols.push(Column {
-                id: format!("col{next}"),
-                clock_from: last_to,
-                clock_to: last_to + 60,
-                display_ord: next,
-            });
+            let new_id = format!("col{next}");
+            let (new_from, new_to, attach_empty_beat) = match body.choice.as_str() {
+                "shift" => {
+                    let dur = 60_i64;
+                    let insert_from = cols.get(after_idx).map(|c| c.clock_to).unwrap_or(0);
+                    for c in cols.iter_mut().skip(after_idx + 1) {
+                        c.clock_from += dur;
+                        c.clock_to += dur;
+                    }
+                    cols.insert(
+                        after_idx + 1,
+                        Column {
+                            id: new_id.clone(),
+                            clock_from: insert_from,
+                            clock_to: insert_from + dur,
+                            display_ord: next,
+                        },
+                    );
+                    (insert_from, insert_from + dur, false)
+                }
+                "borrow" => {
+                    let t = cols.get_mut(after_idx).ok_or((StatusCode::BAD_REQUEST, "无列可借".into()))?;
+                    let mid = t.clock_from + (t.clock_to - t.clock_from).max(2) / 2;
+                    let old_to = t.clock_to;
+                    t.clock_to = mid;
+                    cols.insert(
+                        after_idx + 1,
+                        Column {
+                            id: new_id.clone(),
+                            clock_from: mid,
+                            clock_to: old_to,
+                            display_ord: next,
+                        },
+                    );
+                    (mid, old_to, false)
+                }
+                "empty_beat" => {
+                    let last_to = cols.iter().map(|c| c.clock_to).max().unwrap_or(0);
+                    cols.push(Column {
+                        id: new_id.clone(),
+                        clock_from: last_to,
+                        clock_to: last_to + 60,
+                        display_ord: next,
+                    });
+                    (last_to, last_to + 60, true)
+                }
+                _ => {
+                    // empty_col：只在末尾占新的故事时间，不后移已有列
+                    let last_to = cols.iter().map(|c| c.clock_to).max().unwrap_or(0);
+                    cols.push(Column {
+                        id: new_id.clone(),
+                        clock_from: last_to,
+                        clock_to: last_to + 60,
+                        display_ord: next,
+                    });
+                    (last_to, last_to + 60, false)
+                }
+            };
+            for (i, c) in cols.iter_mut().enumerate() {
+                c.display_ord = i as i64;
+            }
             SettingBook::preview_columns(&cols).map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
             sess.book
                 .confirm_columns(cols)
                 .await
                 .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+            if attach_empty_beat {
+                let eid = format!(
+                    "empty{}",
+                    std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .map(|d| d.as_millis())
+                        .unwrap_or(0)
+                );
+                sess.drafts.push(UiDraft {
+                    id: eid.clone(),
+                    title: "空场".into(),
+                    draft: BeatDraft {
+                        id: Some(eid),
+                        kind: "scene".into(),
+                        column_id: new_id,
+                        intent: String::new(),
+                        clock_from: new_from,
+                        clock_to: new_to,
+                        ..BeatDraft::default()
+                    },
+                });
+                persist_drafts(&app.data_root, &name, &sess.drafts);
+            }
         }
         "invade" => {
             let mut cols = pending.original_columns;
-            if cols.len() >= 2 {
-                match body.choice.as_str() {
-                    "compress" => {
-                        cols[0].clock_to = cols[0].clock_from + (cols[0].clock_to - cols[0].clock_from) / 2;
-                        cols[1].clock_from = cols[0].clock_to;
+            cols.sort_by_key(|c| c.display_ord);
+            let i = pending
+                .target_column
+                .as_ref()
+                .and_then(|id| cols.iter().position(|c| &c.id == id))
+                .unwrap_or(0);
+            if i + 1 >= cols.len() {
+                return Err((StatusCode::BAD_REQUEST, "无邻列可侵入".into()));
+            }
+            let j = i + 1;
+            match body.choice.as_str() {
+                "compress" => {
+                    let eat = (cols[j].clock_to - cols[j].clock_from).max(2) / 2;
+                    cols[i].clock_to = cols[j].clock_from + eat;
+                    cols[j].clock_from = cols[i].clock_to;
+                }
+                "shift" => {
+                    let eat = (cols[j].clock_to - cols[j].clock_from).max(2) / 2;
+                    let dur = cols[j].clock_to - cols[j].clock_from;
+                    cols[i].clock_to = cols[j].clock_from + eat;
+                    cols[j].clock_from = cols[i].clock_to;
+                    cols[j].clock_to = cols[j].clock_from + dur;
+                }
+                "merge" | "parallel" => {
+                    cols[i].clock_to = cols[i].clock_to.max(cols[j].clock_to);
+                    let gone = cols[j].id.clone();
+                    cols.remove(j);
+                    sess.book
+                        .confirm_columns(cols.clone())
+                        .await
+                        .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+                    sess.book
+                        .delete_column(&gone)
+                        .await
+                        .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+                    for d in sess.drafts.iter_mut() {
+                        if d.draft.column_id == gone {
+                            d.draft.column_id = cols[i].id.clone();
+                        }
                     }
-                    "shift" => {
-                        let dur = cols[1].clock_to - cols[1].clock_from;
-                        cols[1].clock_from = cols[0].clock_to;
-                        cols[1].clock_to = cols[1].clock_from + dur;
-                    }
-                    _ => {
-                        cols[1].clock_from = cols[0].clock_to;
-                    }
+                    persist_drafts(&app.data_root, &name, &sess.drafts);
+                    sess.pending = None;
+                    return Ok(Json(serde_json::json!({"ok": true, "choice": body.choice})));
+                }
+                "empty" => {
+                    let eat = (cols[j].clock_to - cols[j].clock_from).max(2) / 2;
+                    cols[i].clock_to = cols[j].clock_from + eat;
+                    cols[j].clock_from = cols[i].clock_to;
+                    let eid = format!(
+                        "ovl{}",
+                        std::time::SystemTime::now()
+                            .duration_since(std::time::UNIX_EPOCH)
+                            .map(|d| d.as_millis())
+                            .unwrap_or(0)
+                    );
+                    sess.drafts.push(UiDraft {
+                        id: eid.clone(),
+                        title: "省略场".into(),
+                        draft: BeatDraft {
+                            id: Some(eid),
+                            kind: "ellipsis".into(),
+                            column_id: cols[j].id.clone(),
+                            intent: "侵入后空场".into(),
+                            clock_from: cols[j].clock_from,
+                            clock_to: cols[j].clock_to,
+                            ..BeatDraft::default()
+                        },
+                    });
+                    persist_drafts(&app.data_root, &name, &sess.drafts);
+                }
+                _ => {
+                    cols[j].clock_from = cols[i].clock_to;
                 }
             }
             SettingBook::preview_columns(&cols).map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;

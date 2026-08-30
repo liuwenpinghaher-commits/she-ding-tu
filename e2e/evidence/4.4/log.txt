@@ -1,1 +1,6 @@
-wave2 ALL PASS; F40 PATH PASS playing=[d1] export has 正史+草稿
+S34_44_PASS
+n0=1 n1=2 afterPlusCols=1
+clocks0=[{col0,0,60}]
+afterEmpty=[{col0,0,60},{col1,60,120}]
+afterShift=[{col0,0,60},{col2,60,120},{col1,120,180}]
+shifted col1 from 60→120

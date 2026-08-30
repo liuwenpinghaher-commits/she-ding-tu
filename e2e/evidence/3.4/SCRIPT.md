@@ -1,5 +1,9 @@
-# 切片 3.4 实际点击
+# 切片 3.4 步骤
 
-加列走确认变更；取消不写库
+脚本：`e2e/playwright/s34-44.click.mjs`。书 s3444-1788112930141。
 
-脚本：`e2e/playwright/f40.click.mjs` 与 `e2e/playwright/features.click.mjs`。禁止 page.request 写入正史。
+1. 先加列得到两列以上。
+2. 点列 0 右缘 `col-handle-0`（mousedown）。
+3. 对话框建议：压缩 / 后移 / 合并 / 空场 / 并列 / 取消。
+4. 取消，读两列钟。
+5. 再拖，选压缩，确认变更，再读钟。

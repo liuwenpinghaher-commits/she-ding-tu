@@ -420,8 +420,8 @@ function openConfirm(pending) {
   });
   $('confirm-dlg').showModal();
 }
-async function previewInvade() {
-  await api('/api/structure/preview', { method: 'POST', body: JSON.stringify({ op: 'invade' }) });
+async function previewInvade(colId) {
+  await api('/api/structure/preview', { method: 'POST', body: JSON.stringify({ op: 'invade', column_id: colId }) });
   refresh();
 }
 
@@ -586,7 +586,8 @@ $('delete-canon').onclick = async () => {
   refresh();
 };
 $('add-column').onclick = async () => {
-  await api('/api/structure/preview', { method: 'POST', body: JSON.stringify({ op: 'add_column' }) });
+  const col = (state.columns && state.columns[state.window_start] && state.columns[state.window_start].id) || null;
+  await api('/api/structure/preview', { method: 'POST', body: JSON.stringify({ op: 'add_column', column_id: col }) });
   refresh();
 };
 $('remove-column').onclick = async () => {

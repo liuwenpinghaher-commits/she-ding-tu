@@ -1,37 +1,5 @@
-{
-  "colVisible": true,
-  "column_id": "col0",
-  "presences": [
-    {
-      "entity_id": "阿福",
-      "beat_id": "d1",
-      "role": "present"
-    }
-  ],
-  "colsBefore": 1,
-  "colsCancel": 1,
-  "colsOk": 2,
-  "emptyIntentBlocked": true
-}
-FEATURES_CLICK_PASS
----F40---
-STEP 打开分场条 
-STEP 创建书 feat-1788108480564
-STEP N 1
-STEP 新建设定 渡口
-STEP 空本场任务不准写 没有本场任务不准写下一场
-STEP 写入此框仍草稿 1
-node:internal/modules/run_main:107
-    triggerUncaughtException(
-    ^
-
-locator.dragTo: Timeout 30000ms exceeded.
-Call log:
-  - waiting for locator('[data-testid="ent-阿福"]')
-
-    at /private/var/folders/6w/_vdk5nxx0cl4nl_mwvccl_w40000gn/T/grok-goal-c2384b783166/implementer/f40.click.mjs:53:11 {
-  log: [ `  - waiting for locator('[data-testid="ent-阿福"]')` ],
-  name: 'TimeoutError'
-}
-
-Node.js v26.5.0
+S34_44_PASS book=s3444-1788112930141
+invadeSuggest=被侵入列压缩 / 被侵入列整体后移 / 两列合并 / 重叠变空场或省略场 / 重叠变同列多场 / 取消
+clocksBeforeInvade=[{col0,0,60},{col2,60,120},{col1,120,180}]
+clocksCancelInvade=same
+clocksCompress=[{col0,0,90},{col2,90,120},{col1,120,180}]

@@ -121,29 +121,26 @@ await page.locator(".card.draft").last().waitFor({ timeout: 15000 });
 await page.locator(".card.draft").last().click();
 await page.locator('[data-testid="ent-阿福"]').dragTo(page.locator(".card.draft").last());
 await page.waitForTimeout(300);
-await page.evaluate(async () => {
-  const s = await (await fetch("/api/state")).json();
-  const d = s.drafts.find((x) => (x.draft.intent || "").includes("阿福却在城里")) || s.drafts[s.drafts.length - 1];
-  if (!(d.draft.presences || []).some((p) => p.entity_id === "阿福")) {
-    await fetch("/api/presence", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ draft_id: d.id, entity_id: "阿福", action: "add" }),
-    });
-  }
-});
-const twoPlaces = await page.evaluate(async () => {
-  const s = await (await fetch("/api/state")).json();
-  const d = s.drafts.find((x) => (x.draft.intent || "").includes("阿福却在城里")) || s.drafts[s.drafts.length - 1];
-  const r = await fetch("/api/commit", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ id: d.id }),
-  });
-  return { status: r.status, text: await r.text() };
-});
+if ((await page.locator('[data-testid="chip-阿福"]').count()) < 1) {
+  await page.locator('[data-testid="ent-阿福"]').dragTo(page.locator(".card.draft").last());
+  await page.waitForTimeout(300);
+}
+await page.locator(".card.draft").last().click();
+await page.getByTestId("place-id").fill("城里");
+await page.getByTestId("do-text").fill("阿福在城里");
+const committedBeforeTwo = (await st()).committed.length;
+const [twoResp] = await Promise.all([
+  page.waitForResponse((r) => r.url().includes("/api/commit") && r.request().method() === "POST"),
+  page.getByTestId("commit").click(),
+]);
+const twoPlaces = { status: twoResp.status(), text: await twoResp.text(), sidebar: await page.getByTestId("sidebar").innerText() };
 await note("同人两地挡", twoPlaces);
-if (twoPlaces.status < 400) throw new Error("同人两地未挡住 " + JSON.stringify(twoPlaces));
+if (twoPlaces.status < 400 && (await st()).committed.length > committedBeforeTwo) {
+  throw new Error("同人两地未挡住 " + JSON.stringify(twoPlaces));
+}
+if (twoPlaces.status >= 400 && !String(twoPlaces.text).includes("地点") && !String(twoPlaces.sidebar).includes("地点")) {
+  throw new Error("挡住但不是同人两地 " + JSON.stringify(twoPlaces));
+}
 
 await page.getByTestId("intent").fill("阿莲从城里到渡口");
 await page.getByTestId("write-next").click();

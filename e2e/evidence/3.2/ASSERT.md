@@ -1,6 +1,5 @@
 # 切片 3.2
 
-| 断言 | 结果 |
-|---|---|
-| 分场条非演示页 | pass |
-| UI 与 Narra 一致（world_at / export） | pass |
+| 断言 | 结果 | 实际值 |
+|---|---|---|
+| 点写入正史后正史卡出现，看这一刻 | pass | card.canon count=1；world={"playing":["d1"],"where":{}} |

@@ -1,5 +1,5 @@
-# 文学教授闸
+# 切片 4.1
 
-1. 同一故事轴：GET /api/world 走 SettingBook.world_at。
-2. 未点写入正史不变：草稿卡 + playing 空（wave2 3.1）。
-3. 建议/LIVE/JSON袋：未引入。
+1. 下一场世界与已正史同一轴？写入正史后 playing=[d1]。
+2. 没点写入正史/确认变更世界变了吗？取消加列 cols 仍为 1。
+3. 在场被抹掉吗？commit 后 presences 仍含阿福。

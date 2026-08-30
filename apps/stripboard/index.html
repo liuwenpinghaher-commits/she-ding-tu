@@ -7,20 +7,25 @@
     body { font-family: sans-serif; margin: 0; display: grid; grid-template-rows: auto auto 1fr; height: 100vh; }
     header, #minimap { padding: 8px; background: #111; color: #eee; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
     button:disabled { opacity: .4; }
-    #board { display: flex; flex: 1; }
-    #rail { width: 180px; border-right: 1px solid #ccc; padding: 8px; overflow: auto; }
+    #board { display: flex; flex: 1; min-height: 0; }
+    #rail { width: 200px; border-right: 1px solid #ccc; padding: 8px; overflow: auto; }
     #cols { display: flex; flex: 1; overflow: hidden; }
-    .col { flex: 1; border-right: 1px solid #ddd; padding: 8px; min-width: 0; }
+    .col { flex: 1; border-right: 1px solid #ddd; padding: 8px; min-width: 0; position: relative; }
+    .col-handle { position: absolute; right: 0; top: 0; bottom: 0; width: 8px; cursor: ew-resize; background: #ccc; }
     .card { border: 1px solid #888; padding: 8px; margin: 8px 0; }
     .card.canon { background: #e8f5e9; }
     .card.draft { background: #fff8e1; }
-    #side { width: 240px; border-left: 1px solid #ccc; padding: 8px; overflow: auto; }
+    .chip { display: inline-block; background: #ddd; margin: 2px; padding: 2px 6px; cursor: grab; }
+    #side { width: 260px; border-left: 1px solid #ccc; padding: 8px; overflow: auto; }
     .tooth { width: 12px; height: 16px; display: inline-block; margin: 0 2px; cursor: pointer; }
     .tooth.canon { background: #2e7d32; }
     .tooth.draft { background: #f9a825; }
     .tooth.empty { background: #bbb; }
     .hidden { display: none; }
     #book-label { min-width: 4em; min-height: 1em; display: inline-block; }
+    dialog { max-width: 480px; }
+    #ent-list li { cursor: grab; padding: 4px; }
+    textarea { width: 100%; }
   </style>
 </head>
 <body>
@@ -38,15 +43,18 @@
     <button id="plus" data-testid="plus">+</button>
     <button id="prev" data-testid="prev">‹</button>
     <button id="next" data-testid="next">›</button>
+    <button id="add-column" data-testid="add-column">中间➕加列</button>
     <button id="reading-order" data-testid="reading-order">按读序排</button>
     <button id="write-next" data-testid="write-next">写下一场</button>
     <button id="add-parallel" data-testid="add-parallel">在本列再写一场</button>
+    <button id="ellipsis" data-testid="ellipsis">省略场</button>
     <button id="occupancy" data-testid="occupancy">出场</button>
     <button id="export" data-testid="export">导出</button>
+    <button id="paste" data-testid="paste">丢一段草稿</button>
   </header>
   <div id="minimap" data-testid="minimap"></div>
   <div id="board">
-    <aside id="rail">
+    <aside id="rail" data-testid="left-rail">
       <div>设定</div>
       <input id="ent-name" data-testid="ent-name" placeholder="名字" />
       <select id="ent-kind" data-testid="ent-kind">
@@ -57,6 +65,7 @@
         <option value="rule">规则</option>
       </select>
       <button id="new-entity" data-testid="new-entity">新建</button>
+      <button id="delete-entity" data-testid="delete-entity">删设定</button>
       <ul id="ent-list" data-testid="ent-list"></ul>
     </aside>
     <div id="cols" data-testid="stripboard"></div>
@@ -67,17 +76,39 @@
       <textarea id="do-text" data-testid="do-text" placeholder="动作"></textarea>
       <button id="fill-fake" data-testid="fill-fake">模型填下一场</button>
       <button id="commit" data-testid="commit">写入正史</button>
+      <button id="delete-draft" data-testid="delete-draft">删草稿场</button>
+      <button id="delete-canon" data-testid="delete-canon">删已正史</button>
       <div id="sidebar" data-testid="sidebar"></div>
       <pre id="world" data-testid="world"></pre>
     </aside>
   </div>
-  <dialog id="flyout" data-testid="flyout"><p>出场飞出层（只读）</p><button id="flyout-close">关闭</button></dialog>
+  <dialog id="confirm-dlg" data-testid="confirm-change">
+    <h3>确认变更</h3>
+    <ul id="suggest-list" data-testid="suggest-list"></ul>
+    <button id="confirm-ok" data-testid="confirm-ok">确认变更</button>
+    <button id="confirm-cancel" data-testid="confirm-cancel">取消</button>
+  </dialog>
+  <dialog id="flyout" data-testid="flyout">
+    <p>出场飞出层（只读）</p>
+    <table id="occ-table" data-testid="occ-table"></table>
+    <button id="flyout-close" data-testid="flyout-close">关闭</button>
+  </dialog>
+  <dialog id="dossier" data-testid="dossier">
+    <h3 id="dossier-title" data-testid="dossier-title">档案</h3>
+    <label>欲望 <input id="dossier-desire" data-testid="dossier-desire" /></label>
+    <div id="dossier-beats" data-testid="dossier-beats"></div>
+    <div id="dossier-windows" data-testid="dossier-windows"></div>
+    <button id="dossier-save" data-testid="dossier-save">保存基本设定</button>
+    <button id="dossier-close" data-testid="dossier-close">关闭</button>
+  </dialog>
   <pre id="export-out" data-testid="export-out" class="hidden"></pre>
 <script>
 const $ = (id) => document.getElementById(id);
-let state = { n: 1, window_start: 0, drafts: [], committed: [], columns: [], entities: [] };
+let state = { n: 1, window_start: 0, drafts: [], committed: [], columns: [], entities: [], pending: null };
 let pendingTalk = '';
 let currentDraft = null;
+let pendingChoice = null;
+let dossierId = null;
 
 async function api(path, opt={}) {
   const r = await fetch(path, Object.assign({ headers: { 'Content-Type': 'application/json' } }, opt));
@@ -92,7 +123,12 @@ async function refresh() {
   $('col-count').textContent = String(state.n);
   $('minus').disabled = state.n <= 1;
   $('plus').disabled = state.n >= 6;
+  if (state.selected) currentDraft = state.selected;
   render();
+  if (state.pending) openConfirm(state.pending);
+}
+function currentDraftObj() {
+  return (state.drafts || []).find(d => d.id === currentDraft);
 }
 function render() {
   const cols = state.columns || [];
@@ -104,38 +140,118 @@ function render() {
     const div = document.createElement('div');
     div.className = 'col';
     div.dataset.testid = 'column-' + i;
-    div.innerHTML = `<h4>列 ${c.id}</h4>`;
+    div.dataset.colId = c.id;
+    div.innerHTML = `<h4>列 ${c.id} ${c.clock_from}–${c.clock_to}</h4>`;
+    const handle = document.createElement('div');
+    handle.className = 'col-handle';
+    handle.dataset.testid = 'col-handle-' + i;
+    handle.title = '拖列右缘';
+    handle.onmousedown = () => previewInvade(c.id);
+    div.appendChild(handle);
     (state.committed || []).filter(b => b.column_id === c.id).forEach(b => {
-      const card = document.createElement('div');
-      card.className = 'card canon';
-      card.dataset.testid = 'card-' + b.id;
-      const dense = n >= 5;
-      card.innerHTML = dense ? `<b>${b.id}</b>` : `<b>${b.id}</b><div>${b.intent}</div><div>${b.do_text||''}</div>`;
-      div.appendChild(card);
+      div.appendChild(renderCard(b, true));
     });
     (state.drafts || []).filter(d => d.draft.column_id === c.id).forEach(d => {
-      const card = document.createElement('div');
-      card.className = 'card draft';
-      card.dataset.testid = 'draft-' + d.id;
-      card.innerHTML = `<b>${d.title}</b> 草稿<div>${d.draft.intent||''}</div>`;
-      card.onclick = () => { currentDraft = d.id; $('intent').value = d.draft.intent || ''; $('do-text').value = d.draft.do_text || ''; };
-      div.appendChild(card);
+      div.appendChild(renderCard(d, false));
     });
+    div.addEventListener('dragover', e => e.preventDefault());
+    div.addEventListener('drop', e => onDropCard(e, c.id));
     $('cols').appendChild(div);
   });
-  $('ent-list').innerHTML = (state.entities||[]).map(e => `<li data-kind="${e.kind}">${e.name}</li>`).join('');
-  const teeth = (state.columns||[]).map((c, i) => {
+  $('ent-list').innerHTML = '';
+  (state.entities || []).forEach(e => {
+    const li = document.createElement('li');
+    li.textContent = e.name;
+    li.draggable = true;
+    li.dataset.id = e.id;
+    li.dataset.testid = 'ent-' + e.id;
+    li.ondragstart = ev => ev.dataTransfer.setData('text/plain', JSON.stringify({type:'entity', id: e.id}));
+    li.onclick = () => openDossier(e.id);
+    $('ent-list').appendChild(li);
+  });
+  $('minimap').innerHTML = (state.columns||[]).map((c, i) => {
     const hasC = (state.committed||[]).some(b => b.column_id === c.id);
     const hasD = (state.drafts||[]).some(d => d.draft.column_id === c.id);
     const cls = hasC ? 'canon' : hasD ? 'draft' : 'empty';
     return `<span class="tooth ${cls}" data-testid="tooth-${i}" onclick="jump(${i})"></span>`;
   }).join('');
-  $('minimap').innerHTML = teeth;
   $('world').textContent = state.world ? JSON.stringify({playing: state.world.playing, where: state.world.where}, null, 0) : '';
-  const gaps = (state.world && state.world.knows) ? JSON.stringify(state.world.knows) : '';
-  $('sidebar').textContent = gaps;
+  loadCircumstances();
 }
+function renderCard(obj, canon) {
+  const b = canon ? obj : obj.draft;
+  const id = canon ? obj.id : obj.id;
+  const card = document.createElement('div');
+  card.className = 'card ' + (canon ? 'canon' : 'draft');
+  card.dataset.testid = (canon ? 'card-' : 'draft-') + id;
+  card.dataset.draftId = canon ? '' : id;
+  const dense = (state.n || 1) >= 5;
+  const pres = (b.presences || []).map(p => {
+    const ch = document.createElement('span');
+    ch.className = 'chip';
+    ch.draggable = !canon;
+    ch.textContent = p.entity_id;
+    ch.dataset.testid = 'chip-' + p.entity_id;
+    if (!canon) {
+      ch.ondragstart = ev => ev.dataTransfer.setData('text/plain', JSON.stringify({type:'chip', id: p.entity_id, draft: id}));
+    }
+    return ch.outerHTML;
+  }).join('');
+  card.innerHTML = dense
+    ? `<b>${id}</b>${pres}`
+    : `<b>${id}</b><div>${b.intent||''}</div><div>${b.do_text||''}</div><div>${pres}</div>`;
+  card.onclick = () => {
+    if (!canon) {
+      currentDraft = id;
+      $('intent').value = b.intent || '';
+      $('do-text').value = b.do_text || '';
+    }
+  };
+  card.addEventListener('dragover', e => e.preventDefault());
+  card.addEventListener('drop', e => onDropCard(e, b.column_id, canon ? null : id));
+  return card;
+}
+async function onDropCard(e, colId, draftId) {
+  e.preventDefault();
+  let data;
+  try { data = JSON.parse(e.dataTransfer.getData('text/plain')); } catch { return; }
+  const target = draftId || currentDraft;
+  if (data.type === 'entity' && target) {
+    await api('/api/presence', { method: 'POST', body: JSON.stringify({ draft_id: target, entity_id: data.id, action: 'add' }) });
+    refresh();
+  }
+}
+$('rail').addEventListener('dragover', e => e.preventDefault());
+$('rail').addEventListener('drop', async e => {
+  e.preventDefault();
+  let data;
+  try { data = JSON.parse(e.dataTransfer.getData('text/plain')); } catch { return; }
+  if (data.type === 'chip' && data.draft) {
+    await api('/api/presence', { method: 'POST', body: JSON.stringify({ draft_id: data.draft, entity_id: data.id, action: 'remove' }) });
+    refresh();
+  }
+});
 window.jump = async (i) => { await api('/api/window', { method: 'POST', body: JSON.stringify({ start: i }) }); refresh(); };
+
+function openConfirm(pending) {
+  const ul = $('suggest-list');
+  ul.innerHTML = '';
+  pendingChoice = pending.suggestions[0] && pending.suggestions[0].id;
+  pending.suggestions.forEach(s => {
+    const li = document.createElement('li');
+    const btn = document.createElement('button');
+    btn.textContent = s.label;
+    btn.dataset.testid = 'suggest-' + s.id;
+    btn.onclick = () => { pendingChoice = s.id; };
+    li.appendChild(btn);
+    ul.appendChild(li);
+  });
+  $('confirm-dlg').showModal();
+}
+async function previewInvade() {
+  await api('/api/structure/preview', { method: 'POST', body: JSON.stringify({ op: 'invade' }) });
+  refresh();
+}
 
 $('create-book').onclick = async () => {
   await api('/api/books', { method: 'POST', body: JSON.stringify({ name: $('book-name').value }) });
@@ -157,23 +273,40 @@ $('new-entity').onclick = async () => {
   await api('/api/entities', { method: 'POST', body: JSON.stringify({ id: name, kind: $('ent-kind').value, name }) });
   refresh();
 };
+$('delete-entity').onclick = async () => {
+  try {
+    await api('/api/entities/delete', { method: 'POST', body: JSON.stringify({ id: $('ent-name').value }) });
+  } catch (e) {
+    $('sidebar').textContent = String(e.message || e);
+  }
+};
 $('write-next').onclick = async () => {
-  const r = await api('/api/write-next', { method: 'POST', body: JSON.stringify({ intent: $('intent').value }) });
-  currentDraft = r.id;
+  try {
+    const r = await api('/api/write-next', { method: 'POST', body: JSON.stringify({ intent: $('intent').value }) });
+    currentDraft = r.id;
+    refresh();
+  } catch (e) {
+    $('sidebar').textContent = String(e.message || e);
+  }
+};
+$('add-parallel').onclick = async () => {
+  const col = (state.columns && state.columns[state.window_start] && state.columns[state.window_start].id) || 'col0';
+  await api('/api/write-parallel', { method: 'POST', body: JSON.stringify({ intent: $('intent').value, column_id: col }) });
   refresh();
 };
 $('talk').onclick = () => { pendingTalk = '讨论稿：' + ($('intent').value || '动作'); };
 $('write-box').onclick = async () => {
-  if (!pendingTalk) return;
+  if (!pendingTalk || !currentDraft) return;
   $('do-text').value = pendingTalk;
   pendingTalk = '';
-  if (!currentDraft) return;
-  await api('/api/drafts', { method: 'POST', body: JSON.stringify({ id: currentDraft, draft: { kind:'scene', column_id:'col0', intent: $('intent').value, do_text: $('do-text').value, clock_from:0, clock_to:60 } }) });
+  await api('/api/drafts/patch', { method: 'POST', body: JSON.stringify({ id: currentDraft, do_text: $('do-text').value, intent: $('intent').value }) });
   refresh();
 };
 $('commit').onclick = async () => {
   if (!currentDraft) return;
-  await api('/api/drafts', { method: 'POST', body: JSON.stringify({ id: currentDraft, draft: { id: currentDraft, kind:'scene', column_id:'col0', intent: $('intent').value, do_text: $('do-text').value, value_shift: '转', clock_from:0, clock_to:60, presences: [] } }) });
+  if ($('do-text').value) {
+    await api('/api/drafts/patch', { method: 'POST', body: JSON.stringify({ id: currentDraft, do_text: $('do-text').value, intent: $('intent').value }) });
+  }
   await api('/api/commit', { method: 'POST', body: JSON.stringify({ id: currentDraft }) });
   currentDraft = null;
   refresh();
@@ -183,19 +316,79 @@ $('fill-fake').onclick = async () => {
   await api('/api/fill-fake', { method: 'POST', body: JSON.stringify({ id: currentDraft }) });
   refresh();
 };
+$('ellipsis').onclick = async () => {
+  if (!currentDraft) return;
+  await api('/api/ellipsis', { method: 'POST', body: JSON.stringify({ id: currentDraft }) });
+  refresh();
+};
+$('delete-draft').onclick = async () => {
+  if (!currentDraft) return;
+  await api('/api/delete-draft', { method: 'POST', body: JSON.stringify({ id: currentDraft }) });
+  currentDraft = null;
+  refresh();
+};
+$('delete-canon').onclick = async () => {
+  const id = (state.committed && state.committed[0] && state.committed[0].id);
+  if (!id) return;
+  await api('/api/delete-canon', { method: 'POST', body: JSON.stringify({ id }) });
+  refresh();
+};
+$('add-column').onclick = async () => {
+  await api('/api/structure/preview', { method: 'POST', body: JSON.stringify({ op: 'add_column' }) });
+  refresh();
+};
+$('confirm-ok').onclick = async () => {
+  await api('/api/structure/confirm', { method: 'POST', body: JSON.stringify({ choice: pendingChoice || 'empty_col' }) });
+  $('confirm-dlg').close();
+  refresh();
+};
+$('confirm-cancel').onclick = async () => {
+  await api('/api/structure/cancel', { method: 'POST', body: '{}' });
+  $('confirm-dlg').close();
+  refresh();
+};
 $('reading-order').onclick = async () => { await api('/api/reading-order', { method: 'POST', body: '{}' }); refresh(); };
-$('occupancy').onclick = () => $('flyout').showModal();
+$('occupancy').onclick = async () => {
+  const occ = await api('/api/occupancy');
+  const tbl = $('occ-table');
+  tbl.innerHTML = (occ.cells || []).map(c => `<tr data-col="${c.column}"><td>${c.entity}</td><td>${c.column}</td><td>${c.present}</td></tr>`).join('');
+  tbl.querySelectorAll('tr').forEach(tr => tr.onclick = () => {
+    const col = tr.getAttribute('data-col');
+    const idx = (state.columns||[]).findIndex(c => c.id === col);
+    if (idx >= 0) jump(idx);
+  });
+  $('flyout').showModal();
+};
 $('flyout-close').onclick = () => $('flyout').close();
 $('export').onclick = async () => {
   const md = await api('/api/export');
   $('export-out').classList.remove('hidden');
   $('export-out').textContent = md;
 };
-$('add-parallel').onclick = async () => {
-  if (!$('intent').value) return;
-  await api('/api/drafts', { method: 'POST', body: JSON.stringify({ title:'并列', draft: { kind:'scene', column_id:'col0', intent: $('intent').value, do_text:'并列动作', value_shift:'并', clock_from:0, clock_to:60 } }) });
+$('paste').onclick = async () => {
+  await api('/api/paste', { method: 'POST', body: JSON.stringify({ text: $('do-text').value || '粘贴的渡口草稿' }) });
   refresh();
 };
+async function openDossier(id) {
+  dossierId = id;
+  const d = await api('/api/dossier/' + encodeURIComponent(id));
+  $('dossier-title').textContent = '档案 ' + d.name;
+  $('dossier-desire').value = (d.profile && d.profile.desire) || '';
+  $('dossier-beats').textContent = '场：' + (d.beats || []).join(',');
+  $('dossier-windows').textContent = JSON.stringify(d.windows_readonly || []);
+  $('dossier').showModal();
+}
+$('dossier-save').onclick = async () => {
+  await api('/api/dossier/' + encodeURIComponent(dossierId), { method: 'POST', body: JSON.stringify({ profile: { desire: $('dossier-desire').value } }) });
+};
+$('dossier-close').onclick = () => $('dossier').close();
+async function loadCircumstances() {
+  try {
+    const p = await api('/api/circumstances');
+    $('sidebar').textContent = JSON.stringify(p);
+  } catch { /* no draft */ }
+}
+document.addEventListener('DOMContentLoaded', refresh);
 </script>
 </body>
 </html>

@@ -1,6 +1,5 @@
-# 切片 4.3-live
+# 4.3-live
 
-| 断言 | 结果 |
-|---|---|
-| 分场条非演示页 | blocked |
-| UI 与 Narra 一致（world_at / export） | blocked |
+| 断言 | 结果 | 实际值 |
+|---|---|---|
+| 环境变量 | blocked | SETTING_LLM_API_KEY 未设置 |

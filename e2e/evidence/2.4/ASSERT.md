@@ -1,6 +1,3 @@
 # 切片 2.4
 
-| 断言 | 结果 |
-|---|---|
-| 分场条非演示页 | pass |
-| UI 与 Narra 一致（world_at / export） | pass |
+未实现完整点击路径，status=todo。无 pass 复制行。

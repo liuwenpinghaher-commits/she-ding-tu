@@ -73,7 +73,10 @@ struct PromiseRow {
 }
 
 fn rec_key(id: &RecordId) -> String {
-    id.key().to_string().trim_matches('"').to_string()
+    id.key()
+        .to_string()
+        .trim_matches(|c| c == '"' || c == '`')
+        .to_string()
 }
 
 pub struct SettingBook {

@@ -16,16 +16,20 @@
     .card.canon { background: #e8f5e9; }
     .card.draft { background: #fff8e1; }
     .chip { display: inline-block; background: #ddd; margin: 2px; padding: 2px 6px; cursor: grab; }
-    #side { width: 260px; border-left: 1px solid #ccc; padding: 8px; overflow: auto; }
-    .tooth { width: 12px; height: 16px; display: inline-block; margin: 0 2px; cursor: pointer; }
+    #side { width: 300px; border-left: 1px solid #ccc; padding: 8px; overflow: auto; }
+    .tooth { width: 12px; height: 16px; display: inline-block; margin: 0 2px; cursor: pointer; position: relative; }
     .tooth.canon { background: #2e7d32; }
     .tooth.draft { background: #f9a825; }
     .tooth.empty { background: #bbb; }
+    .tooth.telling-diff::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: #1565c0; }
     .hidden { display: none; }
     #book-label { min-width: 4em; min-height: 1em; display: inline-block; }
     dialog { max-width: 480px; }
     #ent-list li { cursor: grab; padding: 4px; }
     textarea { width: 100%; }
+    #inspector section { border: 1px solid #eee; margin: 4px 0; padding: 4px; }
+    #source-groups { margin-top: 8px; }
+    .impact { color: #b71c1c; font-size: 12px; }
   </style>
 </head>
 <body>
@@ -44,6 +48,9 @@
     <button id="prev" data-testid="prev">‹</button>
     <button id="next" data-testid="next">›</button>
     <button id="add-column" data-testid="add-column">中间➕加列</button>
+    <button id="remove-column" data-testid="remove-column">减列</button>
+    <button id="merge-columns" data-testid="merge-columns">合并列</button>
+    <button id="swap-columns" data-testid="swap-columns">换列位置</button>
     <button id="reading-order" data-testid="reading-order">按读序排</button>
     <button id="write-next" data-testid="write-next">写下一场</button>
     <button id="add-parallel" data-testid="add-parallel">在本列再写一场</button>
@@ -66,6 +73,9 @@
       </select>
       <button id="new-entity" data-testid="new-entity">新建</button>
       <button id="delete-entity" data-testid="delete-entity">删设定</button>
+      <input id="ent-search" data-testid="ent-search" placeholder="搜全书" />
+      <button id="do-search" data-testid="do-search">搜</button>
+      <ul id="search-hits" data-testid="search-hits"></ul>
       <ul id="ent-list" data-testid="ent-list"></ul>
     </aside>
     <div id="cols" data-testid="stripboard"></div>
@@ -74,24 +84,54 @@
       <button id="talk" data-testid="talk">讨论</button>
       <button id="write-box" data-testid="write-box">写入此框</button>
       <textarea id="do-text" data-testid="do-text" placeholder="动作"></textarea>
+      <textarea id="say-text" data-testid="say-text" placeholder="对白"></textarea>
+      <textarea id="think-text" data-testid="think-text" placeholder="内心"></textarea>
       <button id="fill-fake" data-testid="fill-fake">模型填下一场</button>
+      <label>当众 <input type="radio" name="vis" id="vis-public" data-testid="vis-public" checked /></label>
+      <label>私下 <input type="radio" name="vis" id="vis-private" data-testid="vis-private" /></label>
+      <input id="visible-to" data-testid="visible-to" placeholder="私下谁会看见，逗号分隔" />
       <button id="commit" data-testid="commit">写入正史</button>
       <button id="delete-draft" data-testid="delete-draft">删草稿场</button>
       <button id="delete-canon" data-testid="delete-canon">删已正史</button>
+      <div id="light-delete-error" data-testid="light-delete-error"></div>
+      <div id="inspector" data-testid="inspector">
+        <h4>本场按来源分组</h4>
+        <div id="filter-entity" data-testid="filter-entity"></div>
+        <div id="source-groups" data-testid="source-groups">
+          <section data-testid="group-intent"><h5>本场任务</h5><div id="g-intent"></div></section>
+          <section data-testid="group-do"><h5>动作</h5><div id="g-do"></div></section>
+          <section data-testid="group-say"><h5>对白</h5><div id="g-say"></div></section>
+          <section data-testid="group-think"><h5>内心</h5><div id="g-think"></div></section>
+          <section data-testid="group-presence"><h5>在场来源</h5><div id="g-presence"></div></section>
+        </div>
+      </div>
       <div id="sidebar" data-testid="sidebar"></div>
+      <div id="knows-list" data-testid="knows-list"></div>
+      <div id="promise-suggest" data-testid="promise-suggest"></div>
+      <button id="ignore-suggest" data-testid="ignore-suggest" class="hidden">忽略建议</button>
+      <div id="paste-suggest" data-testid="paste-suggest"></div>
       <pre id="world" data-testid="world"></pre>
     </aside>
   </div>
   <dialog id="confirm-dlg" data-testid="confirm-change">
     <h3>确认变更</h3>
+    <ul id="impact-list" data-testid="impact-list"></ul>
     <ul id="suggest-list" data-testid="suggest-list"></ul>
     <button id="confirm-ok" data-testid="confirm-ok">确认变更</button>
     <button id="confirm-cancel" data-testid="confirm-cancel">取消</button>
   </dialog>
+  <dialog id="gap-dlg" data-testid="gap-dialog">
+    <h3>缺口建议</h3>
+    <ul id="gap-list" data-testid="gap-list"></ul>
+    <button id="gap-ok" data-testid="gap-ok">确认删草稿</button>
+    <button id="gap-cancel" data-testid="gap-cancel">取消</button>
+  </dialog>
   <dialog id="flyout" data-testid="flyout">
     <p>出场飞出层（只读）</p>
     <table id="occ-table" data-testid="occ-table"></table>
+    <button id="flyout-edit" data-testid="flyout-edit">改格</button>
     <button id="flyout-close" data-testid="flyout-close">关闭</button>
+    <div id="flyout-error" data-testid="flyout-error"></div>
   </dialog>
   <dialog id="dossier" data-testid="dossier">
     <h3 id="dossier-title" data-testid="dossier-title">档案</h3>
@@ -99,6 +139,8 @@
     <div id="dossier-beats" data-testid="dossier-beats"></div>
     <div id="dossier-windows" data-testid="dossier-windows"></div>
     <button id="dossier-save" data-testid="dossier-save">保存基本设定</button>
+    <button id="dossier-delete" data-testid="dossier-delete">删设定</button>
+    <div id="dossier-error" data-testid="dossier-error"></div>
     <button id="dossier-close" data-testid="dossier-close">关闭</button>
   </dialog>
   <pre id="export-out" data-testid="export-out" class="hidden"></pre>
@@ -107,8 +149,14 @@ const $ = (id) => document.getElementById(id);
 let state = { n: 1, window_start: 0, drafts: [], committed: [], columns: [], entities: [], pending: null };
 let pendingTalk = '';
 let currentDraft = null;
+let currentCanon = null;
 let pendingChoice = null;
 let dossierId = null;
+let inspectFilter = '';
+let pendingFill = null;
+let pendingPaste = [];
+let ignoreSuggestion = false;
+let pendingDeleteDraft = null;
 
 async function api(path, opt={}) {
   const r = await fetch(path, Object.assign({ headers: { 'Content-Type': 'application/json' } }, opt));
@@ -124,11 +172,21 @@ async function refresh() {
   $('minus').disabled = state.n <= 1;
   $('plus').disabled = state.n >= 6;
   if (state.selected) currentDraft = state.selected;
+  if (state.selected_canon) currentCanon = state.selected_canon;
+  pendingFill = state.fill_pending || pendingFill;
+  pendingPaste = state.paste_suggestions || pendingPaste;
   render();
   if (state.pending) openConfirm(state.pending);
 }
 function currentDraftObj() {
   return (state.drafts || []).find(d => d.id === currentDraft);
+}
+function currentBeat() {
+  if (currentDraft) {
+    const d = currentDraftObj();
+    return d ? d.draft : null;
+  }
+  return (state.committed || []).find(b => b.id === currentCanon) || null;
 }
 function render() {
   const cols = state.columns || [];
@@ -155,7 +213,7 @@ function render() {
       div.appendChild(renderCard(d, false));
     });
     div.addEventListener('dragover', e => e.preventDefault());
-    div.addEventListener('drop', e => onDropCard(e, c.id));
+    div.addEventListener('drop', e => onDropOnCol(e, c.id));
     $('cols').appendChild(div);
   });
   $('ent-list').innerHTML = '';
@@ -170,13 +228,18 @@ function render() {
     $('ent-list').appendChild(li);
   });
   $('minimap').innerHTML = (state.columns||[]).map((c, i) => {
-    const hasC = (state.committed||[]).some(b => b.column_id === c.id);
+    const beats = (state.committed||[]).filter(b => b.column_id === c.id);
+    const hasC = beats.length > 0;
     const hasD = (state.drafts||[]).some(d => d.draft.column_id === c.id);
     const cls = hasC ? 'canon' : hasD ? 'draft' : 'empty';
-    return `<span class="tooth ${cls}" data-testid="tooth-${i}" onclick="jump(${i})"></span>`;
+    const tellingDiff = beats.some(b => b.telling_ord != null && b.telling_ord !== c.display_ord);
+    return `<span class="tooth ${cls}${tellingDiff ? ' telling-diff' : ''}" data-testid="tooth-${i}" onclick="jump(${i})"></span>`;
   }).join('');
   $('world').textContent = state.world ? JSON.stringify({playing: state.world.playing, where: state.world.where}, null, 0) : '';
+  renderInspector();
+  renderPaste();
   loadCircumstances();
+  loadKnows();
 }
 function renderCard(obj, canon) {
   const b = canon ? obj : obj.draft;
@@ -185,40 +248,134 @@ function renderCard(obj, canon) {
   card.className = 'card ' + (canon ? 'canon' : 'draft');
   card.dataset.testid = (canon ? 'card-' : 'draft-') + id;
   card.dataset.draftId = canon ? '' : id;
+  card.dataset.canonId = canon ? id : '';
+  card.draggable = true;
+  card.ondragstart = ev => {
+    ev.dataTransfer.setData('text/plain', JSON.stringify({ type: 'beat', id, canon }));
+  };
   const dense = (state.n || 1) >= 5;
-  const pres = (b.presences || []).map(p => {
+  const title = document.createElement('b');
+  title.textContent = id + (b.telling_ord != null ? ' 读序' + b.telling_ord : '');
+  card.appendChild(title);
+  if (!dense) {
+    const intent = document.createElement('div');
+    intent.textContent = b.intent || '';
+    card.appendChild(intent);
+    const doEl = document.createElement('div');
+    doEl.textContent = b.do_text || '';
+    card.appendChild(doEl);
+  }
+  const chips = document.createElement('div');
+  (b.presences || []).forEach(p => {
     const ch = document.createElement('span');
     ch.className = 'chip';
-    ch.draggable = !canon;
+    ch.draggable = true;
     ch.textContent = p.entity_id;
     ch.dataset.testid = 'chip-' + p.entity_id;
-    if (!canon) {
-      ch.ondragstart = ev => ev.dataTransfer.setData('text/plain', JSON.stringify({type:'chip', id: p.entity_id, draft: id}));
-    }
-    return ch.outerHTML;
-  }).join('');
-  card.innerHTML = dense
-    ? `<b>${id}</b>${pres}`
-    : `<b>${id}</b><div>${b.intent||''}</div><div>${b.do_text||''}</div><div>${pres}</div>`;
+    ch.ondragstart = ev => {
+      ev.stopPropagation();
+      ev.dataTransfer.setData('text/plain', JSON.stringify({
+        type: 'chip',
+        id: p.entity_id,
+        draft: canon ? null : id,
+        canon: canon ? id : null
+      }));
+    };
+    ch.onclick = ev => {
+      ev.stopPropagation();
+      inspectFilter = p.entity_id;
+      selectBeat(id, canon);
+      renderInspector();
+    };
+    chips.appendChild(ch);
+  });
+  card.appendChild(chips);
   card.onclick = () => {
+    inspectFilter = '';
+    selectBeat(id, canon);
     if (!canon) {
-      currentDraft = id;
       $('intent').value = b.intent || '';
       $('do-text').value = b.do_text || '';
+      $('say-text').value = b.say_text || '';
+      $('think-text').value = b.think_text || '';
     }
+    renderInspector();
   };
   card.addEventListener('dragover', e => e.preventDefault());
   card.addEventListener('drop', e => onDropCard(e, b.column_id, canon ? null : id));
   return card;
 }
+async function selectBeat(id, canon) {
+  if (canon) {
+    currentCanon = id;
+    currentDraft = null;
+    await api('/api/select', { method: 'POST', body: JSON.stringify({ canon_id: id }) });
+  } else {
+    currentDraft = id;
+    currentCanon = null;
+    await api('/api/select', { method: 'POST', body: JSON.stringify({ draft_id: id }) });
+  }
+}
+function renderInspector() {
+  const b = currentBeat() || {};
+  $('g-intent').textContent = b.intent || '';
+  $('g-do').textContent = b.do_text || '';
+  $('g-say').textContent = b.say_text || '';
+  $('g-think').textContent = b.think_text || '';
+  $('g-presence').textContent = (b.presences || []).map(p => p.entity_id).join('、');
+  $('filter-entity').textContent = inspectFilter ? ('本场来源分组（点了 ' + inspectFilter + '，不是人物泳道）') : '本场来源分组';
+}
+function renderPaste() {
+  const box = $('paste-suggest');
+  box.innerHTML = '';
+  (pendingPaste || []).forEach(s => {
+    const row = document.createElement('div');
+    row.textContent = s.field + '：' + s.text + (s.applied ? '（已写入此框）' : '');
+    row.dataset.testid = 'paste-' + s.id;
+    if (!s.applied) {
+      const btn = document.createElement('button');
+      btn.textContent = '写入此框';
+      btn.dataset.testid = 'paste-apply-' + s.id;
+      btn.onclick = async () => {
+        await api('/api/paste/apply', { method: 'POST', body: JSON.stringify({ id: s.id }) });
+        if (s.field === 'say_text') $('say-text').value = s.text;
+        else if (s.field === 'think_text') $('think-text').value = s.text;
+        else $('do-text').value = s.text;
+        refresh();
+      };
+      row.appendChild(btn);
+    }
+    box.appendChild(row);
+  });
+}
 async function onDropCard(e, colId, draftId) {
   e.preventDefault();
+  e.stopPropagation();
   let data;
   try { data = JSON.parse(e.dataTransfer.getData('text/plain')); } catch { return; }
   const target = draftId || currentDraft;
   if (data.type === 'entity' && target) {
     await api('/api/presence', { method: 'POST', body: JSON.stringify({ draft_id: target, entity_id: data.id, action: 'add' }) });
     refresh();
+  }
+}
+async function onDropOnCol(e, colId) {
+  e.preventDefault();
+  let data;
+  try { data = JSON.parse(e.dataTransfer.getData('text/plain')); } catch { return; }
+  if (data.type === 'entity' && currentDraft) {
+    await api('/api/presence', { method: 'POST', body: JSON.stringify({ draft_id: currentDraft, entity_id: data.id, action: 'add' }) });
+    refresh();
+    return;
+  }
+  if (data.type === 'beat') {
+    if (!data.canon) {
+      await api('/api/drafts/patch', { method: 'POST', body: JSON.stringify({ id: data.id, column_id: colId }) });
+      refresh();
+    } else {
+      await api('/api/structure/preview', { method: 'POST', body: JSON.stringify({ op: 'move_beat', beat_id: data.id, column_id: colId }) });
+      refresh();
+    }
   }
 }
 $('rail').addEventListener('dragover', e => e.preventDefault());
@@ -228,6 +385,9 @@ $('rail').addEventListener('drop', async e => {
   try { data = JSON.parse(e.dataTransfer.getData('text/plain')); } catch { return; }
   if (data.type === 'chip' && data.draft) {
     await api('/api/presence', { method: 'POST', body: JSON.stringify({ draft_id: data.draft, entity_id: data.id, action: 'remove' }) });
+    refresh();
+  } else if (data.type === 'chip' && data.canon) {
+    await api('/api/presence', { method: 'POST', body: JSON.stringify({ canon_id: data.canon, entity_id: data.id, action: 'remove' }) });
     refresh();
   }
 });
@@ -245,6 +405,14 @@ function openConfirm(pending) {
     btn.onclick = () => { pendingChoice = s.id; };
     li.appendChild(btn);
     ul.appendChild(li);
+  });
+  const im = $('impact-list');
+  im.innerHTML = '';
+  (pending.impacts || []).forEach(t => {
+    const li = document.createElement('li');
+    li.className = 'impact';
+    li.textContent = t;
+    im.appendChild(li);
   });
   $('confirm-dlg').showModal();
 }
@@ -273,17 +441,27 @@ $('new-entity').onclick = async () => {
   await api('/api/entities', { method: 'POST', body: JSON.stringify({ id: name, kind: $('ent-kind').value, name }) });
   refresh();
 };
-$('delete-entity').onclick = async () => {
+async function tryDeleteEntity(id) {
   try {
-    await api('/api/entities/delete', { method: 'POST', body: JSON.stringify({ id: $('ent-name').value }) });
+    const r = await api('/api/entities/delete', { method: 'POST', body: JSON.stringify({ id }) });
+    $('dossier-error').textContent = '已删 ' + (r.deleted || id);
+    $('sidebar').textContent = '已删设定 ' + (r.deleted || id);
+    return r;
   } catch (e) {
-    $('sidebar').textContent = String(e.message || e);
+    const msg = String(e.message || e);
+    $('dossier-error').textContent = msg;
+    $('sidebar').textContent = msg;
+    throw e;
   }
+}
+$('delete-entity').onclick = async () => {
+  try { await tryDeleteEntity($('ent-name').value); refresh(); } catch (e) {}
 };
 $('write-next').onclick = async () => {
   try {
     const r = await api('/api/write-next', { method: 'POST', body: JSON.stringify({ intent: $('intent').value }) });
     currentDraft = r.id;
+    currentCanon = null;
     refresh();
   } catch (e) {
     $('sidebar').textContent = String(e.message || e);
@@ -291,30 +469,54 @@ $('write-next').onclick = async () => {
 };
 $('add-parallel').onclick = async () => {
   const col = (state.columns && state.columns[state.window_start] && state.columns[state.window_start].id) || 'col0';
-  await api('/api/write-parallel', { method: 'POST', body: JSON.stringify({ intent: $('intent').value, column_id: col }) });
+  await api('/api/write-parallel', { method: 'POST', body: JSON.stringify({ intent: $('intent').value, column_id: col, place_id: $('ent-name').value || undefined }) });
   refresh();
 };
 $('talk').onclick = () => { pendingTalk = '讨论稿：' + ($('intent').value || '动作'); };
 $('write-box').onclick = async () => {
-  if (!pendingTalk || !currentDraft) return;
-  $('do-text').value = pendingTalk;
-  pendingTalk = '';
-  await api('/api/drafts/patch', { method: 'POST', body: JSON.stringify({ id: currentDraft, do_text: $('do-text').value, intent: $('intent').value }) });
-  refresh();
+  if (pendingFill && currentDraft) {
+    if ($('do-text').value) pendingFill.do_text = $('do-text').value;
+    if ($('say-text').value) pendingFill.say_text = $('say-text').value;
+    if ($('think-text').value) pendingFill.think_text = $('think-text').value;
+    await api('/api/drafts/patch', { method: 'POST', body: JSON.stringify({
+      id: currentDraft,
+      do_text: $('do-text').value,
+      say_text: $('say-text').value,
+      think_text: $('think-text').value,
+      intent: $('intent').value,
+      apply_fill: true
+    }) });
+    pendingFill = null;
+    pendingTalk = '';
+    refresh();
+    return;
+  }
+  if (pendingTalk && currentDraft) {
+    $('do-text').value = pendingTalk;
+    pendingTalk = '';
+    await api('/api/drafts/patch', { method: 'POST', body: JSON.stringify({ id: currentDraft, do_text: $('do-text').value, intent: $('intent').value }) });
+    refresh();
+  }
 };
 $('commit').onclick = async () => {
   if (!currentDraft) return;
-  if ($('do-text').value) {
-    await api('/api/drafts/patch', { method: 'POST', body: JSON.stringify({ id: currentDraft, do_text: $('do-text').value, intent: $('intent').value }) });
+  const body = { id: currentDraft, do_text: $('do-text').value, say_text: $('say-text').value, think_text: $('think-text').value, intent: $('intent').value };
+  if ($('vis-private').checked && $('visible-to').value.trim()) {
+    body.visible_to = $('visible-to').value.split(/[,，]/).map(s => s.trim()).filter(Boolean);
   }
+  await api('/api/drafts/patch', { method: 'POST', body: JSON.stringify(body) });
   await api('/api/commit', { method: 'POST', body: JSON.stringify({ id: currentDraft }) });
   currentDraft = null;
   refresh();
 };
 $('fill-fake').onclick = async () => {
   if (!currentDraft) return;
-  await api('/api/fill-fake', { method: 'POST', body: JSON.stringify({ id: currentDraft }) });
-  refresh();
+  const r = await api('/api/fill-fake', { method: 'POST', body: JSON.stringify({ id: currentDraft }) });
+  pendingFill = r;
+  $('do-text').value = r.do_text || '';
+  $('say-text').value = r.say_text || '';
+  $('think-text').value = r.think_text || '';
+  renderInspector();
 };
 $('ellipsis').onclick = async () => {
   if (!currentDraft) return;
@@ -322,19 +524,53 @@ $('ellipsis').onclick = async () => {
   refresh();
 };
 $('delete-draft').onclick = async () => {
+  $('light-delete-error').textContent = '';
+  if (currentCanon && !currentDraft) {
+    $('light-delete-error').textContent = '已正史禁止走轻路径，请用删已正史';
+    return;
+  }
   if (!currentDraft) return;
-  await api('/api/delete-draft', { method: 'POST', body: JSON.stringify({ id: currentDraft }) });
+  pendingDeleteDraft = currentDraft;
+  const r = await api('/api/delete-draft', { method: 'POST', body: JSON.stringify({ id: currentDraft, confirm: false }) });
+  const ul = $('gap-list');
+  ul.innerHTML = '';
+  (r.gap_suggestions || []).forEach(s => {
+    const li = document.createElement('li');
+    li.textContent = s.label || s;
+    ul.appendChild(li);
+  });
+  $('gap-dlg').showModal();
+};
+$('gap-ok').onclick = async () => {
+  if (!pendingDeleteDraft) return;
+  await api('/api/delete-draft', { method: 'POST', body: JSON.stringify({ id: pendingDeleteDraft, confirm: true }) });
+  pendingDeleteDraft = null;
   currentDraft = null;
+  $('gap-dlg').close();
   refresh();
 };
+$('gap-cancel').onclick = () => { $('gap-dlg').close(); pendingDeleteDraft = null; };
 $('delete-canon').onclick = async () => {
-  const id = (state.committed && state.committed[0] && state.committed[0].id);
+  const id = currentCanon || (state.committed && state.committed[0] && state.committed[0].id);
   if (!id) return;
   await api('/api/delete-canon', { method: 'POST', body: JSON.stringify({ id }) });
   refresh();
 };
 $('add-column').onclick = async () => {
   await api('/api/structure/preview', { method: 'POST', body: JSON.stringify({ op: 'add_column' }) });
+  refresh();
+};
+$('remove-column').onclick = async () => {
+  const col = (state.columns && state.columns[state.window_start] && state.columns[state.window_start].id);
+  await api('/api/structure/preview', { method: 'POST', body: JSON.stringify({ op: 'remove_column', column_id: col }) });
+  refresh();
+};
+$('merge-columns').onclick = async () => {
+  await api('/api/structure/preview', { method: 'POST', body: JSON.stringify({ op: 'merge_columns' }) });
+  refresh();
+};
+$('swap-columns').onclick = async () => {
+  await api('/api/structure/preview', { method: 'POST', body: JSON.stringify({ op: 'swap_columns' }) });
   refresh();
 };
 $('confirm-ok').onclick = async () => {
@@ -357,7 +593,15 @@ $('occupancy').onclick = async () => {
     const idx = (state.columns||[]).findIndex(c => c.id === col);
     if (idx >= 0) jump(idx);
   });
+  $('flyout-error').textContent = '';
   $('flyout').showModal();
+};
+$('flyout-edit').onclick = async () => {
+  try {
+    await api('/api/occupancy', { method: 'POST', body: '{}' });
+  } catch (e) {
+    $('flyout-error').textContent = String(e.message || e);
+  }
 };
 $('flyout-close').onclick = () => $('flyout').close();
 $('export').onclick = async () => {
@@ -366,27 +610,86 @@ $('export').onclick = async () => {
   $('export-out').textContent = md;
 };
 $('paste').onclick = async () => {
-  await api('/api/paste', { method: 'POST', body: JSON.stringify({ text: $('do-text').value || '粘贴的渡口草稿' }) });
-  refresh();
+  const text = $('do-text').value || '阿福打开抽屉。\n阿莲：东西呢。';
+  const r = await api('/api/paste', { method: 'POST', body: JSON.stringify({ text }) });
+  pendingPaste = r.suggestions || [];
+  renderPaste();
+};
+$('do-search').onclick = async () => {
+  const r = await api('/api/search?q=' + encodeURIComponent($('ent-search').value));
+  $('search-hits').innerHTML = (r.hits || []).map(h => `<li data-testid="hit-${h.id}">${h.name}</li>`).join('') || '<li data-testid="search-empty">无</li>';
+};
+$('ignore-suggest').onclick = () => {
+  ignoreSuggestion = true;
+  $('promise-suggest').textContent = '已忽略建议（不进模型）';
 };
 async function openDossier(id) {
   dossierId = id;
+  $('dossier-error').textContent = '';
   const d = await api('/api/dossier/' + encodeURIComponent(id));
   $('dossier-title').textContent = '档案 ' + d.name;
   $('dossier-desire').value = (d.profile && d.profile.desire) || '';
-  $('dossier-beats').textContent = '场：' + (d.beats || []).join(',');
-  $('dossier-windows').textContent = JSON.stringify(d.windows_readonly || []);
+  const beats = d.beats || [];
+  $('dossier-beats').innerHTML = '场：' + beats.map(b => {
+    const bid = typeof b === 'string' ? b : b.id;
+    const col = typeof b === 'string' ? '' : b.column_id;
+    return `<button type="button" data-testid="dossier-beat-${bid}" data-col="${col}">${bid}</button>`;
+  }).join(' ');
+  $('dossier-beats').querySelectorAll('button').forEach(btn => {
+    btn.onclick = () => {
+      const col = btn.getAttribute('data-col');
+      const idx = (state.columns||[]).findIndex(c => c.id === col);
+      if (idx >= 0) jump(idx);
+      $('dossier').close();
+    };
+  });
+  const win = document.createElement('div');
+  win.textContent = JSON.stringify(d.windows_readonly || []);
+  const ro = document.createElement('input');
+  ro.readOnly = true;
+  ro.dataset.testid = 'dossier-windows-ro';
+  ro.value = '情状窗口只读';
+  $('dossier-windows').innerHTML = '';
+  $('dossier-windows').appendChild(ro);
+  $('dossier-windows').appendChild(win);
   $('dossier').showModal();
 }
 $('dossier-save').onclick = async () => {
   await api('/api/dossier/' + encodeURIComponent(dossierId), { method: 'POST', body: JSON.stringify({ profile: { desire: $('dossier-desire').value } }) });
 };
+$('dossier-delete').onclick = async () => {
+  try { await tryDeleteEntity(dossierId); refresh(); } catch (e) {}
+};
 $('dossier-close').onclick = () => $('dossier').close();
 async function loadCircumstances() {
   try {
     const p = await api('/api/circumstances');
-    $('sidebar').textContent = JSON.stringify(p);
+    const pkt = p.packet || p;
+    const side = [];
+    side.push('本场任务：' + (pkt.intent || ''));
+    side.push('当场利害：' + ((pkt.stakes || []).join('；') || '无'));
+    side.push('知情差：' + ((pkt.knowledge_gaps || []).join('；') || '无'));
+    side.push('本场默认谁会看见：' + ((pkt.default_witnesses || []).join('、') || '无'));
+    side.push('上场价值转折：' + (pkt.last_value_shift || '无'));
+    side.push('未收伏笔：' + ((pkt.open_promises || []).map(x => x.name || x.id).join('、') || '无'));
+    $('sidebar').textContent = side.join('\n');
+    if (p.suggestion && !ignoreSuggestion) {
+      $('promise-suggest').textContent = '建议：' + p.suggestion.op + ' ' + p.suggestion.promise_id;
+      $('ignore-suggest').classList.remove('hidden');
+    } else if (!p.suggestion) {
+      $('promise-suggest').textContent = '';
+      $('ignore-suggest').classList.add('hidden');
+    }
   } catch { /* no draft */ }
+}
+async function loadKnows() {
+  try {
+    const k = await api('/api/knows');
+    const lines = Object.entries(k.knows || {}).map(([p, fs]) => p + '：' + (fs || []).join('、'));
+    $('knows-list').textContent = lines.join('\n') || '他知道什么：无';
+  } catch {
+    $('knows-list').textContent = '';
+  }
 }
 document.addEventListener('DOMContentLoaded', refresh);
 </script>

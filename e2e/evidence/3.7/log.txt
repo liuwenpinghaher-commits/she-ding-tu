@@ -1,1 +1,4 @@
-not run
+S35_37_PASS
+gapText=留下故事时间空洞\n后列前移补洞
+afterDraftDel.drafts=0 committed=["d1788110306230"]
+lightErr=已正史禁止走轻路径，请用删已正史

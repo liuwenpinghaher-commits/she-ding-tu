@@ -468,6 +468,106 @@ impl SettingBook {
         Ok(self.next_seq().await? - 1)
     }
 
+    /// 已挂在正史场上的设定不能删。查询失败返回 Err，不准当 0 引用。
+    pub async fn entity_hung_on_canon(&self, id: &str) -> Result<(bool, String), NarraError> {
+        let canon = self.load_canon().await?;
+        let resolved = canon
+            .entities
+            .iter()
+            .find(|e| e.id == id || e.name == id)
+            .map(|e| e.id.clone())
+            .unwrap_or_else(|| id.to_string());
+        let hung = canon.beats.iter().any(|b| {
+            b.status == crate::services::world::STATUS_COMMITTED
+                && b.presences.iter().any(|p| p.entity_id == resolved || p.entity_id == id)
+        });
+        Ok((hung, resolved))
+    }
+
+    pub async fn delete_entity(&self, id: &str) -> Result<(), NarraError> {
+        let (hung, resolved) = self.entity_hung_on_canon(id).await?;
+        if hung {
+            return Err(NarraError::Validation(
+                "已挂在场上的设定不能从设定里删，须先从分场条拿掉".into(),
+            ));
+        }
+        let rid = RecordId::from(("setting_entity", resolved.as_str()));
+        self.db.query("DELETE $rid").bind(("rid", rid)).await?;
+        Ok(())
+    }
+
+    /// 从正史场拿掉在场边。不新分配 commit_seq。须人点确认变更后才调。
+    pub async fn remove_presence(&self, beat_id: &str, entity_id: &str) -> Result<(), NarraError> {
+        let beat = RecordId::from(("setting_beat", beat_id));
+        let ent = RecordId::from(("setting_entity", entity_id));
+        let mut q = self
+            .db
+            .query("DELETE setting_present_in WHERE in = $eid AND out = $bid RETURN BEFORE")
+            .bind(("eid", ent))
+            .bind(("bid", beat))
+            .await?;
+        let rows: Vec<RelRow> = q.take(0).unwrap_or_else(|_| vec![]);
+        if rows.is_empty() {
+            return Err(NarraError::NotFound {
+                entity_type: "setting_present_in".into(),
+                id: format!("{entity_id}->{beat_id}"),
+            });
+        }
+        let mut bq = self
+            .db
+            .query("SELECT * FROM $bid")
+            .bind(("bid", RecordId::from(("setting_beat", beat_id))))
+            .await?;
+        let beats: Vec<BeatRow> = bq.take(0)?;
+        if let Some(b) = beats.first() {
+            invalidate_interval(&self.db, b.clock_from).await?;
+        }
+        Ok(())
+    }
+
+    pub async fn delete_column(&self, column_id: &str) -> Result<(), NarraError> {
+        let rid = RecordId::from(("setting_column", column_id));
+        self.db.query("DELETE $rid").bind(("rid", rid)).await?;
+        Ok(())
+    }
+
+    pub async fn set_telling_ord(&self, beat_id: &str, ord: i64) -> Result<(), NarraError> {
+        self.db
+            .query("UPDATE $id SET telling_ord = $o WHERE status = 'committed'")
+            .bind(("id", RecordId::from(("setting_beat", beat_id))))
+            .bind(("o", ord))
+            .await?;
+        Ok(())
+    }
+
+    pub async fn move_beat_column(&self, beat_id: &str, column_id: &str) -> Result<(), NarraError> {
+        let mut q = self
+            .db
+            .query("UPDATE $id SET column = $col WHERE status = 'committed' RETURN AFTER")
+            .bind(("id", RecordId::from(("setting_beat", beat_id))))
+            .bind(("col", RecordId::from(("setting_column", column_id))))
+            .await?;
+        let rows: Vec<BeatRow> = q.take(0)?;
+        if rows.is_empty() {
+            return Err(NarraError::NotFound {
+                entity_type: "setting_beat".into(),
+                id: beat_id.into(),
+            });
+        }
+        invalidate_interval(&self.db, rows[0].clock_from).await?;
+        Ok(())
+    }
+
+    pub async fn search_entities(&self, q: &str) -> Result<Vec<Entity>, NarraError> {
+        let canon = self.load_canon().await?;
+        let needle = q.trim();
+        Ok(canon
+            .entities
+            .into_iter()
+            .filter(|e| needle.is_empty() || e.id.contains(needle) || e.name.contains(needle))
+            .collect())
+    }
+
     pub fn db(&self) -> Arc<NarraDb> {
         self.db.clone()
     }

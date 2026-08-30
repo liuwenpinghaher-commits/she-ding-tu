@@ -1,1 +1,5 @@
-not run
+S35_37_PASS book=s35-1788110305727
+hungMsg=已挂在场上的设定不能从设定里删，须先从分场条拿掉
+failRefs.status=409 failRefs.text=引用查询失败，不准假装 0 引用
+beforeUnhang=阿福,阿禾,阿莲 afterUnhang=阿福,阿莲 seq=1
+delOk=已删 阿禾

@@ -1,1 +1,3 @@
-not run
+S35_37_PASS groups.strip=true groups.swimlane=false
+afterChip.filter=本场来源分组（点了 阿福，不是人物泳道）
+presence=阿福、阿莲

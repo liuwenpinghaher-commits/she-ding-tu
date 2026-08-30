@@ -1,0 +1,8 @@
+{
+  "name": "setting-e2e",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@playwright/test": "^1.62.1"
+  }
+}

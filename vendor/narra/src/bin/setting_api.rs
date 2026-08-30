@@ -168,6 +168,40 @@ fn empty_sess(book: SettingBook) -> BookSess {
     }
 }
 
+fn drafts_path(root: &std::path::Path, name: &str) -> PathBuf {
+    root.join(name).join("drafts.json")
+}
+
+fn load_drafts(root: &std::path::Path, name: &str) -> Vec<UiDraft> {
+    std::fs::read_to_string(drafts_path(root, name))
+        .ok()
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or_default()
+}
+
+fn persist_drafts(root: &std::path::Path, name: &str, drafts: &[UiDraft]) {
+    let _ = std::fs::create_dir_all(root.join(name));
+    let _ = std::fs::write(
+        drafts_path(root, name),
+        serde_json::to_string_pretty(drafts).unwrap_or_else(|_| "[]".into()),
+    );
+}
+
+fn disk_books(root: &std::path::Path) -> Vec<String> {
+    let mut names = vec![];
+    if let Ok(rd) = std::fs::read_dir(root) {
+        for e in rd.flatten() {
+            if e.path().join("world.db").exists() {
+                if let Some(n) = e.file_name().to_str() {
+                    names.push(n.to_string());
+                }
+            }
+        }
+    }
+    names.sort();
+    names
+}
+
 #[tokio::main]
 async fn main() {
     let data_root = std::env::var("SETTING_DATA")
@@ -223,8 +257,14 @@ async fn index() -> impl IntoResponse {
 
 async fn list_books(State(app): State<App>) -> Json<BookList> {
     let g = app.inner.lock().await;
+    let mut books = disk_books(&app.data_root);
+    for k in g.books.keys() {
+        if !books.contains(k) {
+            books.push(k.clone());
+        }
+    }
     Json(BookList {
-        books: g.books.keys().cloned().collect(),
+        books,
         current: g.current.clone(),
     })
 }
@@ -265,8 +305,11 @@ async fn open_book(
         let book = open_book_dir(&app.data_root, &name)
             .await
             .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
+        let drafts = load_drafts(&app.data_root, &name);
+        let mut sess = empty_sess(book);
+        sess.drafts = drafts;
         let mut g = app.inner.lock().await;
-        g.books.insert(name.clone(), empty_sess(book));
+        g.books.insert(name.clone(), sess);
     }
     let mut g = app.inner.lock().await;
     g.current = Some(name);
@@ -414,7 +457,9 @@ async fn patch_draft(
         d.draft.place_id = Some(v);
     }
     sess.selected = Some(body.id.clone());
-    Ok(Json(d.draft.clone()))
+    let out = d.draft.clone();
+    persist_drafts(&app.data_root, &name, &sess.drafts);
+    Ok(Json(out))
 }
 
 async fn set_presence(
@@ -444,7 +489,9 @@ async fn set_presence(
         }
         _ => return Err((StatusCode::BAD_REQUEST, "action 须 add/remove".into())),
     }
-    Ok(Json(d.draft.clone()))
+    let out = d.draft.clone();
+    persist_drafts(&app.data_root, &name, &sess.drafts);
+    Ok(Json(out))
 }
 
 async fn do_commit(
@@ -461,7 +508,9 @@ async fn do_commit(
         .ok_or((StatusCode::BAD_REQUEST, "无此草稿".into()))?;
     let ui = sess.drafts.remove(pos);
     match sess.book.commit(ui.draft.clone()).await {
-        Ok(b) => Ok(Json(serde_json::json!({
+        Ok(b) => {
+            persist_drafts(&app.data_root, &name, &sess.drafts);
+            Ok(Json(serde_json::json!({
             "ok": true,
             "id": b.id,
             "seq": b.commit_seq,
@@ -469,7 +518,8 @@ async fn do_commit(
             "clock_from": b.clock_from,
             "clock_to": b.clock_to,
             "presences": b.presences,
-        }))),
+        })))
+        }
         Err(e) => {
             sess.drafts.insert(pos, ui);
             Err((StatusCode::BAD_REQUEST, e.to_string()))
@@ -522,7 +572,13 @@ async fn write_next(
             clock_to: 60,
             display_ord: 0,
         });
-    let id = format!("d{}", sess.drafts.len() + 1);
+    let id = format!(
+        "d{}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis())
+            .unwrap_or(0)
+    );
     sess.drafts.push(UiDraft {
         id: id.clone(),
         title: "下一场".into(),
@@ -540,6 +596,7 @@ async fn write_next(
         },
     });
     sess.selected = Some(id.clone());
+    persist_drafts(&app.data_root, &name, &sess.drafts);
     Ok(Json(serde_json::json!({"id": id, "appended_last": true, "column_id": last.id})))
 }
 
@@ -574,7 +631,13 @@ async fn write_parallel(
         .find(|x| x.id == col)
         .cloned()
         .ok_or((StatusCode::BAD_REQUEST, "无此列".into()))?;
-    let id = format!("p{}", sess.drafts.len() + 1);
+    let id = format!(
+        "p{}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis())
+            .unwrap_or(0)
+    );
     sess.drafts.push(UiDraft {
         id: id.clone(),
         title: "并列".into(),
@@ -590,6 +653,7 @@ async fn write_parallel(
             ..BeatDraft::default()
         },
     });
+    persist_drafts(&app.data_root, &name, &sess.drafts);
     Ok(Json(serde_json::json!({"id": id, "column_id": c.id})))
 }
 
@@ -816,6 +880,7 @@ async fn paste_draft(
             ..BeatDraft::default()
         },
     });
+    persist_drafts(&app.data_root, &name, &sess.drafts);
     Ok(Json(serde_json::json!({"id": id, "auto_canon": false})))
 }
 
@@ -837,6 +902,8 @@ async fn make_ellipsis(
     d.draft.say_text = None;
     d.draft.think_text = None;
     d.title = "省略场".into();
+    drop(d);
+    persist_drafts(&app.data_root, &name, &sess.drafts);
     Ok(Json(serde_json::json!({"ok": true, "kind": "ellipsis"})))
 }
 
@@ -850,6 +917,7 @@ async fn delete_draft(
     let sess = g.books.get_mut(&name).unwrap();
     let before = sess.drafts.len();
     sess.drafts.retain(|d| d.id != id);
+    persist_drafts(&app.data_root, &name, &sess.drafts);
     Ok(Json(serde_json::json!({"ok": true, "removed": before != sess.drafts.len()})))
 }
 

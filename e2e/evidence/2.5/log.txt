@@ -1,1 +1,77 @@
-not run
+{
+  "bookA": "openA-1788109251477",
+  "bookB": "openB-1788109251477",
+  "beforeSwitch": {
+    "book": "openA-1788109251477",
+    "committed": [
+      "d1"
+    ],
+    "drafts": [
+      "d1"
+    ],
+    "teeth": [
+      "tooth canon",
+      "tooth draft"
+    ],
+    "playing": []
+  },
+  "afterOpen": {
+    "book": "openA-1788109251477",
+    "committed": [
+      {
+        "id": "d1",
+        "status": "committed"
+      }
+    ],
+    "drafts": [
+      "d1"
+    ],
+    "teeth": [
+      {
+        "i": 0,
+        "className": "tooth canon",
+        "testid": "tooth-0"
+      },
+      {
+        "i": 1,
+        "className": "tooth draft",
+        "testid": "tooth-1"
+      }
+    ],
+    "canonCards": 1,
+    "draftCards": 1,
+    "playing": []
+  },
+  "n24": {
+    "dense6": "6",
+    "plusDisabled": true,
+    "sparse2": "2",
+    "minus1": "ok-mid",
+    "minusDisabled": true,
+    "mid4": "4"
+  },
+  "n25": {
+    "worldBefore": {
+      "playing": [
+        "d1"
+      ],
+      "committed": 1,
+      "start": 0
+    },
+    "afterNext": {
+      "playing": [
+        "d1"
+      ],
+      "committed": 1,
+      "start": 1
+    },
+    "afterTooth": {
+      "playing": [
+        "d1"
+      ],
+      "committed": 1,
+      "start": 0
+    }
+  }
+}
+S23_25_PASS

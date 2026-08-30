@@ -306,6 +306,7 @@ impl SettingBook {
         );
         if draft.fail_relate {
             stmts.push_str("RELATE $ghost->setting_present_in->$bid SET role = 'present';\n");
+            stmts.push_str("THROW 'RELATE 失败，整笔回滚';\n");
         } else {
             for (i, _p) in draft.presences.iter().enumerate() {
                 stmts.push_str(&format!(
@@ -360,25 +361,9 @@ impl SettingBook {
                 ))
                 .bind((format!("r{i}"), p.role.clone()));
         }
-        let mut resp = q.await?;
-        // 多语句逐条校验
-        let n = 3 + if draft.fail_relate {
-            1
-        } else {
-            draft.presences.len()
-        };
-        for i in 0..n {
-            let taken: Result<Vec<serde_json::Value>, _> = resp.take(i);
-            if let Err(e) = taken {
-                return Err(NarraError::Transaction(e.to_string()));
-            }
-        }
-
-        // 失败 RELATE 时 Surreal 可能仍返回 error on the query
+        q.await.map_err(|e| NarraError::Transaction(e.to_string()))?;
         if draft.fail_relate {
-            return Err(NarraError::Transaction(
-                "RELATE 失败，整笔回滚".into(),
-            ));
+            return Err(NarraError::Transaction("RELATE 失败，整笔回滚".into()));
         }
 
         invalidate_interval(&self.db, draft.clock_from).await?;

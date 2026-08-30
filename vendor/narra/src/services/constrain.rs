@@ -61,6 +61,20 @@ fn draft_as_beat(d: &BeatDraft, id: &str) -> Beat {
 /// `world` 是不含本场的算出（本场还是草稿）。
 pub fn constrain(world: &World, canon: &Canon, draft: &BeatDraft) -> ConstraintReport {
     let mut r = ConstraintReport::default();
+    for p in draft.presences.iter().filter(|p| p.role == ROLE_PRESENT) {
+        if canon
+            .entity(&p.entity_id)
+            .map(|e| e.kind == "rule")
+            .unwrap_or(false)
+        {
+            r.findings.push(Finding {
+                grade: Grade::Strict,
+                code: "rule_not_present".into(),
+                message: "规则不当在场".into(),
+            });
+        }
+    }
+
     if draft.intent.trim().is_empty() {
         r.findings.push(Finding {
             grade: Grade::Strict,

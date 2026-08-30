@@ -1,1 +1,1 @@
-not run
+4.11 draft col1→col2 destCol=col2 pendingOp=move_beat canonCol col0→col0（取消）

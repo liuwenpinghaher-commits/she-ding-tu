@@ -1,1 +1,1 @@
-not run
+4.5 nPlus=2 cols0=1 colsAfterPlus=1 cols1=2 cols2=1 refuse=有正史禁止只减列丢掉历史 merge clocks=[[0,120]]

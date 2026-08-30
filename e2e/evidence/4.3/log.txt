@@ -1,1 +1,1 @@
-not run
+4.3 stillDraft=1 committed=1 do=（假模型）为「阿莲来找东西」走了一步改 auto_canon=false

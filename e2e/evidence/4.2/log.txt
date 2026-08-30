@@ -1,1 +1,1 @@
-not run
+REMAINING_CLICK_DONE 4.2 side=本场任务：阿莲来找东西 … 未收伏笔：铜牌三日 sug=payoff token_due ignored=已忽略建议 model_input_has_suggestion=false

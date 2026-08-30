@@ -1,1 +1,1 @@
-not run
+4.9 parCol=col0 newestCol=col1 lastCol=col1 twoPlaces.status=400 text=禁止静默并存：阿福.where 已有开窗与新窗同起点 afterParCommit=2

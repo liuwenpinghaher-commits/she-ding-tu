@@ -1,1 +1,3 @@
-# 4.3-live 缺 SETTING_LLM_API_KEY，blocked。不挡 4.3。
+# 切片 4.3-live
+
+读 SETTING_LLM_API_KEY。未设置则 blocked。

@@ -10,7 +10,7 @@ use narra::db::schema::apply_schema;
 use narra::services::canon::SettingBook;
 use narra::services::circumstances::suggest_promise_op;
 use narra::services::world::{
-    BeatDraft, Column, Entity, Presence, ROLE_PRESENT, STATUS_COMMITTED, World,
+    BeatDraft, Column, Entity, Presence, Promise, ROLE_PRESENT, STATUS_COMMITTED, World,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -278,6 +278,7 @@ async fn main() {
         .route("/api/fill-live", post(fill_live))
         .route("/api/paste/apply", post(paste_apply))
         .route("/api/select", post(select_item))
+        .route("/api/promises", post(plant_promise))
         .route("/health", get(|| async { "ok" }))
         .layer(CorsLayer::permissive())
         .with_state(app);
@@ -514,6 +515,20 @@ async fn patch_draft(
         .iter_mut()
         .find(|x| x.id == body.id)
         .ok_or((StatusCode::BAD_REQUEST, "无此草稿".into()))?;
+    if body.apply_fill.unwrap_or(false) {
+        if let Some(f) = sess.fill_pending.clone() {
+            if f.do_text.is_some() {
+                d.draft.do_text = f.do_text;
+            }
+            if f.say_text.is_some() {
+                d.draft.say_text = f.say_text;
+            }
+            if f.think_text.is_some() {
+                d.draft.think_text = f.think_text;
+            }
+            sess.fill_pending = None;
+        }
+    }
     if let Some(v) = body.intent {
         d.draft.intent = v;
     }
@@ -543,20 +558,6 @@ async fn patch_draft(
     }
     if let Some(v) = body.telling_ord {
         d.draft.telling_ord = Some(v);
-    }
-    if body.apply_fill.unwrap_or(false) {
-        if let Some(f) = sess.fill_pending.clone() {
-            if f.do_text.is_some() {
-                d.draft.do_text = f.do_text;
-            }
-            if f.say_text.is_some() {
-                d.draft.say_text = f.say_text;
-            }
-            if f.think_text.is_some() {
-                d.draft.think_text = f.think_text;
-            }
-            sess.fill_pending = None;
-        }
     }
     sess.selected = Some(body.id.clone());
     let out = d.draft.clone();
@@ -726,6 +727,11 @@ async fn write_next(
             do_text: Some(format!("为「{intent}」行动")),
             clock_from: last.clock_from,
             clock_to: last.clock_to,
+            place_id: body
+                .get("place_id")
+                .and_then(|v| v.as_str())
+                .filter(|s| !s.is_empty())
+                .map(|s| s.to_string()),
             presences: vec![],
             ..BeatDraft::default()
         },
@@ -862,26 +868,88 @@ async fn toggle_ro(State(app): State<App>) -> Json<serde_json::Value> {
 async fn fill_fake(
     State(app): State<App>,
     Json(body): Json<serde_json::Value>,
-) -> Result<Json<BeatDraft>, (StatusCode, String)> {
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let id = body.get("id").and_then(|v| v.as_str()).unwrap_or("");
     let mut g = app.inner.lock().await;
     let name = g.current.clone().ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
     let sess = g.books.get_mut(&name).unwrap();
-    let d = sess
+    let draft0 = sess
         .drafts
-        .iter_mut()
+        .iter()
         .find(|x| x.id == id)
-        .ok_or((StatusCode::BAD_REQUEST, "无草稿".into()))?;
-    if d.draft.intent.trim().is_empty() {
+        .ok_or((StatusCode::BAD_REQUEST, "无草稿".into()))?
+        .draft
+        .clone();
+    if draft0.intent.trim().is_empty() {
         return Err((StatusCode::BAD_REQUEST, "没有本场任务不准填".into()));
     }
-    let mut suggested = d.draft.clone();
-    suggested.do_text = Some(format!("（假模型）为「{}」走了一步", d.draft.intent));
+    let pkt = sess
+        .book
+        .given_circumstances(&draft0)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let mut suggested = draft0;
+    suggested.do_text = Some(format!("（假模型）为「{}」走了一步", suggested.intent));
     suggested.say_text = Some("阿莲：东西呢。".into());
     suggested.think_text = Some("铜牌不能丢。".into());
     sess.fill_pending = Some(suggested.clone());
     persist_drafts(&app.data_root, &name, &sess.drafts);
-    Ok(Json(suggested))
+    let pkt_json = serde_json::to_value(&pkt).unwrap_or(serde_json::json!({}));
+    Ok(Json(serde_json::json!({
+        "do_text": suggested.do_text,
+        "say_text": suggested.say_text,
+        "think_text": suggested.think_text,
+        "intent": suggested.intent,
+        "auto_canon": false,
+        "model_input": pkt_json,
+        "model_input_has_suggestion": false,
+        "model_input_has_structure": false,
+    })))
+}
+
+async fn plant_promise(
+    State(app): State<App>,
+    Json(body): Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    let mut g = app.inner.lock().await;
+    let name = g.current.clone().ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
+    let sess = g.books.get_mut(&name).unwrap();
+    let p = Promise {
+        id: body
+            .get("id")
+            .and_then(|v| v.as_str())
+            .unwrap_or("token_due")
+            .to_string(),
+        name: body
+            .get("name")
+            .and_then(|v| v.as_str())
+            .unwrap_or("铜牌三日")
+            .to_string(),
+        status: "open".into(),
+        related: body
+            .get("related")
+            .and_then(|v| v.as_array())
+            .map(|a| {
+                a.iter()
+                    .filter_map(|x| x.as_str().map(|s| s.to_string()))
+                    .collect()
+            })
+            .unwrap_or_else(|| vec!["阿莲".into()]),
+        plant_clock: body.get("plant_clock").and_then(|v| v.as_i64()).or(Some(0)),
+        deadline_clock: body
+            .get("deadline_clock")
+            .and_then(|v| v.as_i64())
+            .or(Some(0)),
+        red_herring: body
+            .get("red_herring")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false),
+    };
+    sess.book
+        .upsert_promise(&p)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    Ok(Json(serde_json::json!({"ok": true, "id": p.id, "auto_canon": false})))
 }
 
 async fn structure_preview(
@@ -1633,22 +1701,39 @@ async fn knows_list(
     let name = g.current.clone().ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
     let sess = g.books.get(&name).unwrap();
     let person = q.person.unwrap_or_default();
+    let t = if let Some(t) = q.t {
+        t
+    } else {
+        let canon = sess
+            .book
+            .load_canon()
+            .await
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+        canon
+            .beats
+            .iter()
+            .filter(|b| b.status == STATUS_COMMITTED)
+            .map(|b| b.clock_from)
+            .max()
+            .unwrap_or(0)
+    };
     if person.is_empty() {
         let w = sess
             .book
-            .world_at(q.t.unwrap_or(0), None)
+            .world_at(t, None)
             .await
             .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-        return Ok(Json(serde_json::json!({"knows": w.knows, "score": serde_json::Value::Null})));
+        return Ok(Json(serde_json::json!({"knows": w.knows, "t": t, "score": serde_json::Value::Null})));
     }
     let facts = sess
         .book
-        .knows_at(q.t.unwrap_or(0), &person, None)
+        .knows_at(t, &person, None)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     Ok(Json(serde_json::json!({
         "person": person,
         "facts": facts,
+        "t": t,
         "score": serde_json::Value::Null,
     })))
 }

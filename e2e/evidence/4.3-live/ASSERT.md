@@ -2,4 +2,5 @@
 
 | 断言 | 结果 | 实际值 |
 |---|---|---|
-| 环境变量 | blocked | SETTING_LLM_API_KEY 未设置 |
+| 缺密钥 blocked | blocked | SETTING_LLM_API_KEY 未设置 |
+| 不挡 4.3 | pass | 4.3 同时 done |

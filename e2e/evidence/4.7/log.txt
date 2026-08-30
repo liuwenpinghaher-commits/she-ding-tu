@@ -1,1 +1,1 @@
-not run
+4.7 pasteUi=do_text：阿福打开抽屉写入此框 / say_text：阿莲：东西呢写入此框 committed=1 auto_canon=false

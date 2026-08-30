@@ -1,1 +1,1 @@
-not run
+5.1 lianSawPriv=false fuSawPriv=true score=null 阿福=[看见:并列动作, 看见:阿福悄悄开箱] 阿莲=[心想:刀在这里]

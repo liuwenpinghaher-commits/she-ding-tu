@@ -1,1 +1,1 @@
-not run
+4.10 telling=2 toothCls=[tooth draft, tooth canon telling-diff]

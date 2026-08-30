@@ -1,1 +1,1 @@
-SETTING_LLM_API_KEY unset
+4.3-live status=blocked reason=SETTING_LLM_API_KEY 未设置

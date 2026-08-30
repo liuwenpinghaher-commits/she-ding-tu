@@ -1,0 +1,410 @@
+//! Smoke tests for all 5 MCP tools (consolidated from original 11).
+//!
+//! Purpose: Regression prevention - verify each tool can be invoked without error
+//! and returns structurally valid responses.
+
+mod common;
+
+use common::harness::TestHarness;
+use common::{to_mutation_input, to_query_input, to_session_input};
+use narra::mcp::tools::export::ExportRequest;
+use narra::mcp::tools::graph::GraphRequest;
+use narra::mcp::{KnowledgeSpec, MutationRequest, NarraServer, QueryRequest, SessionRequest};
+use rmcp::handler::server::wrapper::Parameters;
+
+/// Helper to create a character and return its ID.
+async fn create_test_character(server: &NarraServer, name: &str) -> String {
+    let request = MutationRequest::CreateCharacter {
+        id: None,
+        name: name.to_string(),
+        role: Some("Test Role".to_string()),
+        aliases: None,
+        description: Some("Test character for smoke tests".to_string()),
+        profile: None,
+    };
+    let result = server
+        .handle_mutate(Parameters(to_mutation_input(request)))
+        .await
+        .expect("create character should succeed");
+    result.entity.id
+}
+
+// =============================================================================
+// SMOKE TESTS - One per MCP tool + operations that moved between tools
+// =============================================================================
+
+#[tokio::test]
+async fn smoke_test_query() {
+    let harness = TestHarness::new().await;
+    let server = common::create_test_server(&harness).await;
+
+    // Create test data so the overview has something to return
+    create_test_character(&server, "Query Test Character").await;
+
+    let request = QueryRequest::Overview {
+        entity_type: "character".to_string(),
+        limit: Some(10),
+    };
+
+    let result = server
+        .handle_query(Parameters(to_query_input(request)))
+        .await
+        .expect("query should succeed");
+
+    assert!(result.total > 0, "Overview should find at least one entity");
+    assert!(!result.results.is_empty(), "Overview should return results");
+    assert_eq!(result.results[0].entity_type, "character");
+}
+
+#[tokio::test]
+async fn smoke_test_mutate() {
+    let harness = TestHarness::new().await;
+    let server = common::create_test_server(&harness).await;
+
+    let request = MutationRequest::CreateCharacter {
+        id: None,
+        name: "Smoke Test Character".to_string(),
+        role: Some("Protagonist".to_string()),
+        aliases: None,
+        description: Some("Created in smoke test".to_string()),
+        profile: None,
+    };
+
+    let result = server
+        .handle_mutate(Parameters(to_mutation_input(request)))
+        .await
+        .expect("mutate should succeed");
+
+    assert_eq!(result.entity.entity_type, "character");
+    assert!(
+        result.entity.id.starts_with("character:"),
+        "ID should have table prefix"
+    );
+    assert!(
+        result.entity.content.contains("Smoke Test Character"),
+        "Content should mention the character name"
+    );
+}
+
+#[tokio::test]
+async fn smoke_test_analyze_impact_via_query() {
+    let harness = TestHarness::new().await;
+    let server = common::create_test_server(&harness).await;
+
+    let character_id = create_test_character(&server, "Impact Test Character").await;
+
+    let request = QueryRequest::AnalyzeImpact {
+        entity_id: character_id,
+        proposed_change: Some("Delete character".to_string()),
+        include_details: Some(true),
+    };
+
+    let result = server
+        .handle_query(Parameters(to_query_input(request)))
+        .await
+        .expect("analyze_impact via query should succeed");
+
+    assert!(
+        result.token_estimate > 0,
+        "Response should have a token estimate"
+    );
+    assert!(!result.results.is_empty(), "Should return impact results");
+}
+
+#[tokio::test]
+async fn smoke_test_protect_entity_via_mutate() {
+    let harness = TestHarness::new().await;
+    let server = common::create_test_server(&harness).await;
+
+    let character_id = create_test_character(&server, "Protect Test Character").await;
+
+    let request = MutationRequest::ProtectEntity {
+        entity_id: character_id.clone(),
+    };
+
+    let result = server
+        .handle_mutate(Parameters(to_mutation_input(request)))
+        .await
+        .expect("protect_entity via mutate should succeed");
+
+    assert!(
+        result.entity.content.contains("protected"),
+        "Response should confirm protection"
+    );
+}
+
+#[tokio::test]
+async fn smoke_test_unprotect_entity_via_mutate() {
+    let harness = TestHarness::new().await;
+    let server = common::create_test_server(&harness).await;
+
+    let character_id = create_test_character(&server, "Unprotect Test Character").await;
+
+    server
+        .handle_mutate(Parameters(to_mutation_input(
+            MutationRequest::ProtectEntity {
+                entity_id: character_id.clone(),
+            },
+        )))
+        .await
+        .expect("protect should succeed");
+
+    let result = server
+        .handle_mutate(Parameters(to_mutation_input(
+            MutationRequest::UnprotectEntity {
+                entity_id: character_id,
+            },
+        )))
+        .await
+        .expect("unprotect via mutate should succeed");
+
+    assert!(
+        result.entity.content.contains("Protection removed")
+            || result.entity.content.contains("unprotected"),
+        "Response should confirm unprotection, got: {}",
+        result.entity.content
+    );
+}
+
+#[tokio::test]
+async fn smoke_test_pin_entity_via_session() {
+    let harness = TestHarness::new().await;
+    let server = common::create_test_server(&harness).await;
+
+    let character_id = create_test_character(&server, "Pin Test Character").await;
+
+    let request = SessionRequest::PinEntity {
+        entity_id: character_id.clone(),
+    };
+
+    let result = server
+        .session(Parameters(to_session_input(request)))
+        .await
+        .expect("pin_entity via session should succeed");
+
+    assert_eq!(result.0.operation, "pin_entity");
+    let pin_result = result.0.pin_result.expect("Should have pin_result");
+    assert!(pin_result.success, "Pin should succeed");
+    assert_eq!(pin_result.entity_id, character_id);
+}
+
+#[tokio::test]
+async fn smoke_test_unpin_entity_via_session() {
+    let harness = TestHarness::new().await;
+    let server = common::create_test_server(&harness).await;
+
+    let character_id = create_test_character(&server, "Unpin Test Character").await;
+
+    server
+        .session(Parameters(to_session_input(SessionRequest::PinEntity {
+            entity_id: character_id.clone(),
+        })))
+        .await
+        .expect("pin should succeed");
+
+    let result = server
+        .session(Parameters(to_session_input(SessionRequest::UnpinEntity {
+            entity_id: character_id.clone(),
+        })))
+        .await
+        .expect("unpin via session should succeed");
+
+    assert_eq!(result.0.operation, "unpin_entity");
+    let pin_result = result.0.pin_result.expect("Should have pin_result");
+    assert!(pin_result.success, "Unpin should succeed");
+    assert_eq!(pin_result.entity_id, character_id);
+}
+
+#[tokio::test]
+async fn smoke_test_get_session_context_via_session() {
+    let harness = TestHarness::new().await;
+    let server = common::create_test_server(&harness).await;
+
+    let request = SessionRequest::GetContext { force_full: false };
+
+    let result = server
+        .session(Parameters(to_session_input(request)))
+        .await
+        .expect("get_session_context via session should succeed");
+
+    assert_eq!(result.0.operation, "get_context");
+    let context = result.0.context.expect("Should have context data");
+    assert!(
+        !context.verbosity.is_empty(),
+        "Context should have a verbosity level"
+    );
+}
+
+#[tokio::test]
+async fn smoke_test_export_world() {
+    let harness = TestHarness::new().await;
+    let server = common::create_test_server(&harness).await;
+
+    let export_path = harness.temp_path().join("export.yaml");
+
+    let request = ExportRequest {
+        output_path: Some(export_path.to_string_lossy().to_string()),
+    };
+
+    let result = server
+        .export_world(Parameters(request))
+        .await
+        .expect("export_world should succeed");
+
+    assert!(
+        !result.0.output_path.is_empty(),
+        "Should return the output path"
+    );
+    assert!(
+        std::path::Path::new(&result.0.output_path).exists(),
+        "Export file should exist on disk"
+    );
+}
+
+#[tokio::test]
+async fn smoke_test_generate_graph() {
+    let harness = TestHarness::new().await;
+    let server = common::create_test_server(&harness).await;
+
+    let request = GraphRequest {
+        scope: "full".to_string(),
+        depth: None,
+        include_roles: None,
+        filename: Some("smoke-test-graph.md".to_string()),
+    };
+
+    let result = server
+        .generate_graph(Parameters(request))
+        .await
+        .expect("generate_graph should succeed");
+
+    assert!(
+        !result.0.file_path.is_empty(),
+        "Should return a file path for the graph"
+    );
+}
+
+#[tokio::test]
+async fn smoke_test_validate_entity_via_query() {
+    let harness = TestHarness::new().await;
+    let server = common::create_test_server(&harness).await;
+
+    let character_id = create_test_character(&server, "Validate Test Character").await;
+
+    let request = QueryRequest::ValidateEntity {
+        entity_id: character_id,
+    };
+
+    let result = server
+        .handle_query(Parameters(to_query_input(request)))
+        .await
+        .expect("validate_entity via query should succeed");
+
+    assert!(
+        !result.results.is_empty(),
+        "Validation should return results"
+    );
+    assert!(
+        result.token_estimate > 0,
+        "Response should have a token estimate"
+    );
+}
+
+#[tokio::test]
+async fn smoke_test_investigate_contradictions_via_query() {
+    let harness = TestHarness::new().await;
+    let server = common::create_test_server(&harness).await;
+
+    let character_id = create_test_character(&server, "Investigate Test Character").await;
+
+    let request = QueryRequest::InvestigateContradictions {
+        entity_id: character_id,
+        max_depth: 2,
+    };
+
+    let result = server
+        .handle_query(Parameters(to_query_input(request)))
+        .await
+        .expect("investigate_contradictions via query should succeed");
+
+    assert!(
+        result.token_estimate > 0,
+        "Response should have a token estimate"
+    );
+}
+
+#[tokio::test]
+async fn smoke_test_batch_record_knowledge() {
+    let harness = TestHarness::new().await;
+    let server = common::create_test_server(&harness).await;
+
+    let char_id = create_test_character(&server, "Knowledge Batch Char").await;
+    let char_id2 = create_test_character(&server, "Knowledge Batch Char2").await;
+
+    let request = MutationRequest::BatchRecordKnowledge {
+        knowledge: vec![
+            KnowledgeSpec {
+                character_id: char_id.clone(),
+                target_id: char_id2.clone(),
+                fact: "They are allies".to_string(),
+                certainty: "knows".to_string(),
+                method: Some("initial".to_string()),
+                source_character_id: None,
+                event_id: None,
+            },
+            KnowledgeSpec {
+                character_id: char_id2,
+                target_id: char_id,
+                fact: "They are rivals".to_string(),
+                certainty: "suspects".to_string(),
+                method: Some("initial".to_string()),
+                source_character_id: None,
+                event_id: None,
+            },
+        ],
+    };
+
+    let result = server
+        .handle_mutate(Parameters(to_mutation_input(request)))
+        .await
+        .expect("batch record knowledge should succeed");
+
+    assert_eq!(result.entity.entity_type, "batch");
+    let entities = result.entities.expect("Should have entities list");
+    assert_eq!(entities.len(), 2);
+}
+
+/// Test that structured errors are returned from the handler methods.
+#[tokio::test]
+async fn smoke_test_structured_error_from_query() {
+    let harness = TestHarness::new().await;
+    let server = common::create_test_server(&harness).await;
+
+    let request = QueryRequest::Lookup {
+        entity_id: "character:nonexistent_structured_err".to_string(),
+        detail_level: None,
+    };
+
+    let result = server
+        .handle_query(Parameters(to_query_input(request)))
+        .await;
+    assert!(result.is_err(), "Lookup of nonexistent should fail");
+}
+
+#[tokio::test]
+async fn smoke_test_structured_error_from_mutate() {
+    let harness = TestHarness::new().await;
+    let server = common::create_test_server(&harness).await;
+
+    // Soft delete is not implemented — should return structured error
+    let char_id = create_test_character(&server, "Err Test Char").await;
+    let request = MutationRequest::Delete {
+        entity_id: char_id,
+        hard: Some(false),
+    };
+
+    let result = server
+        .handle_mutate(Parameters(to_mutation_input(request)))
+        .await;
+    assert!(result.is_err(), "Soft delete should fail");
+}

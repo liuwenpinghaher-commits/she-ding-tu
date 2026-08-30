@@ -1,0 +1,81 @@
+[package]
+name = "narra"
+version = "0.1.0"
+edition = "2021"
+description = "Narrative intelligence engine — semantic search, arc tracking, and perspective vectors for story worlds"
+license = "MIT"
+repository = "https://github.com/florinutz/narra"
+homepage = "https://github.com/florinutz/narra"
+readme = "README.md"
+keywords = ["fiction", "writing", "worldbuilding", "narrative", "mcp"]
+categories = ["command-line-utilities", "database"]
+authors = ["Florin"]
+
+[dependencies]
+surrealdb = { version = "2.6.0", features = ["kv-rocksdb", "protocol-ws"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal"] }
+serde = { version = "1", features = ["derive"] }
+thiserror = "2"
+chrono = { version = "0.4", features = ["serde"] }
+serde_with = "3.16.1"
+async-trait = "0.1"
+moka = { version = "0.12", features = ["future"] }
+rapidfuzz = "0.5"
+futures = "0.3"
+uuid = { version = "1", features = ["v4"] }
+rmcp = { version = "0.14", features = ["server", "transport-io", "macros"] }
+schemars = { version = "1.0", features = ["derive"] }
+base64 = "0.22"
+anyhow = "1.0"
+serde_json = "1.0"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+dirs = "6.0"
+candle-core = "0.9"
+candle-nn = "0.9"
+candle-transformers = "0.9"
+hf-hub = "0.4"
+tokenizers = "0.21"
+graphrs = "0.11"
+linfa = "0.7"
+linfa-clustering = "0.7"
+ndarray = "0.15"
+clap = { version = "4.5", features = ["derive", "env"] }
+colored = "2.1"
+comfy-table = "7.1"
+serde_yaml_ng = "0.10"
+indicatif = "0.17"
+clap_complete = "4.5"
+toml = "0.8"
+tokio-stream = "0.1"
+async-stream = "0.3"
+
+[features]
+default = []
+metal = ["candle-core/metal"]
+cuda = ["candle-core/cuda"]
+surrealdb3 = []
+
+# Auto-enable Metal acceleration on macOS
+[target.'cfg(target_os = "macos")'.dependencies]
+candle-core = { version = "0.9", features = ["metal"] }
+
+[profile.release]
+codegen-units = 1
+lto = "thin"
+opt-level = 3
+panic = "abort"
+strip = true
+
+[dev-dependencies]
+tempfile = "3.24.0"
+insta = { version = "1.46", features = ["yaml"] }
+pretty_assertions = "1.4"
+proptest = "1.6"
+
+[lints.clippy]
+redundant_closure_for_method_calls = "allow"
+
+[[bin]]
+name = "narra"
+path = "src/main.rs"

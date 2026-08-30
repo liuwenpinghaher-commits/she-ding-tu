@@ -20,6 +20,7 @@ vendor/narra/.fastembed_cache/
 
 # 本机 Narra 世界数据，不进库
 demos/narra-preview/.narra/
+data/books/
 
 # NarrativeNode / 编辑器自动保存，不进库
 *_autosave.nnz

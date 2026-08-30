@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <title>分场条</title>
+  <style>
+    body { font-family: sans-serif; margin: 0; display: grid; grid-template-rows: auto auto 1fr; height: 100vh; }
+    header, #minimap { padding: 8px; background: #111; color: #eee; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    button:disabled { opacity: .4; }
+    #board { display: flex; flex: 1; }
+    #rail { width: 180px; border-right: 1px solid #ccc; padding: 8px; overflow: auto; }
+    #cols { display: flex; flex: 1; overflow: hidden; }
+    .col { flex: 1; border-right: 1px solid #ddd; padding: 8px; min-width: 0; }
+    .card { border: 1px solid #888; padding: 8px; margin: 8px 0; }
+    .card.canon { background: #e8f5e9; }
+    .card.draft { background: #fff8e1; }
+    #side { width: 240px; border-left: 1px solid #ccc; padding: 8px; overflow: auto; }
+    .tooth { width: 12px; height: 16px; display: inline-block; margin: 0 2px; cursor: pointer; }
+    .tooth.canon { background: #2e7d32; }
+    .tooth.draft { background: #f9a825; }
+    .tooth.empty { background: #bbb; }
+    .hidden { display: none; }
+    #book-label { min-width: 4em; min-height: 1em; display: inline-block; }
+  </style>
+</head>
+<body>
+  <header>
+    <strong>分场条</strong>
+    <input id="book-name" data-testid="book-name" placeholder="书名" value="渡口" />
+    <button id="create-book" data-testid="create-book">创建书</button>
+    <button id="open-book" data-testid="open-book">打开书</button>
+    <span id="book-label" data-testid="book-label"></span>
+    <button id="sparse" data-testid="density-sparse">疏</button>
+    <button id="mid" data-testid="density-mid">中</button>
+    <button id="dense" data-testid="density-dense">密</button>
+    <button id="minus" data-testid="minus">−</button>
+    <span id="col-count" data-testid="col-count">1</span>
+    <button id="plus" data-testid="plus">+</button>
+    <button id="prev" data-testid="prev">‹</button>
+    <button id="next" data-testid="next">›</button>
+    <button id="reading-order" data-testid="reading-order">按读序排</button>
+    <button id="write-next" data-testid="write-next">写下一场</button>
+    <button id="add-parallel" data-testid="add-parallel">在本列再写一场</button>
+    <button id="occupancy" data-testid="occupancy">出场</button>
+    <button id="export" data-testid="export">导出</button>
+  </header>
+  <div id="minimap" data-testid="minimap"></div>
+  <div id="board">
+    <aside id="rail">
+      <div>设定</div>
+      <input id="ent-name" data-testid="ent-name" placeholder="名字" />
+      <select id="ent-kind" data-testid="ent-kind">
+        <option value="person">人物</option>
+        <option value="place">地点</option>
+        <option value="thing">道具</option>
+        <option value="faction">组织</option>
+        <option value="rule">规则</option>
+      </select>
+      <button id="new-entity" data-testid="new-entity">新建</button>
+      <ul id="ent-list" data-testid="ent-list"></ul>
+    </aside>
+    <div id="cols" data-testid="stripboard"></div>
+    <aside id="side">
+      <label>本场任务 <input id="intent" data-testid="intent" /></label>
+      <button id="talk" data-testid="talk">讨论</button>
+      <button id="write-box" data-testid="write-box">写入此框</button>
+      <textarea id="do-text" data-testid="do-text" placeholder="动作"></textarea>
+      <button id="fill-fake" data-testid="fill-fake">模型填下一场</button>
+      <button id="commit" data-testid="commit">写入正史</button>
+      <div id="sidebar" data-testid="sidebar"></div>
+      <pre id="world" data-testid="world"></pre>
+    </aside>
+  </div>
+  <dialog id="flyout" data-testid="flyout"><p>出场飞出层（只读）</p><button id="flyout-close">关闭</button></dialog>
+  <pre id="export-out" data-testid="export-out" class="hidden"></pre>
+<script>
+const $ = (id) => document.getElementById(id);
+let state = { n: 1, window_start: 0, drafts: [], committed: [], columns: [], entities: [] };
+let pendingTalk = '';
+let currentDraft = null;
+
+async function api(path, opt={}) {
+  const r = await fetch(path, Object.assign({ headers: { 'Content-Type': 'application/json' } }, opt));
+  if (!r.ok) throw new Error(await r.text());
+  const ct = r.headers.get('content-type') || '';
+  if (ct.includes('json')) return r.json();
+  return r.text();
+}
+async function refresh() {
+  try { state = await api('/api/state'); } catch { return; }
+  $('book-label').textContent = state.book || '';
+  $('col-count').textContent = String(state.n);
+  $('minus').disabled = state.n <= 1;
+  $('plus').disabled = state.n >= 6;
+  render();
+}
+function render() {
+  const cols = state.columns || [];
+  const start = state.window_start || 0;
+  const n = state.n || 1;
+  const view = cols.slice(start, start + n);
+  $('cols').innerHTML = '';
+  view.forEach((c, i) => {
+    const div = document.createElement('div');
+    div.className = 'col';
+    div.dataset.testid = 'column-' + i;
+    div.innerHTML = `<h4>列 ${c.id}</h4>`;
+    (state.committed || []).filter(b => b.column_id === c.id).forEach(b => {
+      const card = document.createElement('div');
+      card.className = 'card canon';
+      card.dataset.testid = 'card-' + b.id;
+      const dense = n >= 5;
+      card.innerHTML = dense ? `<b>${b.id}</b>` : `<b>${b.id}</b><div>${b.intent}</div><div>${b.do_text||''}</div>`;
+      div.appendChild(card);
+    });
+    (state.drafts || []).filter(d => d.draft.column_id === c.id).forEach(d => {
+      const card = document.createElement('div');
+      card.className = 'card draft';
+      card.dataset.testid = 'draft-' + d.id;
+      card.innerHTML = `<b>${d.title}</b> 草稿<div>${d.draft.intent||''}</div>`;
+      card.onclick = () => { currentDraft = d.id; $('intent').value = d.draft.intent || ''; $('do-text').value = d.draft.do_text || ''; };
+      div.appendChild(card);
+    });
+    $('cols').appendChild(div);
+  });
+  $('ent-list').innerHTML = (state.entities||[]).map(e => `<li data-kind="${e.kind}">${e.name}</li>`).join('');
+  const teeth = (state.columns||[]).map((c, i) => {
+    const hasC = (state.committed||[]).some(b => b.column_id === c.id);
+    const hasD = (state.drafts||[]).some(d => d.draft.column_id === c.id);
+    const cls = hasC ? 'canon' : hasD ? 'draft' : 'empty';
+    return `<span class="tooth ${cls}" data-testid="tooth-${i}" onclick="jump(${i})"></span>`;
+  }).join('');
+  $('minimap').innerHTML = teeth;
+  $('world').textContent = state.world ? JSON.stringify({playing: state.world.playing, where: state.world.where}, null, 0) : '';
+  const gaps = (state.world && state.world.knows) ? JSON.stringify(state.world.knows) : '';
+  $('sidebar').textContent = gaps;
+}
+window.jump = async (i) => { await api('/api/window', { method: 'POST', body: JSON.stringify({ start: i }) }); refresh(); };
+
+$('create-book').onclick = async () => {
+  await api('/api/books', { method: 'POST', body: JSON.stringify({ name: $('book-name').value }) });
+  refresh();
+};
+$('open-book').onclick = async () => {
+  await api('/api/books/' + encodeURIComponent($('book-name').value) + '/open', { method: 'POST', body: '{}' });
+  refresh();
+};
+$('sparse').onclick = async () => { await api('/api/window', { method: 'POST', body: JSON.stringify({ density: 'sparse' }) }); refresh(); };
+$('mid').onclick = async () => { await api('/api/window', { method: 'POST', body: JSON.stringify({ density: 'mid' }) }); refresh(); };
+$('dense').onclick = async () => { await api('/api/window', { method: 'POST', body: JSON.stringify({ density: 'dense' }) }); refresh(); };
+$('minus').onclick = async () => { await api('/api/window', { method: 'POST', body: JSON.stringify({ n: Math.max(1, (state.n||1)-1) }) }); refresh(); };
+$('plus').onclick = async () => { await api('/api/window', { method: 'POST', body: JSON.stringify({ n: Math.min(6, (state.n||1)+1) }) }); refresh(); };
+$('prev').onclick = async () => { await api('/api/window', { method: 'POST', body: JSON.stringify({ start: Math.max(0, (state.window_start||0)-1) }) }); refresh(); };
+$('next').onclick = async () => { await api('/api/window', { method: 'POST', body: JSON.stringify({ start: (state.window_start||0)+1 }) }); refresh(); };
+$('new-entity').onclick = async () => {
+  const name = $('ent-name').value;
+  await api('/api/entities', { method: 'POST', body: JSON.stringify({ id: name, kind: $('ent-kind').value, name }) });
+  refresh();
+};
+$('write-next').onclick = async () => {
+  const r = await api('/api/write-next', { method: 'POST', body: JSON.stringify({ intent: $('intent').value }) });
+  currentDraft = r.id;
+  refresh();
+};
+$('talk').onclick = () => { pendingTalk = '讨论稿：' + ($('intent').value || '动作'); };
+$('write-box').onclick = async () => {
+  if (!pendingTalk) return;
+  $('do-text').value = pendingTalk;
+  pendingTalk = '';
+  if (!currentDraft) return;
+  await api('/api/drafts', { method: 'POST', body: JSON.stringify({ id: currentDraft, draft: { kind:'scene', column_id:'col0', intent: $('intent').value, do_text: $('do-text').value, clock_from:0, clock_to:60 } }) });
+  refresh();
+};
+$('commit').onclick = async () => {
+  if (!currentDraft) return;
+  await api('/api/drafts', { method: 'POST', body: JSON.stringify({ id: currentDraft, draft: { id: currentDraft, kind:'scene', column_id:'col0', intent: $('intent').value, do_text: $('do-text').value, value_shift: '转', clock_from:0, clock_to:60, presences: [] } }) });
+  await api('/api/commit', { method: 'POST', body: JSON.stringify({ id: currentDraft }) });
+  currentDraft = null;
+  refresh();
+};
+$('fill-fake').onclick = async () => {
+  if (!currentDraft) return;
+  await api('/api/fill-fake', { method: 'POST', body: JSON.stringify({ id: currentDraft }) });
+  refresh();
+};
+$('reading-order').onclick = async () => { await api('/api/reading-order', { method: 'POST', body: '{}' }); refresh(); };
+$('occupancy').onclick = () => $('flyout').showModal();
+$('flyout-close').onclick = () => $('flyout').close();
+$('export').onclick = async () => {
+  const md = await api('/api/export');
+  $('export-out').classList.remove('hidden');
+  $('export-out').textContent = md;
+};
+$('add-parallel').onclick = async () => {
+  if (!$('intent').value) return;
+  await api('/api/drafts', { method: 'POST', body: JSON.stringify({ title:'并列', draft: { kind:'scene', column_id:'col0', intent: $('intent').value, do_text:'并列动作', value_shift:'并', clock_from:0, clock_to:60 } }) });
+  refresh();
+};
+</script>
+</body>
+</html>

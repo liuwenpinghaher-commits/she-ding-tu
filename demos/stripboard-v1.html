@@ -1,0 +1,1966 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>设定图 · 一场一块</title>
+  <script>
+    (function () {
+      try {
+        var q = new URLSearchParams(location.search).get("theme");
+        var t = (q === "light" || q === "dark") ? q : localStorage.getItem("worldgraph-theme");
+        document.documentElement.setAttribute("data-theme", t === "light" ? "light" : "dark");
+      } catch (e) {
+        document.documentElement.setAttribute("data-theme", "dark");
+      }
+    })();
+  </script>
+  <!-- HERO: 故事时列里叠放带在场标记的场面卡；连线只导航，不当 fold -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,500;0,600;1,500&family=IBM+Plex+Mono:wght@400;500&family=Noto+Sans+SC:wght@400;500;700&family=Noto+Serif+SC:wght@500;600&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      color-scheme: dark;
+      --night: #161310;
+      --panel: #1f1b16;
+      --panel-2: #2a241c;
+      --cream: #ede4d4;
+      --mute: #b4aa9e;
+      --line: #3a342c;
+      --brass: #c4a574;
+      --brass-ink: #161310;
+      --warn: #e0b56a;
+      --warn-bg: #3a2f18;
+      --glow: #2a2218;
+      --line-hover: #5a5246;
+      --stripe: #241f19;
+      --col-on: rgba(196, 165, 116, 0.05);
+      --handle-hover: rgba(196, 165, 116, 0.35);
+      --grain-opacity: .07;
+      --lib: 220px;
+      --side: 400px;
+      --cols: 4;
+      --focus: 2px solid var(--brass);
+    }
+    html[data-theme="light"] {
+      color-scheme: light;
+      --night: #f3eee4;
+      --panel: #faf7f0;
+      --panel-2: #efe8dc;
+      --cream: #2c261e;
+      --mute: #6f675c;
+      --line: #d8cfc0;
+      --brass: #8b6430;
+      --brass-ink: #faf7f0;
+      --warn: #9a6a10;
+      --warn-bg: #f6e6c4;
+      --glow: #e8dcc8;
+      --line-hover: #b8aa94;
+      --stripe: #e4d8c6;
+      --col-on: rgba(139, 100, 48, 0.08);
+      --handle-hover: rgba(139, 100, 48, 0.28);
+      --grain-opacity: .04;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body {
+      background: var(--night);
+      color: var(--cream);
+      font-family: "Noto Sans SC", sans-serif;
+      font-size: 13.5px;
+      line-height: 1.45;
+    }
+    body::before {
+      content: "";
+      pointer-events: none;
+      position: fixed;
+      inset: 0;
+      z-index: 40;
+      opacity: var(--grain-opacity);
+      background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+    }
+    .skip { position: absolute; left: -999px; }
+    .skip:focus { left: 8px; top: 8px; z-index: 50; background: var(--panel); color: var(--cream); padding: 6px 10px; }
+    .app {
+      display: grid;
+      grid-template-columns: var(--lib) 1fr var(--side);
+      grid-template-rows: auto 1fr;
+      height: 100%;
+      min-width: 1100px;
+    }
+    header {
+      grid-column: 1 / -1;
+      display: flex;
+      align-items: baseline;
+      gap: 16px;
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--line);
+      background: var(--panel);
+    }
+    .brand {
+      font-family: "EB Garamond", "Noto Serif SC", serif;
+      font-size: 22px;
+      font-weight: 600;
+      letter-spacing: .04em;
+    }
+    .brand em { font-style: italic; color: var(--brass); font-weight: 500; }
+    .note { color: var(--mute); font-size: 11px; }
+    .spacer { flex: 1; }
+    button {
+      font: inherit;
+      background: transparent;
+      color: var(--cream);
+      border: 1px solid var(--line);
+      padding: 5px 10px;
+      cursor: pointer;
+      border-radius: 1px;
+    }
+    button:hover { border-color: var(--brass); color: var(--brass); }
+    button:focus-visible, .card:focus-visible, .chip:focus-visible, .col-head:focus-visible, .lib-item:focus-visible, .lib-filter:focus-visible, .appear:focus-visible, .handle:focus-visible {
+      outline: var(--focus); outline-offset: 2px;
+    }
+    button.primary { background: var(--brass); color: var(--brass-ink); border-color: var(--brass); }
+    button.primary:hover { filter: brightness(1.05); color: var(--brass-ink); }
+    html[data-theme="light"] button.primary:hover { filter: brightness(0.95); }
+    button[aria-pressed="true"] { background: var(--cream); color: var(--night); border-color: var(--cream); }
+    #themeBtn[aria-pressed="true"] {
+      background: transparent;
+      color: var(--cream);
+      border-color: var(--brass);
+    }
+    button:disabled { opacity: .35; cursor: not-allowed; }
+    button:disabled:hover { border-color: var(--line); color: var(--cream); }
+    .library, .side {
+      background: var(--panel);
+      overflow: auto;
+      padding: 12px 12px 28px;
+    }
+    .library { border-right: 1px solid var(--line); }
+    .side { border-left: 1px solid var(--line); }
+    .library h2, .side h2 {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 10px;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+      color: var(--mute);
+      margin: 0 0 8px;
+      font-weight: 500;
+    }
+    .library h3 {
+      font-size: 11px;
+      color: var(--mute);
+      margin: 14px 0 6px;
+      font-weight: 500;
+    }
+    .lib-row {
+      display: flex;
+      align-items: stretch;
+      gap: 2px;
+      margin-bottom: 2px;
+    }
+    .lib-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex: 1;
+      min-width: 0;
+      text-align: left;
+      border: 0;
+      padding: 5px 4px;
+      margin-bottom: 0;
+      cursor: grab;
+    }
+    .lib-item[aria-current="page"] { background: var(--panel-2); }
+    .lib-item .dot {
+      width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+    }
+    .lib-filter {
+      flex-shrink: 0;
+      border: 0;
+      padding: 4px 6px;
+      font-size: 10px;
+      color: var(--mute);
+    }
+    .lib-filter:hover { color: var(--brass); }
+    .lib-filter[aria-pressed="true"] {
+      background: var(--cream);
+      color: var(--night);
+    }
+    .lib-meta { font-size: 11px; color: var(--mute); margin: 0 0 8px; line-height: 1.4; }
+    .library input[type="search"] {
+      width: 100%;
+      font: inherit;
+      color: var(--cream);
+      background: var(--night);
+      border: 1px solid var(--line);
+      padding: 6px 8px;
+      margin-bottom: 8px;
+    }
+    .library input[type="search"]:focus { border-color: var(--brass); outline: none; }
+    .lib-item .off { margin-left: auto; font-size: 9px; color: var(--mute); }
+    .stage { display: flex; flex-direction: column; min-width: 0; min-height: 0; background:
+      radial-gradient(1200px 400px at 20% -10%, var(--glow) 0%, transparent 55%), var(--night); }
+    .strip-scroll {
+      flex: 1;
+      min-height: 0;
+      overflow: auto;
+      display: flex;
+      flex-direction: column;
+    }
+    .ruler {
+      display: grid;
+      grid-template-columns: repeat(var(--cols), minmax(0, 1fr));
+      width: 100%;
+      border-bottom: 1px solid var(--line);
+      background: var(--panel);
+      flex-shrink: 0;
+    }
+    .col-head {
+      border: 0;
+      border-right: 1px solid var(--line);
+      background: transparent;
+      color: var(--cream);
+      padding: 8px 16px 10px 8px;
+      text-align: left;
+      min-height: 88px;
+      position: relative;
+    }
+    .col-head.on { box-shadow: inset 0 -2px 0 var(--brass); }
+    .col-head .n {
+      font-family: "EB Garamond", serif;
+      font-size: 18px;
+      color: var(--brass);
+      display: block;
+    }
+    .col-head .clock {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 11px;
+      color: var(--cream);
+      display: block;
+      margin-top: 2px;
+    }
+    .col-head .lab { font-size: 10px; color: var(--mute); }
+    .col-head .dur { font-size: 10px; color: var(--brass); }
+    .lens {
+      height: 4px;
+      margin-top: 6px;
+      background: var(--line);
+      position: relative;
+      overflow: hidden;
+    }
+    .lens > span {
+      display: block;
+      height: 100%;
+      background: var(--brass);
+      opacity: .85;
+    }
+    .handle {
+      position: absolute;
+      top: 0; right: -5px;
+      width: 10px; height: 100%;
+      cursor: ew-resize;
+      z-index: 3;
+      background: transparent;
+      border: 0;
+      padding: 0;
+    }
+    .handle:hover, .handle:focus-visible { background: var(--handle-hover); }
+    .handle::after {
+      content: "";
+      position: absolute;
+      top: 10px; bottom: 10px; left: 3px;
+      width: 2px;
+      background: var(--brass);
+    }
+    .gap-menu {
+      position: fixed;
+      z-index: 60;
+      width: 240px;
+      background: var(--panel);
+      border: 1px solid var(--brass);
+      padding: 10px;
+      display: none;
+    }
+    .gap-menu.open { display: block; }
+    .gap-menu p { margin: 0 0 8px; font-size: 12px; }
+    .gap-menu button { display: block; width: 100%; margin: 4px 0; text-align: left; }
+    .card.is-spare {
+      border-style: dashed;
+      min-height: 72px;
+      color: var(--mute);
+      font-size: 12px;
+    }
+    .cov {
+      display: flex;
+      gap: 3px;
+      margin-top: 6px;
+    }
+    .cov i {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--line);
+      display: block;
+    }
+    .cov i.on { background: var(--brass); }
+    .board-wrap { position: relative; flex: 1; overflow: visible; min-height: 0; }
+    .cols {
+      display: grid;
+      grid-template-columns: repeat(var(--cols), minmax(0, 1fr));
+      width: 100%;
+      min-height: 100%;
+      align-items: start;
+    }
+    .col {
+      border-right: 1px solid var(--line);
+      padding: 12px 10px 24px;
+      min-height: 100%;
+    }
+    .col.on { background: var(--col-on); }
+    .wires {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      overflow: visible;
+    }
+    .card {
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      padding: 9px 10px 8px;
+      margin-bottom: 10px;
+      cursor: pointer;
+      text-align: left;
+      width: 100%;
+      color: inherit;
+      animation: rise .5s cubic-bezier(0.16, 1, 0.3, 1) both;
+      transition: border-color 160ms cubic-bezier(0.16, 1, 0.3, 1), transform 160ms cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .card:hover { border-color: var(--line-hover); }
+    .card[aria-selected="true"] {
+      border-color: var(--brass);
+      box-shadow: 0 0 0 1px var(--brass);
+    }
+    .card.is-ellipsis { background: repeating-linear-gradient(-45deg, var(--panel-2), var(--panel-2) 6px, var(--stripe) 6px, var(--stripe) 7px); }
+    .card.is-draft { border-style: dashed; }
+    .card.is-off { opacity: .72; }
+    .card.is-flash { margin-left: 10px; width: calc(100% - 10px); font-size: 12px; }
+    .card.drop-on { border-color: var(--brass); box-shadow: 0 0 0 1px var(--brass); }
+    .library.drop-on, .side.drop-on { outline: 1px dashed var(--brass); outline-offset: -4px; }
+    .kicker {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 10px;
+      color: var(--mute);
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+    .badge {
+      border: 1px solid var(--line);
+      padding: 0 5px;
+      font-size: 9px;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+    }
+    .badge.warn { border-color: var(--warn); color: var(--warn); background: var(--warn-bg); }
+    .title {
+      font-family: "Noto Serif SC", "EB Garamond", serif;
+      font-size: 15px;
+      font-weight: 600;
+      margin: 4px 0 2px;
+    }
+    .cols.is-mid .title { font-size: 17px; }
+    .cols.is-roomy .title { font-size: 20px; }
+    .cols.is-roomy .card { padding: 14px 14px 12px; }
+    .sum { font-size: 11px; color: var(--mute); }
+    .val { font-size: 12px; color: var(--brass); margin: 4px 0 0; }
+    .card-tr {
+      font-size: 12px;
+      color: var(--cream);
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px solid var(--line);
+      line-height: 1.45;
+    }
+    .card-tr b { color: var(--brass); font-weight: 600; margin-right: 4px; }
+    .card-tr span { display: block; color: var(--mute); }
+    .chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      border: 1px solid var(--line);
+      background: var(--night);
+      color: var(--cream);
+      padding: 2px 6px 2px 4px;
+      font-size: 11px;
+      cursor: grab;
+      border-radius: 99px;
+    }
+    .chip .dot { width: 7px; height: 7px; border-radius: 50%; }
+    .chip .role { font-size: 9px; color: var(--mute); letter-spacing: .04em; }
+    .chip:hover, .chip[aria-pressed="true"] { border-color: var(--brass); }
+    .kind-pick { display: flex; flex-wrap: wrap; gap: 4px; margin: 8px 0 12px; }
+    .lib-actions { margin: 0 0 8px; }
+    .cover-row select, .cover-row .add-sel {
+      font: inherit; color: var(--cream); background: var(--night);
+      border: 1px solid var(--line); padding: 4px 6px; max-width: 100%;
+    }
+    .col-count {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 12px;
+      color: var(--mute);
+    }
+    .col-count span { color: var(--cream); min-width: 9em; text-align: center; }
+    .side h3 { font-size: 13px; margin: 14px 0 6px; font-family: "Noto Serif SC", serif; }
+    .track-block {
+      border: 1px solid var(--line);
+      padding: 8px;
+      margin-bottom: 8px;
+      background: var(--night);
+    }
+    .track-block .who { font-weight: 700; margin-bottom: 4px; }
+    .track-block p { margin: 3px 0 0; }
+    .track-block b {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 10px;
+      font-weight: 500;
+      color: var(--brass);
+      margin-right: 6px;
+    }
+    .debt {
+      border-left: 2px solid var(--brass);
+      padding: 6px 8px;
+      margin: 6px 0;
+    }
+    .muted { color: var(--mute); font-size: 12px; }
+    label { display: block; font-size: 12px; margin: 8px 0 4px; }
+    textarea {
+      width: 100%;
+      font: inherit;
+      color: var(--cream);
+      background: var(--night);
+      border: 1px solid var(--line);
+      padding: 8px;
+      min-height: 72px;
+      resize: vertical;
+    }
+    textarea.short { min-height: 44px; }
+    .field-head {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 8px;
+      margin: 14px 0 6px;
+    }
+    .field-head h3, .field-head.tight { margin: 0; }
+    .field-head.tight { margin: 8px 0 4px; font-size: 12px; }
+    .discuss-btn { font-size: 11px; padding: 2px 8px; flex-shrink: 0; }
+    .talk {
+      border: 1px solid var(--line);
+      background: var(--night);
+      padding: 8px;
+      min-height: 100px;
+      max-height: 220px;
+      overflow: auto;
+      font-size: 12px;
+      margin: 8px 0;
+    }
+    .talk .me { color: var(--brass); margin: 8px 0; }
+    .talk .bot { color: var(--cream); margin: 8px 0; }
+    .appear {
+      display: block;
+      width: 100%;
+      text-align: left;
+      border: 1px solid var(--line);
+      background: var(--night);
+      margin: 0 0 6px;
+      padding: 8px;
+    }
+    .appear:hover { border-color: var(--brass); }
+    .appear .k {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 10px;
+      color: var(--brass);
+    }
+    .win {
+      border: 1px solid var(--line);
+      padding: 8px;
+      margin: 0 0 8px;
+      background: var(--night);
+    }
+    .win p { margin: 4px 0 0; font-size: 12px; }
+    .ro {
+      border: 1px solid var(--line);
+      background: var(--night);
+      padding: 8px;
+      font-size: 12px;
+      color: var(--mute);
+      margin: 0 0 8px;
+    }
+    .node-links { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
+    .empty {
+      display: none;
+      grid-column: 1 / -1;
+      padding: 56px 32px;
+      max-width: 480px;
+    }
+    body.show-empty .library, body.show-empty .stage, body.show-empty .side { display: none; }
+    body.show-empty .empty { display: block; }
+    .empty h1 {
+      font-family: "EB Garamond", "Noto Serif SC", serif;
+      font-size: 32px;
+      font-weight: 500;
+      margin: 0 0 12px;
+    }
+    @keyframes rise {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: none; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .card { animation: none; transition: none; }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip" href="#board">跳到戏卡</a>
+  <div class="app">
+    <header>
+      <div class="brand">设定图 <em>一场一块</em></div>
+      <div class="note">− / + 改本页显示几列（少则宽、卡上更细）。‹ › 平移。拖右缘改故事时间。</div>
+      <div class="spacer"></div>
+      <div class="col-count" role="group" aria-label="本页显示几列">
+        <button type="button" id="pagePrev" aria-label="窗口往左一列">‹</button>
+        <button type="button" id="colMinus" aria-label="本页少显示一列">−</button>
+        <span id="colCount">本页 4 / 6 列</span>
+        <button type="button" id="colPlus" aria-label="本页多显示一列">+</button>
+        <button type="button" id="pageNext" aria-label="窗口往右一列">›</button>
+      </div>
+      <button type="button" id="themeBtn" aria-pressed="false" aria-label="切到亮色主题">亮色</button>
+      <span class="note" id="colHint"></span>
+      <button type="button" id="emptyBtn">看空态</button>
+      <button type="button" class="primary" id="nextBtn">写下一场</button>
+    </header>
+    <section class="empty" aria-label="空态">
+      <h1>还没有一场戏。</h1>
+      <p>可以先只写人物、地点、规则。没有场，设定仍然有用。左栏「新建」写入设定，不进 fold。</p>
+      <p><button type="button" class="primary" id="emptyNew">去设定里新建</button>
+         <button type="button" id="backBtn">回到有戏的演示</button></p>
+    </section>
+    <aside class="library" id="library">
+      <h2 id="libTitle">设定 · 当前这几列</h2>
+      <p class="lib-meta" id="libMeta"></p>
+      <input type="search" id="libSearch" placeholder="搜全书人物、地点、规则…" autocomplete="off" aria-label="搜全书" />
+      <div class="lib-actions"><button type="button" id="libNew">新建</button></div>
+      <div id="libList"></div>
+    </aside>
+    <div class="stage">
+      <div class="strip-scroll" id="stripScroll">
+      <div class="ruler" id="ruler"></div>
+      <div class="board-wrap" id="boardWrap">
+        <svg class="wires" id="wires" aria-hidden="true"></svg>
+        <div class="cols" id="board"></div>
+      </div>
+      </div>
+    </div>
+    <aside class="side" id="side" aria-live="polite"></aside>
+  </div>
+  <div class="gap-menu" id="gapMenu" role="dialog" aria-label="空出的故事时间">
+    <p id="gapText"></p>
+    <button type="button" data-act="shift">后面的故事时间全部往前移</button>
+    <button type="button" data-act="merge">融进下一列</button>
+    <button type="button" data-act="empty">变成空场次（这段没戏）</button>
+    <button type="button" data-act="cancel">取消</button>
+  </div>
+  <script>
+    const COVER = ["地点", "人物", "道具", "组织", "伏笔"];
+    const NODE_KINDS = ["人", "地", "物", "势力", "伏笔", "规矩"];
+    const KIND_COLOR = { 人: "#c45c26", 地: "#6d6875", 物: "#e9c46a", 势力: "#bc6c25", 伏笔: "#e76f51", 规矩: "#a98467" };
+    const MIN_DUR = 1;
+    const PX_PER_MIN = 2;
+    let viewCount = 4;
+    let viewStart = 0;
+    let columns = [
+      { clock0: 9 * 60, clock1: 10 * 60, label: "第三日黄昏" },
+      { clock0: 10 * 60, clock1: 18 * 60, label: "一夜" },
+      { clock0: 18 * 60, clock1: 18 * 60 + 2, label: "次日申时" },
+      { clock0: 18 * 60 + 2, clock1: 19 * 60, label: "同日酉时" },
+      { clock0: 19 * 60, clock1: 21 * 60, label: "当夜" },
+      { clock0: 21 * 60, clock1: 22 * 60, label: "尚空", spare: true }
+    ];
+    let drag = null;
+    let pendingGap = null;
+    const ENT = {
+      阿禾: { kind: "人", color: "#c45c26", setup: "过路客。要把信带进城，又不敢自己带着进。" },
+      船娘: { kind: "人", color: "#2a9d8f", setup: "摆渡。袖里能藏客货，也藏得住祸。" },
+      捕快林三: { kind: "人", color: "#8d99ae", setup: "公门。查的是那封信。" },
+      渡口: { kind: "地", color: "#6d6875", setup: "城外渡口。" },
+      城里: { kind: "地", color: "#7d7468", setup: "城门以内。省略场到达点。" },
+      客栈大堂: { kind: "地", color: "#9a8c98", setup: "城里第一家客栈。" },
+      客栈后院: { kind: "地", color: "#c9ada7", setup: "堆柴的后院。" },
+      密信: { kind: "物", color: "#e9c46a", setup: "油布包着。进城不许拆。" },
+      漕帮: { kind: "势力", color: "#bc6c25", setup: "河上的帮。" },
+      信债: { kind: "伏笔", color: "#e76f51", setup: "读者见过「进城再拆」，故事欠一响。" },
+      过河不拆客货: { kind: "规矩", color: "#a98467", setup: "过河不拆客货。船娘口头认这条。不当作出场。", related: ["信债"] },
+      城门守: { kind: "人", color: "#6b705c", setup: "守城门。设定里有，这几列戏没写到他。" },
+      铁锚: { kind: "物", color: "#8a817c", setup: "船上备用。设定里有，这几列戏没写到它。" }
+    };
+    const beats = [
+      {
+        id: "b1", t: 1, kind: "scene", status: "committed",
+        title: "把信交出去",
+        at: "渡口", involves: ["阿禾", "船娘"],
+        things: ["密信"], factions: ["漕帮"],
+        intent: "让信离开自己，进城后还能装作不知道。",
+        value_shift: "把柄→托付",
+        promises: [{ text: "信不能在城里拆开", status: "open" }],
+        tracks: [
+          { who: "阿禾", do: "把油布包着的信塞进船娘袖里。", say: "进城再拆。拆了你我都活不成。", think: "她若是漕帮的人，今晚就会报官。" },
+          { who: "船娘", do: "袖子一收，没看他。", say: "过河的规矩，我懂。", think: "袖里那封信比船沉。" }
+        ],
+        stateAt: {
+          渡口: "第三日黄昏，船上。",
+          阿禾: "信已托出。捕快还不知道。",
+          船娘: "信在袖里。阿禾不许进城拆。",
+          密信: "在船娘袖里，火漆未动。",
+          漕帮: "船娘是否报帮，尚未落地。"
+        },
+        delta: {
+          密信: "从阿禾手里转到船娘袖里。",
+          阿禾: "身上不再有信。",
+          船娘: "袖里多了一封不许拆的信。"
+        }
+      },
+      {
+        id: "b2", t: 2, kind: "ellipsis", status: "committed",
+        title: "跨过一夜",
+        at: "城里", involves: ["阿禾"],
+        things: [], factions: [],
+        intent: "时间在走，不当场演。人从渡口到城里。",
+        value_shift: "",
+        promises: [],
+        tracks: [],
+        stateAt: { 城里: "阿禾已进城。", 阿禾: "进城了。信不在自己身上。" },
+        delta: { 阿禾: "所在地：渡口 → 城里。" }
+      },
+      {
+        id: "b3", t: 3, kind: "scene", status: "committed",
+        title: "信被问起",
+        at: "客栈大堂", involves: ["阿禾", "捕快林三"],
+        things: [], factions: [],
+        intent: "让阿禾必须用不知情活过这一问。",
+        value_shift: "安全→审讯",
+        promises: [{ text: "信不能在城里拆开", status: "open" }],
+        tracks: [
+          { who: "捕快林三", do: "腰牌拍在桌上。", say: "渡口那封信，还在不在你身上。", think: "" },
+          { who: "阿禾", do: "倒茶，手没抖。", say: "什么信。", think: "船娘没来。信不在我身上。她拆了没有。" }
+        ],
+        stateAt: {
+          客栈大堂: "捕快在座。",
+          阿禾: "捕快在查这封信。自己身上没有。",
+          捕快林三: "阿禾从渡口来。信的下落未知。"
+        },
+        delta: { 阿禾: "被公门点名问信。" }
+      },
+      {
+        id: "b4", t: 3, kind: "scene", status: "draft",
+        title: "河上拆信",
+        at: "渡口", involves: ["船娘"],
+        things: ["密信"], factions: ["漕帮"],
+        intent: "同列另一地点。演示：同列两地 = 挡提交。",
+        value_shift: "托付→背叛",
+        promises: [{ text: "信不能在城里拆开", status: "open" }],
+        tracks: [
+          { who: "船娘", do: "停桨，几乎拆油布。", say: "", think: "城里有捕快。信留在袖里是祸。" }
+        ],
+        stateAt: { 渡口: "夜里河上。", 船娘: "信的内容她即将看见。", 密信: "油布松了一角，火漆仍在。" },
+        delta: { 密信: "几乎被拆，尚未拆开。" },
+        strict: "同列两地：列 3 已有「客栈大堂」。strict，挡提交。"
+      },
+      {
+        id: "b5", t: 4, kind: "scene", status: "draft",
+        title: "后院决定",
+        at: "客栈后院", involves: ["阿禾"],
+        things: [], factions: [],
+        intent: "还没写完。草稿不进 fold。",
+        value_shift: "",
+        promises: [{ text: "信不能在城里拆开", status: "open" }],
+        tracks: [
+          { who: "阿禾", do: "", say: "", think: "要不要回去找船娘。" }
+        ],
+        stateAt: { 客栈后院: "堆柴。", 阿禾: "捕快在查。信应在船上。" },
+        delta: {}
+      },
+      {
+        id: "b6", t: 4, kind: "scene", status: "committed", flashbackOf: "b1",
+        title: "渡口那一幕（闪回）",
+        at: "客栈后院", involves: ["阿禾"],
+        things: [], factions: [],
+        intent: "人在后院想起渡口。地点仍是后院，渡口不占这张卡。",
+        value_shift: "",
+        promises: [],
+        tracks: [
+          { who: "阿禾", do: "", say: "", think: "袖子一收的那一下。" }
+        ],
+        stateAt: { 客栈后院: "阿禾独坐。", 阿禾: "看见的是列 1 已经写入正史的世界，不是新账。" },
+        delta: {}
+      },
+      {
+        id: "b7", t: 5, kind: "scene", status: "committed", offscreen: true,
+        title: "漕帮夜报",
+        at: "渡口", involves: ["船娘"],
+        things: [], factions: ["漕帮"],
+        intent: "世界上发生了，读者没跟。",
+        value_shift: "",
+        promises: [],
+        tracks: [],
+        stateAt: { 渡口: "夜里。", 船娘: "帮里问她袖里是什么。今晚要回话。" },
+        delta: { 漕帮: "开始追问船娘袖里的货。" }
+      }
+    ];
+
+    function deriveChips(b) {
+      const out = [];
+      const seen = new Set();
+      const push = (name, role) => {
+        if (!name || !ENT[name] || seen.has(name)) return;
+        seen.add(name);
+        out.push({ name, role });
+      };
+      push(b.at, "地");
+      (b.involves || []).forEach((n) => push(n, "人"));
+      (b.things || []).forEach((n) => push(n, "物"));
+      (b.factions || []).forEach((n) => push(n, "势力"));
+      if ((b.promises || []).length) push("信债", "伏笔");
+      return out;
+    }
+    function beatCover(b) {
+      const c = deriveChips(b);
+      return {
+        地点: c.some((x) => x.role === "地") ? 1 : 0,
+        人物: c.some((x) => x.role === "人") ? 1 : 0,
+        道具: c.some((x) => x.role === "物") ? 1 : 0,
+        组织: c.some((x) => x.role === "势力") ? 1 : 0,
+        伏笔: c.some((x) => x.role === "伏笔") ? 1 : 0
+      };
+    }
+    function chipRole(b, name) {
+      const hit = deriveChips(b).find((c) => c.name === name);
+      return hit ? hit.role : null;
+    }
+    function whyChip(b, name) {
+      const role = chipRole(b, name);
+      if (role === "地") return `「${name}」在这张卡上，因为这场发生在这儿（at）。地点不能删空，只能换成别的地点。`;
+      if (role === "人") return `「${name}」在这张卡上，因为出场人物里有他（involves）。可以去掉。场面至少留一个人物。`;
+      if (role === "物") return `「${name}」在这张卡上，因为这场动到了这件道具。可以去掉，表示这场没改它。`;
+      if (role === "势力") return `「${name}」在这张卡上，因为这场动到了这个组织。可以去掉。`;
+      if (role === "伏笔") return `「${name}」在这张卡上，因为这场动了这条伏笔。可以去掉，表示这场没埋、没推、没兑现。`;
+      return `「${name}」不在这场的在场里。`;
+    }
+    function onCard(b, name) {
+      return deriveChips(b).some((c) => c.name === name);
+    }
+    function addToBeat(b, name) {
+      const e = ENT[name];
+      if (!e) return false;
+      if (e.kind === "规矩") return false;
+      if (e.kind === "地") { b.at = name; return true; }
+      if (e.kind === "人") {
+        if (!b.involves.includes(name)) {
+          b.involves.push(name);
+          if (b.kind === "scene" && !(b.tracks || []).some((t) => t.who === name)) {
+            b.tracks.push({ who: name, do: "", say: "", think: "" });
+          }
+        }
+        return true;
+      }
+      if (e.kind === "物") {
+        b.things = b.things || [];
+        if (!b.things.includes(name)) b.things.push(name);
+        return true;
+      }
+      if (e.kind === "势力") {
+        b.factions = b.factions || [];
+        if (!b.factions.includes(name)) b.factions.push(name);
+        return true;
+      }
+      if (e.kind === "伏笔") {
+        b.promises = b.promises || [];
+        if (!b.promises.length) b.promises.push({ text: "信不能在城里拆开", status: "open" });
+        return true;
+      }
+      return false;
+    }
+    function removeFromBeat(b, name) {
+      const role = chipRole(b, name);
+      if (role === "地") return false;
+      if (role === "人") {
+        if (b.kind === "scene" && b.involves.length <= 1) return false;
+        b.involves = b.involves.filter((n) => n !== name);
+        b.tracks = (b.tracks || []).filter((t) => t.who !== name);
+        return true;
+      }
+      if (role === "物") { b.things = (b.things || []).filter((n) => n !== name); return true; }
+      if (role === "势力") { b.factions = (b.factions || []).filter((n) => n !== name); return true; }
+      if (role === "伏笔") { b.promises = []; return true; }
+      return false;
+    }
+    function cannotRemoveReason(b, name) {
+      const role = chipRole(b, name);
+      if (role === "地") return "地点只能换成别处：把另一个地点拖进这张卡。";
+      if (role === "人" && b.kind === "scene" && b.involves.length <= 1) return "场面至少留一个人物。";
+      if (!role) return "不在这场上。";
+      return "";
+    }
+    function toast(msg) {
+      const el = $("colHint");
+      if (el) el.textContent = msg || "";
+    }
+    function chipButton(b, c) {
+      const e = ENT[c.name];
+      if (!e) return "";
+      const pressed = state.chip && state.chip.beatId === b.id && state.chip.name === c.name;
+      return `<button type="button" class="chip" draggable="true" data-beat="${b.id}" data-name="${c.name}" aria-pressed="${pressed ? "true" : "false"}">
+        <span class="dot" style="background:${e.color}"></span><span class="role">${kindLabel(c.role)}</span>${c.name}
+      </button>`;
+    }
+
+    const state = { col: 1, beatId: "b1", chip: null, node: null, filter: "all", mode: "inspect", libQuery: "", discuss: null, createKind: "人", createName: "" };
+    const $ = (id) => document.getElementById(id);
+    let skipClick = false;
+    let entityDrag = null;
+    let nextIntent = "";
+
+    function visibleBeats() {
+      const f = state.filter;
+      if (f === "all") return beats;
+      return beats.filter((b) => onCard(b, f));
+    }
+    function coverageAt(col, dim) {
+      return visibleBeats().some((b) => b.t === col && beatCover(b)[dim]);
+    }
+    function statusLabel(b) {
+      if (b.strict) return "同列两地";
+      if (b.flashbackOf) return "闪回";
+      if (b.offscreen) return "不在读者眼前";
+      if (b.kind === "ellipsis") return "省略场";
+      return b.status === "draft" ? "草稿" : "正史";
+    }
+    function hm(min) {
+      const h = Math.floor(((min % (24 * 60)) + 24 * 60) % (24 * 60) / 60);
+      const m = ((min % 60) + 60) % 60;
+      return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+    }
+    function durLabel(mins) {
+      if (mins < 60) return `${mins} 分钟`;
+      const h = Math.floor(mins / 60);
+      const m = mins % 60;
+      return m ? `${h} 小时 ${m} 分` : `${h} 小时`;
+    }
+    function colClock(t) {
+      return columns[t - 1];
+    }
+    function maxDur() {
+      return Math.max(...columns.map((c) => c.clock1 - c.clock0), 1);
+    }
+    function clampView() {
+      viewCount = Math.max(1, Math.min(viewCount, Math.max(1, columns.length)));
+      const maxStart = Math.max(0, columns.length - viewCount);
+      viewStart = Math.max(0, Math.min(viewStart, maxStart));
+    }
+    function pageIndices() {
+      clampView();
+      return Array.from({ length: viewCount }, (_, k) => viewStart + k);
+    }
+    function revealCol(t) {
+      const i = t - 1;
+      if (i < 0 || i >= columns.length) return;
+      if (i < viewStart) viewStart = i;
+      else if (i >= viewStart + viewCount) viewStart = i - viewCount + 1;
+      clampView();
+    }
+    function syncColCount() {
+      clampView();
+      const shown = pageIndices().length;
+      document.documentElement.style.setProperty("--cols", String(shown));
+      const n = $("colCount");
+      if (n) n.textContent = `本页 ${shown} / ${columns.length} 列`;
+      const minus = $("colMinus");
+      const plus = $("colPlus");
+      const prev = $("pagePrev");
+      const next = $("pageNext");
+      if (minus) minus.disabled = viewCount <= 1;
+      if (plus) plus.disabled = viewCount >= columns.length;
+      if (prev) prev.disabled = viewStart <= 0;
+      if (next) next.disabled = viewStart + viewCount >= columns.length;
+    }
+    function setViewCount(next) {
+      const sel = state.col - 1;
+      const wasVisible = sel >= viewStart && sel < viewStart + viewCount;
+      viewCount = next;
+      clampView();
+      if (wasVisible) revealCol(state.col);
+      render();
+    }
+    function panView(delta) {
+      viewStart += delta;
+      clampView();
+      render();
+    }
+    function lastValueShiftNote() {
+      const cs = beats.filter((b) => b.status === "committed").slice().sort((a, b) => b.t - a.t);
+      const last = cs[0];
+      if (!last) return "还没有已写入正史的场。";
+      const here = last.value_shift
+        ? `${last.title}：${last.value_shift}`
+        : `${last.title}：空（标黄，不挡提交）`;
+      const earlier = cs.find((b) => b.value_shift);
+      const extra = (!last.value_shift && earlier && earlier.id !== last.id)
+        ? ` 再往前翻过的是「${earlier.title}」：${earlier.value_shift}。`
+        : "";
+      return here + extra;
+    }
+    function tensionLine(b) {
+      if (!b) return "";
+      const bits = [];
+      if ((b.intent || "").trim()) bits.push("本场任务还没落地");
+      if ((b.promises || []).some((p) => p.status === "open")) bits.push("未收的伏笔");
+      const chips = deriveChips(b);
+      if (chips.some((c) => c.role === "物" || c.role === "伏笔")) bits.push("在场筹码");
+      if (!bits.length) return "这场还拼不出张力（任务、伏笔、筹码都空）。不另存分数。";
+      return "张力（不打分，从字段拼）：" + bits.join(" · ") + "。知情差看侧栏「他知道什么」。";
+    }
+    function cardExtra(b) {
+      if (viewCount >= 5) return "";
+      const bits = [];
+      if (b.value_shift) bits.push(`<p class="val">${b.value_shift}</p>`);
+      if (viewCount <= 2 && b.tracks && b.tracks.length) {
+        bits.push(b.tracks.map((tr) => `
+          <div class="card-tr">
+            <b>${tr.who}</b>
+            <span>动作 ${tr.do || "—"}</span>
+            <span>对白 ${tr.say || "—"}</span>
+            <span>内心 ${tr.think || "—"}</span>
+          </div>`).join(""));
+      } else if (viewCount <= 4 && b.tracks && b.tracks[0]) {
+        const tr = b.tracks[0];
+        bits.push(`<p class="sum">${tr.who}：${tr.do || tr.say || ""}</p>`);
+      }
+      return bits.join("");
+    }
+    function shiftClocks(fromIndex, delta) {
+      for (let j = fromIndex; j < columns.length; j++) {
+        columns[j].clock0 += delta;
+        columns[j].clock1 += delta;
+      }
+    }
+    function hideGapMenu() {
+      $("gapMenu").classList.remove("open");
+      pendingGap = null;
+    }
+    function showGapMenu(x, y, text, canMerge) {
+      const m = $("gapMenu");
+      $("gapText").textContent = text;
+      m.querySelector("[data-act=merge]").disabled = !canMerge;
+      m.style.left = Math.min(x, window.innerWidth - 260) + "px";
+      m.style.top = Math.min(y, window.innerHeight - 200) + "px";
+      m.classList.add("open");
+    }
+    function applyGap(act) {
+      if (!pendingGap) return;
+      const { i, oldEnd, newEnd } = pendingGap;
+      const leftover = oldEnd - newEnd;
+      if (act === "cancel") {
+        columns[i].clock1 = oldEnd;
+      } else if (act === "shift") {
+        columns[i].clock1 = newEnd;
+        shiftClocks(i + 1, -leftover);
+      } else if (act === "merge") {
+        columns[i].clock1 = newEnd;
+        if (columns[i + 1]) columns[i + 1].clock0 = newEnd;
+      } else if (act === "empty") {
+        columns[i].clock1 = newEnd;
+        const insertAt = i + 1;
+        columns.splice(insertAt, 0, { clock0: newEnd, clock1: oldEnd, label: "空场次", spare: true });
+        const newT = insertAt + 1;
+        beats.forEach((b) => { if (b.t >= newT) b.t += 1; });
+        if (state.col >= newT) state.col += 1;
+      }
+      hideGapMenu();
+      render();
+    }
+
+    function namesInView() {
+      const cols = new Set(pageIndices().map((i) => i + 1));
+      const names = new Set();
+      beats.forEach((b) => {
+        if (!cols.has(b.t)) return;
+        deriveChips(b).forEach((c) => names.add(c.name));
+      });
+      return names;
+    }
+    function kindLabel(k) {
+      return ({ 地: "地点", 伏笔: "伏笔", 人: "人物", 物: "道具", 势力: "组织", 规矩: "规则" })[k] || k;
+    }
+    function appearancesOf(name) {
+      return beats.filter((b) => onCard(b, name));
+    }
+    function relatedDebtNames(name) {
+      const e = ENT[name];
+      if (!e) return [];
+      const out = new Set(e.related || []);
+      if (e.kind !== "伏笔") {
+        appearancesOf(name).forEach((b) => {
+          if ((b.promises || []).length) out.add("信债");
+        });
+      }
+      out.delete(name);
+      return [...out].filter((n) => ENT[n]);
+    }
+    function debtTrail() {
+      return beats.filter((b) => (b.promises || []).length).map((b) => ({
+        id: b.id,
+        t: b.t,
+        title: b.title,
+        status: b.status,
+        line: (b.promises || []).map((p) => `${p.text} · ${p.status === "open" ? "未收" : p.status}`).join("；")
+      }));
+    }
+    function knowledgeNotes(name) {
+      if (!ENT[name] || ENT[name].kind !== "人") return null;
+      return beats.map((b) => {
+        const tr = (b.tracks || []).find((t) => t.who === name && String(t.think || "").trim());
+        return tr ? { id: b.id, title: b.title, t: b.t, think: tr.think, status: b.status } : null;
+      }).filter(Boolean);
+    }
+    function coOccur(name) {
+      const map = new Map();
+      appearancesOf(name).forEach((b) => {
+        deriveChips(b).forEach((c) => {
+          if (c.name !== name) map.set(c.name, c.role);
+        });
+      });
+      return [...map.entries()];
+    }
+    function openNode(name) {
+      if (!ENT[name]) return;
+      state.node = name;
+      state.mode = "node";
+      render();
+    }
+    function goBeat(id) {
+      const b = beats.find((x) => x.id === id);
+      if (!b) return;
+      state.beatId = b.id;
+      state.col = b.t;
+      revealCol(b.t);
+      state.mode = "inspect";
+      state.chip = null;
+      render();
+    }
+    function goChip(beatId, name) {
+      const b = beats.find((x) => x.id === beatId);
+      if (!b) return;
+      if (!onCard(b, name)) { goBeat(beatId); return; }
+      state.beatId = b.id;
+      state.col = b.t;
+      revealCol(b.t);
+      state.chip = { beatId: b.id, name };
+      state.mode = "chip";
+      render();
+    }
+    function applyFilter(name) {
+      state.filter = name;
+      const vis = visibleBeats();
+      if (!vis.some((b) => b.id === state.beatId) && vis[0]) {
+        state.beatId = vis[0].id;
+        state.col = vis[0].t;
+        revealCol(state.col);
+      }
+      render();
+    }
+    function openCreate(prefill) {
+      document.body.classList.remove("show-empty");
+      state.mode = "create";
+      state.chip = null;
+      if (prefill != null) state.createName = String(prefill).trim();
+      else if (!state.createName) state.createName = (state.libQuery || "").trim();
+      render();
+    }
+    function cannotDeleteReason(name) {
+      const apps = appearancesOf(name);
+      if (!apps.length) return "";
+      const titles = apps.map((b) => `列${b.t}「${b.title}」`).join("、");
+      return `还在这些场上：${titles}。先从分场条拿掉，再从设定里删。`;
+    }
+    function addNode(kind, name, setup) {
+      const n = (name || "").trim();
+      if (!NODE_KINDS.includes(kind)) return "类型不对。";
+      if (!n) return "先写名字。";
+      if (n.includes("|")) return "名字里不要用 |。";
+      if (ENT[n]) return `设定里已有「${n}」。`;
+      ENT[n] = { kind, color: KIND_COLOR[kind] || "#8a817c", setup: (setup || "").trim() };
+      return "";
+    }
+    function deleteNode(name) {
+      const err = cannotDeleteReason(name);
+      if (err) { toast(err); return false; }
+      if (!ENT[name]) return false;
+      delete ENT[name];
+      if (state.filter === name) state.filter = "all";
+      if (state.chip && state.chip.name === name) state.chip = null;
+      if (state.node === name) state.node = null;
+      state.mode = "inspect";
+      toast(`「${name}」已从设定里拿掉。`);
+      render();
+      return true;
+    }
+
+    function renderLibrary() {
+      const q = (state.libQuery || "").trim();
+      const inView = namesInView();
+      const searching = q.length > 0;
+      let listed = searching
+        ? Object.keys(ENT).filter((n) => n.includes(q) || (ENT[n].setup && ENT[n].setup.includes(q)))
+        : Object.keys(ENT).filter((n) => inView.has(n));
+      if (state.filter !== "all" && ENT[state.filter] && !listed.includes(state.filter)) {
+        listed = [state.filter, ...listed];
+      }
+      if (state.mode === "node" && state.node && ENT[state.node] && !listed.includes(state.node)) {
+        listed = [state.node, ...listed];
+      }
+      const groups = { 人: [], 地: [], 物: [], 势力: [], 伏笔: [], 规矩: [] };
+      listed.forEach((n) => { if (groups[ENT[n].kind]) groups[ENT[n].kind].push(n); });
+      const title = $("libTitle");
+      const meta = $("libMeta");
+      if (title) title.textContent = searching ? "设定 · 搜全书" : "设定 · 当前这几列";
+      if (meta) {
+        meta.textContent = searching
+          ? (listed.length ? `命中 ${listed.length} 条。点名字开档案；「场」只看有它的场。拖到卡上加入这场。` : "没有叫这个的。可以新建。")
+          : `本页 ${listed.filter((n) => inView.has(n)).length} 项 · 设定 ${Object.keys(ENT).length} 项。点名字开档案。未出场的请搜或新建。`;
+      }
+      const body = Object.entries(groups).filter(([, names]) => names.length).map(([k, names]) => `
+        <h3>${kindLabel(k)}</h3>
+        ${names.map((n) => `
+          <div class="lib-row">
+            <button type="button" class="lib-item" draggable="${ENT[n].kind === "规矩" ? "false" : "true"}" data-entity="${esc(n)}" aria-current="${state.mode === "node" && state.node === n ? "page" : "false"}">
+              <span class="dot" style="background:${ENT[n].color}"></span>${esc(n)}
+              ${searching && !inView.has(n) ? `<span class="off">不在本页</span>` : ""}
+            </button>
+            ${ENT[n].kind === "规矩" ? "" : `<button type="button" class="lib-filter" data-filter="${esc(n)}" aria-pressed="${state.filter === n}" aria-label="只看有「${esc(n)}」的场">场</button>`}
+          </div>`).join("")}
+      `).join("");
+      const empty = body ? "" : (searching ? "" : `<p class="lib-meta">这几列卡上还没有人物/地点。搜全书或点「新建」。</p>`);
+      const miss = searching && !listed.length && q
+        ? `<p><button type="button" id="libNewFromQ">用「${esc(q)}」新建</button></p>` : "";
+      const clear = state.filter === "all" ? "" : `<p><button type="button" class="lib-item" data-filter="all">显示全部</button></p>`;
+      $("libList").innerHTML = body + empty + miss + clear;
+      $("libList").querySelectorAll("[data-entity]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          if (skipClick) return;
+          openNode(btn.dataset.entity);
+        });
+      });
+      $("libList").querySelectorAll("[data-filter]").forEach((btn) => {
+        btn.addEventListener("click", (ev) => {
+          ev.stopPropagation();
+          if (skipClick) return;
+          applyFilter(btn.dataset.filter);
+        });
+      });
+      const fromQ = $("libNewFromQ");
+      if (fromQ) fromQ.addEventListener("click", () => openCreate(q));
+    }
+
+    function renderRuler() {
+      const dense = maxDur();
+      $("ruler").innerHTML = pageIndices().map((i) => {
+        const c = columns[i];
+        const t = i + 1;
+        const d = c.clock1 - c.clock0;
+        const dots = COVER.map((dim) => `<i class="${coverageAt(t, dim) ? "on" : ""}" title="${dim}"></i>`).join("");
+        return `<div class="col-head ${state.col === t ? "on" : ""}" data-col="${t}" role="button" tabindex="0" aria-label="列 ${t} ${hm(c.clock0)} 到 ${hm(c.clock1)}">
+          <span class="n">${t}</span>
+          <span class="clock">${hm(c.clock0)}–${hm(c.clock1)}</span>
+          <span class="dur">${durLabel(d)} · 等宽</span>
+          <span class="lab">${c.label}${c.spare ? " · 空场次" : ""}</span>
+          <div class="lens" title="条越满，这一列的故事时间越长"><span style="width:${Math.max(8, (d / dense) * 100)}%"></span></div>
+          <span class="cov">${dots}</span>
+          <button type="button" class="handle" data-edge="${i}" aria-label="拖 ${hm(c.clock1)} 改这一列结束的故事时间"></button>
+        </div>`;
+      }).join("");
+      $("ruler").querySelectorAll(".col-head").forEach((btn) => {
+        const pick = () => {
+          state.col = Number(btn.dataset.col);
+          state.mode = "moment";
+          state.chip = null;
+          const hit = visibleBeats().find((b) => b.t === state.col);
+          if (hit) state.beatId = hit.id;
+          render();
+        };
+        btn.addEventListener("click", (ev) => {
+          if (ev.target.closest(".handle")) return;
+          pick();
+        });
+        btn.addEventListener("keydown", (ev) => {
+          if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); pick(); }
+        });
+      });
+      $("ruler").querySelectorAll(".handle").forEach((h) => {
+        h.addEventListener("pointerdown", (ev) => {
+          ev.preventDefault();
+          ev.stopPropagation();
+          const i = Number(h.dataset.edge);
+          h.setPointerCapture(ev.pointerId);
+          drag = { i, oldEnd: columns[i].clock1, startX: ev.clientX };
+          hideGapMenu();
+        });
+      });
+    }
+
+    function renderBoard() {
+      const vis = visibleBeats();
+      $("board").className = "cols" + (viewCount <= 2 ? " is-roomy" : viewCount <= 4 ? " is-mid" : "");
+      $("board").innerHTML = pageIndices().map((i) => {
+        const t = i + 1;
+        const cards = vis.filter((b) => b.t === t).map((b, idx) => {
+          const dim = state.filter !== "all" && !onCard(b, state.filter);
+          const chips = deriveChips(b).map((c) => chipButton(b, c)).join("");
+          return `<div class="card ${b.kind === "ellipsis" ? "is-ellipsis" : ""} ${b.status === "draft" ? "is-draft" : ""} ${b.offscreen ? "is-off" : ""} ${b.flashbackOf ? "is-flash" : ""} ${dim ? "dim" : ""}" data-id="${b.id}" style="animation-delay:${idx * 60}ms" tabindex="0" role="button" aria-selected="${b.id === state.beatId}">
+            <div class="kicker"><span class="badge ${b.strict ? "warn" : ""}">${statusLabel(b)}</span></div>
+            <div class="title">${b.title}</div>
+            <div class="sum">${b.intent}</div>
+            ${cardExtra(b)}
+            <div class="chips">${chips}</div>
+          </div>`;
+        }).join("");
+        const filler = beats.some((b) => b.t === t) ? "" : `<div class="card is-spare">这段故事时间没有戏。空场次 ≠ 省略场。</div>`;
+        return `<div class="col ${state.col === t ? "on" : ""}" data-t="${t}">${cards || filler}</div>`;
+      }).join("");
+      $("board").querySelectorAll(".card").forEach((el) => {
+        const pick = () => {
+          if (skipClick) return;
+          const b = beats.find((x) => x.id === el.dataset.id);
+          if (!b) return;
+          state.beatId = b.id;
+          state.col = b.t;
+          state.mode = "inspect";
+          state.chip = null;
+          render();
+        };
+        el.addEventListener("click", (ev) => {
+          if (ev.target.closest(".chip")) return;
+          pick();
+        });
+        el.addEventListener("keydown", (ev) => {
+          if (ev.target.closest(".chip")) return;
+          if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); pick(); }
+        });
+      });
+      $("board").querySelectorAll(".chip").forEach((el) => {
+        el.addEventListener("click", (ev) => {
+          ev.stopPropagation();
+          if (skipClick) return;
+          const b = beats.find((x) => x.id === el.dataset.beat);
+          state.beatId = b.id;
+          state.col = b.t;
+          state.chip = { beatId: b.id, name: el.dataset.name };
+          state.mode = "chip";
+          render();
+        });
+      });
+      requestAnimationFrame(drawWires);
+    }
+
+    function drawWires() {
+      const svg = $("wires");
+      const wrap = $("stripScroll");
+      const wr = wrap.getBoundingClientRect();
+      svg.setAttribute("viewBox", `0 0 ${wrap.scrollWidth} ${Math.max(wrap.scrollHeight, wrap.clientHeight)}`);
+      svg.style.width = wrap.scrollWidth + "px";
+      svg.style.height = Math.max(wrap.scrollHeight, wrap.clientHeight) + "px";
+      const focus = state.chip ? state.chip.name : (ENT[state.filter] && ENT[state.filter].kind === "人" ? state.filter : null);
+      if (!focus) {
+        svg.innerHTML = "";
+        return;
+      }
+      const nodes = [...$("board").querySelectorAll(`.chip[data-name="${focus}"]`)];
+      const pts = nodes.map((n) => {
+        const r = n.getBoundingClientRect();
+        return { x: r.left - wr.left + wrap.scrollLeft + r.width / 2, y: r.top - wr.top + wrap.scrollTop + r.height / 2 };
+      });
+      const c = ENT[focus].color;
+      const lines = [];
+      for (let i = 0; i < pts.length - 1; i++) {
+        const a = pts[i], b = pts[i + 1];
+        const mid = (a.x + b.x) / 2;
+        lines.push(`<path d="M${a.x} ${a.y} C ${mid} ${a.y}, ${mid} ${b.y}, ${b.x} ${b.y}" fill="none" stroke="${c}" stroke-width="2" opacity="0.85"/>`);
+      }
+      svg.innerHTML = lines.join("");
+    }
+
+    function prevNext(name, beatId) {
+      const seq = beats.filter((b) => onCard(b, name));
+      const i = seq.findIndex((b) => b.id === beatId);
+      return { prev: seq[i - 1], next: seq[i + 1], i, n: seq.length };
+    }
+    function esc(s) {
+      return String(s ?? "").replace(/[&<>"']/g, (ch) => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+      }[ch]));
+    }
+    function fieldHead(label, spec, tag) {
+      const h = tag === "span"
+        ? `<span>${label}</span>`
+        : `<h3>${label}</h3>`;
+      return `<div class="field-head${tag === "span" ? " tight" : ""}">${h}<button type="button" class="discuss-btn" data-open-discuss="${esc(spec)}">讨论</button></div>`;
+    }
+    function discussIO(spec) {
+      const p = spec.split("|");
+      const kind = p[0];
+      if (kind === "nextIntent") {
+        return { label: "下一场 · 本场任务", get: () => nextIntent, set: (v) => { nextIntent = v; } };
+      }
+      if (kind === "nextBeat") {
+        return {
+          label: "下一场 · 整格草稿",
+          get: () => nextIntent,
+          set: (v) => { nextIntent = v; }
+        };
+      }
+      if (kind === "setup") {
+        const name = p[1];
+        return {
+          label: `档案 · ${name} · 基本设定`,
+          get: () => (ENT[name] && ENT[name].setup) || "",
+          set: (v) => { if (ENT[name]) ENT[name].setup = v; }
+        };
+      }
+      const b = beats.find((x) => x.id === p[1]);
+      if (!b) return { label: spec, get: () => "", set: () => {} };
+      if (kind === "title") return { label: "这场 · 场次", get: () => b.title || "", set: (v) => { b.title = v; } };
+      if (kind === "intent") return { label: "这场 · 本场任务", get: () => b.intent || "", set: (v) => { b.intent = v; } };
+      if (kind === "value") return { label: "这场 · 价值转折", get: () => b.value_shift || "", set: (v) => { b.value_shift = v; } };
+      if (kind === "track") {
+        const who = p[2], f = p[3];
+        const lab = { do: "动作", say: "对白", think: "内心" }[f] || f;
+        const tr = (b.tracks || []).find((t) => t.who === who);
+        return {
+          label: `${who} · ${lab}`,
+          get: () => (tr && tr[f]) || "",
+          set: (v) => {
+            if (!tr) return;
+            tr[f] = v;
+          }
+        };
+      }
+      if (kind === "state" || kind === "delta") {
+        const name = p[2];
+        if (!b.stateAt) b.stateAt = {};
+        if (!b.delta) b.delta = {};
+        const bag = kind === "state" ? b.stateAt : b.delta;
+        return {
+          label: kind === "state" ? `这场 · ${name} · 当场情状` : `这场 · ${name} · 本场变化`,
+          get: () => bag[name] || "",
+          set: (v) => { bag[name] = v; }
+        };
+      }
+      return { label: spec, get: () => "", set: () => {} };
+    }
+    function mockTalk(spec, user) {
+      const io = discussIO(spec);
+      const cur = io.get();
+      const ask = (user || "").trim();
+      if (spec === "nextBeat") {
+        return ask
+          ? `（演示稿）整场草稿：场次「河上必须选」。本场任务：${ask}。阿禾动作：停步。船娘对白：过河的规矩我懂。点「写入此框」只把这段确认稿写进本场任务；真产品会拆进场次 / 动作对白内心 / 本场变化。`
+          : `要写下一场，先有本场任务。当前任务：${cur || "（空）"}。点写入才会进框，点「写入正史」才进 fold。`;
+      }
+      if (ask) return `（演示稿）「${io.label}」按你说的收成：${ask}。点「写入此框」才进对应输入框，不会直接进 fold。`;
+      return `「${io.label}」现在是：${cur || "（空）"}。你说要改成什么样。点「写入此框」才进框。`;
+    }
+    function openDiscuss(spec) {
+      state.discuss = { spec, log: [], proposal: "" };
+      render();
+    }
+    function renderDiscuss() {
+      const side = $("side");
+      const d = state.discuss;
+      const io = discussIO(d.spec);
+      const logHtml = d.log.length
+        ? d.log.map((m) => `<div class="${m.role}">${m.role === "me" ? "你" : "模型"}：${esc(m.text)}</div>`).join("")
+        : `<p class="muted">还没有来回。先说一句，或直接让模型对着当前框里的字说。</p>`;
+      side.innerHTML = `
+        <h2>讨论</h2>
+        <p class="muted">只讨论「${esc(io.label)}」。确认的句子才进这个输入框。进框仍是草稿；点「写入正史」才进 fold。不是铜炉主编，不走那套流水线。</p>
+        <p class="muted">当前框里：${esc(io.get()) || "（空）"}</p>
+        <div class="talk" id="talkLog">${logHtml}</div>
+        <textarea id="talkIn" class="short" placeholder="你想问什么，或希望写成什么样。"></textarea>
+        <p class="cover-row">
+          <button type="button" id="talkAsk">让模型说</button>
+          <button type="button" class="primary" id="talkWrite"${d.proposal ? "" : " disabled"}>写入此框</button>
+          <button type="button" id="talkBack">返回（不写入）</button>
+        </p>
+        ${d.proposal ? `<p class="muted">待写入：${esc(d.proposal)}</p>` : `<p class="muted">演示不调模型。真产品会带上这段的 world 切片。</p>`}`;
+      $("talkAsk").addEventListener("click", () => {
+        const text = $("talkIn").value;
+        const reply = mockTalk(d.spec, text);
+        if (text.trim()) d.log.push({ role: "me", text: text.trim() });
+        d.log.push({ role: "bot", text: reply });
+        d.proposal = text.trim() || reply;
+        $("talkIn").value = "";
+        render();
+      });
+      $("talkWrite").addEventListener("click", () => {
+        if (!d.proposal) return;
+        io.set(d.proposal);
+        const spec = d.spec;
+        state.discuss = null;
+        if (spec === "nextIntent" || spec === "nextBeat") state.mode = "next";
+        if (spec.startsWith("setup|")) {
+          state.node = spec.split("|")[1];
+          state.mode = "node";
+        }
+        toast("已写入对应输入框。还没进 fold。");
+        render();
+      });
+      $("talkBack").addEventListener("click", () => {
+        state.discuss = null;
+        render();
+      });
+    }
+
+    function renderCreatePage() {
+      const side = $("side");
+      const kinds = NODE_KINDS.map((k) => `
+        <button type="button" data-kind="${k}" aria-pressed="${state.createKind === k}">${kindLabel(k)}</button>`).join("");
+      side.innerHTML = `
+        <h2>设定 · 新建</h2>
+        <p class="muted">写入设定，不进 fold。要出场，再拖到卡上。规则不当作出场，只进设定。</p>
+        <h3>类型</h3>
+        <div class="kind-pick" role="group" aria-label="类型">${kinds}</div>
+        <h3>名字</h3>
+        <textarea id="newName" class="short" rows="1" placeholder="例如：铁锚">${esc(state.createName || "")}</textarea>
+        <h3>基本设定（可空）</h3>
+        <textarea id="newSetup" rows="3" placeholder="没戏也能写。"></textarea>
+        <p><button type="button" class="primary" id="createBtn">写入设定</button></p>
+        <p class="muted" id="createErr"></p>`;
+      const nameEl = $("newName");
+      const setupEl = $("newSetup");
+      const errEl = $("createErr");
+      if (nameEl) {
+        nameEl.addEventListener("input", () => { state.createName = nameEl.value; });
+        nameEl.focus();
+      }
+      side.querySelectorAll("[data-kind]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          state.createKind = btn.dataset.kind;
+          state.createName = nameEl ? nameEl.value : state.createName;
+          side.querySelectorAll("[data-kind]").forEach((b) => {
+            b.setAttribute("aria-pressed", b.dataset.kind === state.createKind ? "true" : "false");
+          });
+        });
+      });
+      $("createBtn").addEventListener("click", () => {
+        const n = (nameEl.value || "").trim();
+        const err = addNode(state.createKind, n, setupEl.value);
+        if (err) { errEl.textContent = err; toast(err); return; }
+        state.createName = "";
+        toast(`「${n}」进了设定。还没进任何场。`);
+        openNode(n);
+      });
+    }
+
+    function renderNodePage() {
+      const side = $("side");
+      const name = state.node;
+      const e = ENT[name];
+      if (!e) {
+        state.mode = "inspect";
+        render();
+        return;
+      }
+      const apps = appearancesOf(name);
+      const isDebt = e.kind === "伏笔";
+      const isRule = e.kind === "规矩";
+      const knows = knowledgeNotes(name);
+      const debts = relatedDebtNames(name);
+      const others = coOccur(name);
+      const fromChip = state.chip && state.chip.name === name;
+      const appearHtml = apps.length
+        ? apps.map((b) => `
+          <button type="button" class="appear" data-go-beat="${b.id}">
+            <span class="k">列 ${b.t} · ${statusLabel(b)}</span>
+            <div>${esc(b.title)}</div>
+            <p class="muted" style="margin:4px 0 0">${esc(b.at || "")} · ${esc((b.involves || []).join(" · "))}</p>
+          </button>`).join("")
+        : `<p class="muted">${isRule ? "规则不当作出场，不会出现在卡上。" : "还没有场挂到它。没戏也能写基本设定。"} 正史只在分场条改。</p>`;
+      const winHtml = apps.length
+        ? apps.map((b) => {
+          const st = (b.stateAt && b.stateAt[name]) || "";
+          const dlt = (b.delta && b.delta[name]) || "";
+          return `<div class="win">
+            <p class="kicker">列 ${b.t} · ${esc(b.title)} · ${statusLabel(b)}${b.status === "draft" ? " · 未进 fold" : ""}</p>
+            <p>当场情状：${esc(st) || "（这场没写）"}</p>
+            <p>本场变化：${esc(dlt) || "这场占用，没改。"}</p>
+            ${onCard(b, name) ? `<p><button type="button" data-go-chip="${b.id}">去这场改当场情状</button></p>` : ""}
+          </div>`;
+        }).join("")
+        : `<p class="muted">没有场，就没有情状窗口。</p>`;
+      const debtHtml = isDebt
+        ? (debtTrail().length
+          ? debtTrail().map((row) => `
+            <button type="button" class="appear" data-go-beat="${row.id}">
+            <span class="k">列 ${row.t} · ${row.status === "draft" ? "草稿未进 fold" : "正史"}</span>
+              <div>${esc(row.title)}</div>
+              <p class="muted" style="margin:4px 0 0">${esc(row.line)}</p>
+            </button>`).join("")
+          : `<p class="muted">还没有场动这条伏笔。</p>`)
+        : (debts.length
+          ? `<div class="node-links">${debts.map((n) => `<button type="button" data-open-node="${esc(n)}">${esc(n)}</button>`).join("")}</div>`
+          : `<p class="muted">没有相关伏笔。</p>`);
+      const knowHtml = knows === null
+        ? `<p class="muted">知情问的是人物。地点 / 道具 / 伏笔看上面的情状窗口。</p>`
+        : (knows.length
+          ? `<p class="muted">本 demo 未接 knows 边。下面用已写的内心当切片，只读。真产品读 world 在此人上的知情。</p>` + knows.map((k) => `
+            <button type="button" class="appear" data-go-beat="${k.id}">
+              <span class="k">列 ${k.t} · ${esc(k.title)}${k.status === "draft" ? " · 草稿" : ""}</span>
+              <p style="margin:4px 0 0">${esc(k.think)}</p>
+            </button>`).join("")
+          : `<p class="muted">还没有写成内心的知情切片。真产品读 knows 边。</p>`);
+      const coHtml = others.length
+        ? `<div class="node-links">${others.map(([n, role]) => `<button type="button" data-open-node="${esc(n)}">${esc(kindLabel(role))} · ${esc(n)}</button>`).join("")}</div>`
+        : `<p class="muted">没有同场出现的其他在场。</p>`;
+      side.innerHTML = `
+        <h2>档案 · ${kindLabel(e.kind)}</h2>
+        <p><span class="dot" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${e.color};margin-right:6px"></span><strong>${esc(name)}</strong></p>
+        <p class="muted">这一页是设定档案，不是纵轴行。基本设定写这里。世界上发生了什么，点下面的场去分场条改。</p>
+        ${fieldHead("基本设定", "setup|" + name)}
+        <textarea id="nodeSetup" rows="4">${esc(e.setup || "")}</textarea>
+        <p class="muted">没戏也能写。讨论确认进框，不进 fold。</p>
+        <h3>出场的场</h3>
+        ${appearHtml}
+        <h3>情状窗口</h3>
+        <p class="muted">只读投影。要改某一场的当场情状 / 本场变化，点「去这场改当场情状」。</p>
+        ${winHtml}
+        <h3>${isDebt ? "这条伏笔走过的场" : "相关伏笔"}</h3>
+        ${debtHtml}
+        <h3>他知道什么</h3>
+        ${knowHtml}
+        <h3>同场出现</h3>
+        ${coHtml}
+        <p class="cover-row">
+          ${isRule ? "" : `<button type="button" id="nodeFilter">${state.filter === name ? "显示全部场" : "只看有它的场"}</button>`}
+          ${fromChip ? `<button type="button" id="backChip">回到这场</button>` : ""}
+          <button type="button" id="delNode"${apps.length ? " disabled" : ""}>${apps.length ? "还在场上，不能从设定里删" : "从设定里拿掉"}</button>
+        </p>`;
+      const setupEl = $("nodeSetup");
+      if (setupEl) setupEl.addEventListener("input", () => { e.setup = setupEl.value; });
+      side.querySelectorAll("[data-go-beat]").forEach((btn) => {
+        btn.addEventListener("click", () => goBeat(btn.dataset.goBeat));
+      });
+      side.querySelectorAll("[data-go-chip]").forEach((btn) => {
+        btn.addEventListener("click", () => goChip(btn.dataset.goChip, name));
+      });
+      side.querySelectorAll("[data-open-node]").forEach((btn) => {
+        btn.addEventListener("click", () => openNode(btn.dataset.openNode));
+      });
+      const nf = $("nodeFilter");
+      if (nf) nf.addEventListener("click", () => applyFilter(state.filter === name ? "all" : name));
+      const bc = $("backChip");
+      if (bc) bc.addEventListener("click", () => goChip(state.chip.beatId, state.chip.name));
+      const dn = $("delNode");
+      if (dn && !apps.length) dn.addEventListener("click", () => deleteNode(name));
+    }
+
+    function renderSide() {
+      const side = $("side");
+      if (state.discuss) { renderDiscuss(); return; }
+      if (state.mode === "next") {
+        side.innerHTML = `
+          <h2>写下一场</h2>
+          <p class="muted">每个输入框都能讨论。确认后才写入该框。没有本场任务不准讨论整场草稿。</p>
+          ${fieldHead("本场任务（这场要改变什么）", "nextIntent")}
+          <textarea id="intent" placeholder="例如：让船娘必须在河上做一次选择。"></textarea>
+          <p class="muted">相关未收伏笔（最多 5，按人物/地点相交）</p>
+          <div class="debt">信不能在城里拆开 · 阿禾 / 船娘 / 密信</div>
+          <p class="val">上场价值转折：${esc(lastValueShiftNote())}</p>
+          <p class="muted">价值转折就是这一行（麦基正负转换），不是情绪分。张力不打分：看上场是否空转、未收伏笔、你准备制造的知情差。</p>
+          <p><button type="button" class="primary" id="proposeBtn" disabled>讨论本场草稿</button></p>
+          <p class="muted" id="proposeHint">先有本场任务（可手写，或点任务旁「讨论」写入），才能讨论整场。</p>`;
+        const ta = $("intent");
+        const btn = $("proposeBtn");
+        ta.value = nextIntent;
+        ta.addEventListener("input", () => {
+          nextIntent = ta.value;
+          btn.disabled = nextIntent.trim().length === 0;
+        });
+        btn.disabled = nextIntent.trim().length === 0;
+        btn.addEventListener("click", () => openDiscuss("nextBeat"));
+        return;
+      }
+      if (state.mode === "create") {
+        renderCreatePage();
+        return;
+      }
+      if (state.mode === "node") {
+        renderNodePage();
+        return;
+      }
+      if (state.mode === "moment") {
+        const c = colClock(state.col);
+        const here = beats.filter((b) => b.t === state.col);
+        side.innerHTML = `
+          <h2>这一刻 · 列 ${state.col}</h2>
+          <p class="clock">${c ? `${hm(c.clock0)}–${hm(c.clock1)} · ${durLabel(c.clock1 - c.clock0)}` : ""}</p>
+          <p>${c ? c.label : ""}</p>
+          ${here.length === 0 ? `<p class="muted">这一列没有戏。空场次 ≠ 省略场。拖右缘可以空出故事时间，再选往前移 / 并入下一列 / 变成空场次。</p>` : here.map((b) => `
+            <h3>${b.title}</h3>
+            <p class="muted">${b.at} · ${(b.involves.join(" · ") || "无人物")} · ${statusLabel(b)}</p>
+            ${b.strict ? `<p class="badge warn">${b.strict}</p>` : ""}
+            <p>在场：${deriveChips(b).map((c) => kindLabel(c.role) + "·" + c.name).join(" / ")}</p>
+          `).join("")}
+          <p class="muted">要改动作 / 对白 / 内心，点那一张卡，不在这份清单里另开编辑。fold 吃这一列全部卡，不按单人连线。</p>`;
+        return;
+      }
+      if (state.mode === "chip" && state.chip) {
+        const b = beats.find((x) => x.id === state.chip.beatId);
+        const name = state.chip.name;
+        const e = ENT[name];
+        const pn = prevNext(name, b.id);
+        const role = chipRole(b, name);
+        if (!b.stateAt) b.stateAt = {};
+        if (!b.delta) b.delta = {};
+        const st = b.stateAt[name] || "";
+        const dlt = b.delta[name] || "";
+        const canRemove = role && role !== "地";
+        const removeBlocked = role === "人" && b.kind === "scene" && b.involves.length <= 1;
+        side.innerHTML = `
+          <h2>这场 · ${kindLabel(e.kind)}</h2>
+          <p><span class="dot" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${e.color};margin-right:6px"></span><strong>${esc(name)}</strong></p>
+          <p class="why">${whyChip(b, name)}</p>
+          <h3>基本设定</h3>
+          <p class="muted">只读。改基本设定去档案，不在这场改。</p>
+          <div class="ro">${esc(e.setup) || "（空）"}</div>
+          <p><button type="button" id="openNodeBtn">打开档案</button></p>
+          ${fieldHead("当场情状", "state|" + b.id + "|" + name)}
+          <p class="muted">此刻它什么样。改这里只改这一场，不改设定里的基本设定。</p>
+          <textarea id="stNow" rows="3">${esc(st)}</textarea>
+          ${fieldHead("本场变化", "delta|" + b.id + "|" + name)}
+          <p class="muted">相对上场：开窗、换手、换地。对应本场变化。空 = 这场没改它，只是占用。</p>
+          <textarea id="stDelta" rows="3">${esc(dlt)}</textarea>
+          <p class="cover-row">
+            ${canRemove ? `<button type="button" id="rmChip"${removeBlocked ? " disabled" : ""}>${removeBlocked ? "场面至少留一个人物" : "从这场拿掉"}</button>` : `<span class="muted">地点不能拖空。把另一个地点拖进卡，即替换地点。</span>`}
+          </p>
+          <h3>它还出现在哪</h3>
+          <p class="muted">${pn.i + 1} / ${pn.n} · 连线只导航，不当 fold。</p>
+          <p>${pn.prev ? `<button type="button" id="goPrev">上一场 · ${esc(pn.prev.title)}</button>` : "没有上一场"}</p>
+          <p>${pn.next ? `<button type="button" id="goNext">下一场 · ${esc(pn.next.title)}</button>` : "没有下一场"}</p>`;
+        const stNow = $("stNow");
+        const stDelta = $("stDelta");
+        stNow.addEventListener("input", () => { b.stateAt[name] = stNow.value; });
+        stDelta.addEventListener("input", () => { b.delta[name] = stDelta.value; });
+        const openN = $("openNodeBtn");
+        if (openN) openN.addEventListener("click", () => openNode(name));
+        const rm = $("rmChip");
+        if (rm && !removeBlocked) rm.addEventListener("click", () => {
+          if (removeFromBeat(b, name)) {
+            state.mode = "inspect";
+            state.chip = null;
+            render();
+          }
+        });
+        const gp = $("goPrev"); const gn = $("goNext");
+        if (gp) gp.addEventListener("click", () => { state.chip = { beatId: pn.prev.id, name }; state.beatId = pn.prev.id; state.col = pn.prev.t; render(); });
+        if (gn) gn.addEventListener("click", () => { state.chip = { beatId: pn.next.id, name }; state.beatId = pn.next.id; state.col = pn.next.t; render(); });
+        return;
+      }
+      const b = beats.find((x) => x.id === state.beatId) || beats[0];
+      const tracks = (b.tracks && b.tracks.length)
+        ? b.tracks.map((tr) => `
+        <div class="track-block">
+          <div class="who">${esc(tr.who)}</div>
+          ${[["do", "动作"], ["say", "对白"], ["think", "内心"]].map(([f, lab]) => `
+            ${fieldHead(lab, "track|" + b.id + "|" + tr.who + "|" + f, "span")}
+            <textarea class="short" data-track-field="${f}" data-track-who="${esc(tr.who)}" rows="2">${esc(tr[f] || "")}</textarea>
+          `).join("")}
+        </div>`).join("")
+        : `<p class="muted">${b.kind === "ellipsis" ? "省略场没有动作 / 对白 / 内心。" : "不在读者眼前，可以没有动作对白内心，仍可有本场变化。"}</p>`;
+      const debts = (b.promises || []).map((p) => `<div class="debt">${esc(p.text)} · 未收</div>`).join("");
+      const coverChips = deriveChips(b).map((c) => chipButton(b, c)).join("");
+      side.innerHTML = `
+        <h2>本场</h2>
+        <p class="muted">在场从左栏拖进拖出。每个输入框旁「讨论」：确认后才写入该框，点「写入正史」才进 fold。</p>
+        ${fieldHead("场次", "title|" + b.id)}
+        <textarea id="beatTitle" class="short" rows="1">${esc(b.title || "")}</textarea>
+        <p class="muted">列 ${b.t} · ${statusLabel(b)}</p>
+        <h3>在场</h3>
+        <div class="chips">${coverChips || `<span class="muted">还没有。从左栏拖进来。</span>`}</div>
+        <p class="muted">点标记改这场的当场情状。地点不能拿空，把另一个地点拖进卡即替换。</p>
+        ${fieldHead("本场任务", "intent|" + b.id)}
+        <textarea id="beatIntent">${esc(b.intent || "")}</textarea>
+        ${fieldHead("价值转折", "value|" + b.id)}
+        <textarea id="beatValue" class="short" rows="1">${esc(b.value_shift || "")}</textarea>
+        ${b.value_shift ? "" : `<p><span class="badge warn">空 · 标黄 · 不挡写入正史</span></p>`}
+        <p class="muted">${esc(tensionLine(b))}</p>
+        ${b.strict ? `<h3>检查</h3><p class="badge warn">${esc(b.strict)}</p>` : ""}
+        ${b.flashbackOf ? `<p class="muted">闪回：人在后院想起渡口。渡口不因此出现在这张卡上。地点仍是后院。</p>` : ""}
+        <h3>动作 / 对白 / 内心</h3>
+        ${tracks}
+        <h3>相关未收伏笔</h3>
+        ${debts || `<p class="muted">这场没动伏笔。</p>`}
+        ${b.status === "draft" ? `<p><button type="button" class="primary" id="commitBtn">写入正史</button></p><p class="muted" id="commitHint">人点了才进历史。</p>` : `<p class="muted">正史。改这场走 revise。本 demo 改字段只存在内存里，刷新即丢。</p>`}`;
+      const titleEl = $("beatTitle");
+      const intentEl = $("beatIntent");
+      const valueEl = $("beatValue");
+      if (titleEl) titleEl.addEventListener("input", () => { b.title = titleEl.value; });
+      if (intentEl) intentEl.addEventListener("input", () => { b.intent = intentEl.value; });
+      if (valueEl) valueEl.addEventListener("input", () => { b.value_shift = valueEl.value; });
+      $("side").querySelectorAll("[data-track-field]").forEach((ta) => {
+        ta.addEventListener("input", () => {
+          const tr = (b.tracks || []).find((t) => t.who === ta.dataset.trackWho);
+          if (tr) tr[ta.dataset.trackField] = ta.value;
+        });
+      });
+      $("side").querySelectorAll(".chip").forEach((el) => {
+        el.addEventListener("click", (ev) => {
+          ev.stopPropagation();
+          if (skipClick) return;
+          const beat = beats.find((x) => x.id === el.dataset.beat);
+          state.beatId = beat.id;
+          state.col = beat.t;
+          state.chip = { beatId: beat.id, name: el.dataset.name };
+          state.mode = "chip";
+          render();
+        });
+      });
+      const c = $("commitBtn");
+      if (c) c.addEventListener("click", () => {
+        $("commitHint").textContent = b.strict
+          ? "被挡：同列两地是 strict。先改地点或改列号。"
+          : "真产品会分配 commit_seq。fold 吃同列全部卡，不按单人连线。";
+      });
+    }
+
+    function render() {
+      if (document.body.classList.contains("show-empty")) return;
+      syncColCount();
+      renderLibrary();
+      renderRuler();
+      renderBoard();
+      renderSide();
+    }
+
+    function paintDragClock(i) {
+      const c = columns[i];
+      const head = document.querySelector(`.col-head[data-col="${i + 1}"]`);
+      if (!head) return;
+      const clock = head.querySelector(".clock");
+      const dur = head.querySelector(".dur");
+      if (clock) clock.textContent = `${hm(c.clock0)}–${hm(c.clock1)}`;
+      if (dur) dur.textContent = `${durLabel(c.clock1 - c.clock0)} · 等宽透镜`;
+    }
+
+    window.addEventListener("pointermove", (ev) => {
+      if (!drag) return;
+      const mins = Math.round((ev.clientX - drag.startX) / PX_PER_MIN);
+      const minEnd = columns[drag.i].clock0 + MIN_DUR;
+      columns[drag.i].clock1 = Math.max(minEnd, drag.oldEnd + mins);
+      paintDragClock(drag.i);
+    });
+    window.addEventListener("pointerup", (ev) => {
+      if (!drag) return;
+      const { i, oldEnd } = drag;
+      const newEnd = columns[i].clock1;
+      drag = null;
+      if (newEnd > oldEnd) {
+        shiftClocks(i + 1, newEnd - oldEnd);
+        render();
+        return;
+      }
+      if (newEnd < oldEnd) {
+        pendingGap = { i, oldEnd, newEnd };
+        const leftover = oldEnd - newEnd;
+        showGapMenu(ev.clientX, ev.clientY, `空出 ${durLabel(leftover)}（${hm(newEnd)}–${hm(oldEnd)}）。列宽没变。`, Boolean(columns[i + 1]));
+        return;
+      }
+      render();
+    });
+    $("gapMenu").querySelectorAll("[data-act]").forEach((btn) => {
+      btn.addEventListener("click", () => applyGap(btn.dataset.act));
+    });
+    window.addEventListener("pointerdown", (ev) => {
+      if (!pendingGap) return;
+      if ($("gapMenu").contains(ev.target)) return;
+      applyGap("cancel");
+    }, true);
+
+    function clearDropMarks() {
+      document.querySelectorAll(".drop-on").forEach((el) => el.classList.remove("drop-on"));
+    }
+    document.addEventListener("dragstart", (ev) => {
+      const lib = ev.target.closest && ev.target.closest(".lib-item[data-entity]");
+      const chip = ev.target.closest && ev.target.closest(".chip[data-name]");
+      if (lib && lib.dataset.entity && ENT[lib.dataset.entity] && ENT[lib.dataset.entity].kind !== "规矩") {
+        skipClick = true;
+        entityDrag = { name: lib.dataset.entity, from: "lib" };
+        ev.dataTransfer.setData("text/plain", entityDrag.name);
+        ev.dataTransfer.effectAllowed = "copy";
+        return;
+      }
+      if (chip) {
+        skipClick = true;
+        entityDrag = { name: chip.dataset.name, from: "chip", beatId: chip.dataset.beat };
+        ev.dataTransfer.setData("text/plain", entityDrag.name);
+        ev.dataTransfer.effectAllowed = "move";
+      }
+    });
+    document.addEventListener("dragend", () => {
+      clearDropMarks();
+      entityDrag = null;
+      setTimeout(() => { skipClick = false; }, 0);
+    });
+    document.addEventListener("dragover", (ev) => {
+      const card = ev.target.closest && ev.target.closest(".card[data-id]");
+      const lib = ev.target.closest && ev.target.closest("#library");
+      const side = ev.target.closest && ev.target.closest("#side");
+      clearDropMarks();
+      if (card) {
+        ev.preventDefault();
+        card.classList.add("drop-on");
+        return;
+      }
+      if (lib && entityDrag && entityDrag.from === "chip") {
+        ev.preventDefault();
+        $("library").classList.add("drop-on");
+        return;
+      }
+      if (side && entityDrag) {
+        ev.preventDefault();
+        $("side").classList.add("drop-on");
+      }
+    });
+    document.addEventListener("drop", (ev) => {
+      const name = (ev.dataTransfer && ev.dataTransfer.getData("text/plain")) || (entityDrag && entityDrag.name);
+      if (!name || !ENT[name]) return;
+      const card = ev.target.closest && ev.target.closest(".card[data-id]");
+      const cardBeat = card ? beats.find((x) => x.id === card.dataset.id) : null;
+      const onLib = ev.target.closest && ev.target.closest("#library");
+      const onSide = ev.target.closest && ev.target.closest("#side");
+      clearDropMarks();
+      if (cardBeat) {
+        ev.preventDefault();
+        if (entityDrag && entityDrag.from === "chip" && entityDrag.beatId === cardBeat.id) return;
+        if (onCard(cardBeat, name) && ENT[name].kind !== "地") {
+          toast(`「${name}」已在这场。`);
+          return;
+        }
+        if (!addToBeat(cardBeat, name)) {
+          toast(ENT[name].kind === "规矩" ? "规则不当作出场，不能拖进卡。打开档案写基本设定。" : `没法把「${name}」写进这场。`);
+          return;
+        }
+        state.beatId = cardBeat.id;
+        state.col = cardBeat.t;
+        state.mode = "inspect";
+        state.chip = null;
+        toast(ENT[name].kind === "地" ? `这场地点换成「${name}」。` : `「${name}」进了这场。`);
+        render();
+        return;
+      }
+      if (onLib && entityDrag && entityDrag.from === "chip") {
+        ev.preventDefault();
+        const b = beats.find((x) => x.id === entityDrag.beatId);
+        const err = cannotRemoveReason(b, name);
+        if (err) { toast(err); return; }
+        removeFromBeat(b, name);
+        state.mode = "inspect";
+        state.chip = null;
+        toast(`「${name}」从这场拿掉。`);
+        render();
+        return;
+      }
+      if (onSide && entityDrag) {
+        ev.preventDefault();
+        const b = beats.find((x) => x.id === state.beatId);
+        if (!b) return;
+        if (entityDrag.from === "chip" && entityDrag.beatId === b.id && ENT[name].kind !== "地") return;
+        if (onCard(b, name) && ENT[name].kind !== "地") {
+          toast(`「${name}」已在这场。`);
+          return;
+        }
+        if (!addToBeat(b, name)) {
+          toast(ENT[name].kind === "规矩" ? "规则不当作出场，不能拖进卡。打开档案写基本设定。" : `没法把「${name}」写进这场。`);
+          return;
+        }
+        toast(ENT[name].kind === "地" ? `这场地点换成「${name}」。` : `「${name}」进了这场。`);
+        render();
+      }
+    });
+
+    $("colPlus").addEventListener("click", () => setViewCount(viewCount + 1));
+    $("colMinus").addEventListener("click", () => setViewCount(viewCount - 1));
+    $("pagePrev").addEventListener("click", () => panView(-1));
+    $("pageNext").addEventListener("click", () => panView(1));
+    $("libSearch").addEventListener("input", () => {
+      state.libQuery = $("libSearch").value;
+      renderLibrary();
+    });
+    $("side").addEventListener("click", (ev) => {
+      const btn = ev.target.closest("[data-open-discuss]");
+      if (!btn) return;
+      ev.preventDefault();
+      openDiscuss(btn.getAttribute("data-open-discuss"));
+    });
+    const THEME_KEY = "worldgraph-theme";
+    function currentTheme() {
+      return document.documentElement.getAttribute("data-theme") === "light" ? "light" : "dark";
+    }
+    function syncThemeBtn() {
+      const btn = $("themeBtn");
+      if (!btn) return;
+      const light = currentTheme() === "light";
+      btn.setAttribute("aria-pressed", light ? "true" : "false");
+      btn.textContent = light ? "暗色" : "亮色";
+      btn.setAttribute("aria-label", light ? "切到暗色主题" : "切到亮色主题");
+    }
+    function applyTheme(theme) {
+      const t = theme === "light" ? "light" : "dark";
+      document.documentElement.setAttribute("data-theme", t);
+      try { localStorage.setItem(THEME_KEY, t); } catch (e) {}
+      syncThemeBtn();
+    }
+    $("themeBtn").addEventListener("click", () => applyTheme(currentTheme() === "light" ? "dark" : "light"));
+
+    $("nextBtn").addEventListener("click", () => { state.mode = "next"; state.chip = null; render(); });
+    $("libNew").addEventListener("click", () => openCreate((state.libQuery || "").trim()));
+    $("emptyNew").addEventListener("click", () => openCreate(""));
+    $("emptyBtn").addEventListener("click", () => document.body.classList.add("show-empty"));
+    $("backBtn").addEventListener("click", () => { document.body.classList.remove("show-empty"); render(); });
+    $("stripScroll").addEventListener("scroll", () => requestAnimationFrame(drawWires));
+    window.addEventListener("resize", () => requestAnimationFrame(drawWires));
+
+    const q = new URLSearchParams(location.search);
+    if (q.get("empty") === "1") document.body.classList.add("show-empty");
+    if (q.get("filter")) state.filter = q.get("filter");
+    if (q.get("col")) state.col = Number(q.get("col"));
+    if (q.get("beat")) state.beatId = q.get("beat");
+    if (q.get("node")) state.node = q.get("node");
+    if (q.get("chip")) {
+      state.chip = { beatId: state.beatId, name: q.get("chip") };
+      if (!q.get("mode")) state.mode = "chip";
+    }
+    if (q.get("mode")) state.mode = q.get("mode");
+    else if (q.get("node") && ENT[q.get("node")] && !q.get("chip")) state.mode = "node";
+    if (q.get("view")) viewCount = Number(q.get("view")) || viewCount;
+    if (q.get("start")) viewStart = Number(q.get("start")) || 0;
+    if (q.get("theme") === "light" || q.get("theme") === "dark") applyTheme(q.get("theme"));
+    else syncThemeBtn();
+    if (q.get("col") || q.get("beat")) revealCol(state.col);
+    else clampView();
+    render();
+  </script>
+</body>
+</html>

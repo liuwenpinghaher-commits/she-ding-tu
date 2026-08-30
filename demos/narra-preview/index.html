@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Narra 案卷 · 预览</title>
+  <!-- HERO: 知情矩阵 — 谁知道哪条事实 -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #0e1412;
+      --panel: #151c19;
+      --ink: #dce8df;
+      --mute: #9aada2;
+      --line: #2a3832;
+      --lime: #c8f542;
+      --lime-ink: #0e1412;
+      --amber: #e6c35c;
+      --wrong: #e85d4c;
+      --alice: #7ec8e3;
+      --eddie: #c4a574;
+      --grayc: #9aa4b2;
+      --focus: 2px solid var(--lime);
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body {
+      background: var(--bg);
+      color: var(--ink);
+      font-family: "Noto Sans SC", "IBM Plex Sans", sans-serif;
+      font-size: 14px;
+      line-height: 1.45;
+    }
+    body::before {
+      content: "";
+      pointer-events: none;
+      position: fixed;
+      inset: 0;
+      opacity: .045;
+      background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='140'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+    }
+    .skip { position: absolute; left: -999px; }
+    .skip:focus { left: 8px; top: 8px; z-index: 20; background: var(--panel); padding: 6px 10px; }
+    header {
+      display: flex;
+      align-items: baseline;
+      gap: 16px;
+      padding: 14px 20px 10px;
+      border-bottom: 1px solid var(--line);
+    }
+    .brand {
+      font-family: "Barlow Condensed", sans-serif;
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+    .brand span { color: var(--lime); }
+    .note { color: var(--mute); font-size: 12px; }
+    .stats {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      padding: 10px 20px;
+      border-bottom: 1px solid var(--line);
+    }
+    .stat {
+      border: 1px solid var(--line);
+      padding: 6px 10px;
+      min-width: 88px;
+    }
+    .stat b {
+      font-family: "Barlow Condensed", sans-serif;
+      font-size: 22px;
+      display: block;
+      color: var(--lime);
+    }
+    .stat span {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 10px;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      color: var(--mute);
+    }
+    main {
+      display: grid;
+      grid-template-columns: 1fr 320px;
+      grid-template-rows: auto 1fr;
+      gap: 0;
+      height: calc(100% - 118px);
+    }
+    h2 {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 11px;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+      color: var(--mute);
+      margin: 0 0 10px;
+      font-weight: 500;
+    }
+    .hero {
+      grid-column: 1 / -1;
+      padding: 16px 20px 8px;
+      border-bottom: 1px solid var(--line);
+    }
+    table.matrix {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    .matrix th, .matrix td {
+      border: 1px solid var(--line);
+      padding: 8px 10px;
+      text-align: left;
+      vertical-align: top;
+    }
+    .matrix th {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 11px;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: var(--mute);
+      font-weight: 500;
+    }
+    .matrix td.fact { width: 42%; }
+    .chip {
+      display: inline-block;
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 11px;
+      letter-spacing: .04em;
+      padding: 2px 7px;
+      border: 1px solid var(--line);
+    }
+    .chip.knows { color: var(--lime-ink); background: var(--lime); border-color: var(--lime); }
+    .chip.suspects { color: var(--lime-ink); background: var(--amber); border-color: var(--amber); }
+    .chip.believes_wrongly { color: #fff; background: var(--wrong); border-color: var(--wrong); }
+    .chip.empty { color: var(--mute); }
+    .board {
+      display: grid;
+      grid-template-columns: 220px 1fr 200px;
+      min-height: 0;
+      overflow: hidden;
+      border-right: 1px solid var(--line);
+    }
+    .col {
+      padding: 14px 14px 24px;
+      overflow: auto;
+      border-right: 1px solid var(--line);
+      min-height: 0;
+    }
+    .col:last-child { border-right: 0; }
+    .card, .evt, .who {
+      border: 1px solid var(--line);
+      background: var(--panel);
+      padding: 8px 10px;
+      margin-bottom: 8px;
+      width: 100%;
+      text-align: left;
+      color: inherit;
+      font: inherit;
+      cursor: pointer;
+    }
+    .who { display: flex; align-items: center; gap: 8px; }
+    .who .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .who[aria-selected="true"], .evt[aria-selected="true"], .card[aria-selected="true"] {
+      border-color: var(--lime);
+      box-shadow: 0 0 0 1px var(--lime);
+    }
+    .who:hover, .evt:hover, .card:hover { border-color: #4a5f55; }
+    .kicker {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 10px;
+      color: var(--mute);
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+    .title {
+      font-family: "IBM Plex Sans", sans-serif;
+      font-size: 16px;
+      font-weight: 600;
+      letter-spacing: 0;
+    }
+    .side {
+      padding: 14px 16px 28px;
+      overflow: auto;
+      background: var(--panel);
+    }
+    .side h3 {
+      font-family: "IBM Plex Sans", "Noto Sans SC", sans-serif;
+      font-size: 20px;
+      margin: 0 0 6px;
+    }
+    .kv { margin: 8px 0; }
+    .kv dt {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 10px;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      color: var(--lime);
+    }
+    .kv dd { margin: 2px 0 0; }
+    .arrow {
+      border-left: 2px solid var(--lime);
+      padding: 6px 10px;
+      margin: 8px 0;
+      background: #121a17;
+    }
+    svg.net { width: 100%; height: 160px; display: block; margin-top: 8px; }
+    button, .who, .evt, .card { border-radius: 0; }
+    button:focus-visible, .who:focus-visible, .evt:focus-visible, .card:focus-visible {
+      outline: var(--focus); outline-offset: 2px;
+    }
+    .people .who { animation: rise .45s cubic-bezier(0.16, 1, 0.3, 1) both; }
+    @keyframes rise {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: none; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .people .who { animation: none; }
+    }
+    .err { padding: 24px; color: var(--wrong); }
+  </style>
+</head>
+<body>
+  <a class="skip" href="#matrix">跳到知情矩阵</a>
+  <header>
+    <div class="brand">Narra <span>案卷</span></div>
+    <div class="note">本地预览网页 · 不是 Narra 自带界面 · 不是设定图 · 点人或事件看账</div>
+  </header>
+  <div class="stats" id="stats"></div>
+  <main>
+    <section class="hero" id="matrix"></section>
+    <div class="board">
+      <div class="col people" id="people"></div>
+      <div class="col" id="timeline"></div>
+      <div class="col" id="net"></div>
+    </div>
+    <aside class="side" id="side" aria-live="polite"></aside>
+  </main>
+  <script>
+    const COLOR = { alice: "var(--alice)", eddie: "var(--eddie)", gray: "var(--grayc)" };
+    const CERT = {
+      knows: "知道",
+      suspects: "怀疑",
+      believes_wrongly: "误信",
+      Knows: "知道",
+      BelievesWrongly: "误信"
+    };
+    let DATA = null;
+    let sel = { kind: "world", id: null };
+
+    const $ = (id) => document.getElementById(id);
+    const nameOf = (id) => (DATA.characters.find((c) => c.id === id) || {}).name || id;
+    const locOf = (id) => (DATA.locations.find((l) => l.id === id) || {}).name || id;
+
+    const eventTitle = (id) => (DATA.events.find((e) => e.id === id) || {}).title || id;
+
+    function cell(who, factId) {
+      const k = DATA.knowledge.find((x) => x.who === who && (x.id === factId || x.fact === factId));
+      if (!k) return `<span class="chip empty">—</span>`;
+      return `<span class="chip ${k.certainty}">${CERT[k.certainty] || k.certainty}</span>`;
+    }
+
+    function renderStats() {
+      $("stats").innerHTML = DATA.status.entities.map((e) =>
+        `<div class="stat"><b>${e.total}</b><span>${e.entity_type} · ${e.coverage}</span></div>`
+      ).join("") + `<div class="stat"><b>${DATA.status.embedding_dimensions}</b><span>向量维 · ${DATA.status.embedding_model}</span></div>`;
+    }
+
+    function renderMatrix() {
+      const people = DATA.characters;
+      const facts = DATA.knowledge;
+      $("matrix").innerHTML = `<h2>知情矩阵 · 谁知道哪条</h2>
+        <table class="matrix">
+          <thead><tr><th>事实</th>${people.map((p) => `<th>${p.name}</th>`).join("")}</tr></thead>
+          <tbody>${facts.map((f) => `<tr>
+            <td class="fact">${f.fact}<div class="kicker">${f.method} · ${eventTitle(f.event)}</div></td>
+            ${people.map((p) => `<td>${cell(p.id, f.id)}</td>`).join("")}
+          </tr>`).join("")}</tbody>
+        </table>`;
+    }
+
+    function renderPeople() {
+      $("people").innerHTML = `<h2>人</h2>` + DATA.characters.map((c, i) => `
+        <button type="button" class="who" data-id="${c.id}" style="animation-delay:${i * 70}ms" aria-selected="${sel.kind === "person" && sel.id === c.id}">
+          <span class="dot" style="background:${COLOR[c.id]}"></span>
+          <span><div class="title">${c.name}</div><div class="kicker">${c.roles.join(" · ")}</div></span>
+        </button>`).join("");
+      $("people").querySelectorAll(".who").forEach((btn) => {
+        btn.addEventListener("click", () => { sel = { kind: "person", id: btn.dataset.id }; render(); });
+      });
+    }
+
+    function renderTimeline() {
+      const events = [...DATA.events].sort((a, b) => a.sequence - b.sequence);
+      $("timeline").innerHTML = `<h2>事件时序</h2>` + events.map((e) => {
+        const scenes = DATA.scenes.filter((s) => s.event === e.id);
+        return `<button type="button" class="evt" data-id="${e.id}" aria-selected="${sel.kind === "event" && sel.id === e.id}">
+          <div class="kicker">第 ${e.sequence} 步</div>
+          <div class="title">${e.title}</div>
+          <div class="note">${e.description}</div>
+          ${scenes.map((s) => `<div class="kicker" style="margin-top:6px">${s.title} · ${locOf(s.location)}</div>`).join("")}
+        </button>`;
+      }).join("");
+      $("timeline").querySelectorAll(".evt").forEach((btn) => {
+        btn.addEventListener("click", () => { sel = { kind: "event", id: btn.dataset.id }; render(); });
+      });
+    }
+
+    function renderNet() {
+      const pos = { alice: [40, 40], gray: [160, 40], eddie: [100, 120] };
+      const nodes = DATA.characters.map((c) => {
+        const [x, y] = pos[c.id];
+        return `<circle cx="${x}" cy="${y}" r="14" fill="${COLOR[c.id]}" />
+          <text x="${x}" y="${y + 28}" text-anchor="middle" fill="#dce8df" font-size="11" font-family="IBM Plex Sans, sans-serif">${c.short || c.name}</text>`;
+      }).join("");
+      const edges = DATA.relationships.map((r) => {
+        const a = pos[r.from], b = pos[r.to];
+        return `<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" stroke="#2a3832" stroke-width="2"/>`;
+      }).join("");
+      $("net").innerHTML = `<h2>关系</h2><svg class="net" viewBox="0 0 200 160">${edges}${nodes}</svg>
+        ${DATA.relationships.map((r) => `<div class="kicker">${nameOf(r.from)} → ${nameOf(r.to)} · ${r.rel_type}${r.subtype ? " / " + r.subtype : ""}</div>`).join("")}`;
+    }
+
+    function renderSide() {
+      const side = $("side");
+      if (sel.kind === "person") {
+        const c = DATA.characters.find((x) => x.id === sel.id);
+        const knows = DATA.knowledge.filter((k) => k.who === c.id);
+        const seen = DATA.perceptions.filter((p) => p.target === c.id);
+        const sees = DATA.perceptions.filter((p) => p.observer === c.id);
+        const d = DATA.dossiers[c.id];
+        side.innerHTML = `
+          <h2>检查器</h2>
+          <h3>${c.name}</h3>
+          <p class="kicker">${c.roles.join(" · ")}${d ? " · " + d.primary_role : ""}</p>
+          ${Object.keys(c.profile).map((k) => `
+            <div class="kv"><dt>${k}</dt><dd>${(c.profile[k] || []).join("；")}</dd></div>`).join("")}
+          <div class="kv"><dt>知情</dt><dd>${knows.map((k) => `<div><span class="chip ${k.certainty}">${CERT[k.certainty]}</span> ${k.fact}</div>`).join("") || "—"}</dd></div>
+          <div class="kv"><dt>别人怎么看</dt><dd>${seen.map((p) => `<div class="arrow"><b>${nameOf(p.observer)}</b> · 张力 ${p.tension}<br/>${p.text}<div class="kicker">${p.feelings}</div></div>`).join("") || "—"}</dd></div>
+          <div class="kv"><dt>此人怎么看别人</dt><dd>${sees.map((p) => `<div class="arrow"><b>${nameOf(p.target)}</b> · 张力 ${p.tension}<br/>${p.text}</div>`).join("") || "—"}</dd></div>
+          ${d ? `<div class="kv"><dt>推断</dt><dd>${d.suggestions.map((s) => `<div>${s}</div>`).join("")}</dd></div>` : ""}`;
+        return;
+      }
+      if (sel.kind === "event") {
+        const e = DATA.events.find((x) => x.id === sel.id);
+        const scenes = DATA.scenes.filter((s) => s.event === e.id);
+        side.innerHTML = `
+          <h2>检查器</h2>
+          <h3>${e.title}</h3>
+          <p class="kicker">第 ${e.sequence} 步</p>
+          <p>${e.description}</p>
+          ${scenes.map((s) => `<div class="kv"><dt>场 · ${s.title}</dt><dd>${s.summary}<div class="kicker">${locOf(s.location)} · ${(s.people || []).map(nameOf).join(" · ")}</div></dd></div>`).join("")}
+          <div class="kv"><dt>在这场学到的账</dt><dd>${DATA.knowledge.filter((k) => k.event === e.id).map((k) => `${nameOf(k.who)} · <span class="chip ${k.certainty}">${CERT[k.certainty]}</span> ${k.fact}`).join("<br/>") || "这场没有新知情入账。"}</dd></div>`;
+        return;
+      }
+      side.innerHTML = `
+        <h2>这一世界</h2>
+        <h3>不对称</h3>
+        ${DATA.asymmetries.map((a) => `<div class="arrow"><b>${nameOf(a.knowing_character_id)}</b> 知道，<b>${nameOf(a.unknowing_character_id)}</b> 不知道<br/>${a.fact}<div class="kicker">张力 ${a.tension_level} · ${a.feelings || ""}</div></div>`).join("")}
+        <h3>误信</h3>
+        ${DATA.conflicts.map((c) => `<div class="arrow"><span class="chip believes_wrongly">误信</span> ${nameOf(c.who)}<br/>${c.truth_value}</div>`).join("")}
+        <p class="note">${DATA.source}</p>
+        <p class="note">点左侧的人，或中间的事件。</p>`;
+    }
+
+    function render() {
+      renderStats();
+      renderMatrix();
+      renderPeople();
+      renderTimeline();
+      renderNet();
+      renderSide();
+    }
+
+    fetch("./data.json")
+      .then((r) => { if (!r.ok) throw new Error(r.status); return r.json(); })
+      .then((d) => {
+        DATA = d;
+        const q = new URLSearchParams(location.search);
+        if (q.get("person")) sel = { kind: "person", id: q.get("person") };
+        if (q.get("event")) sel = { kind: "event", id: q.get("event") };
+        render();
+      })
+      .catch((e) => { $("matrix").innerHTML = `<p class="err">读不到数据文件（${e.message}）。请用 python3 serve.py 打开本目录。</p>`; });
+  </script>
+</body>
+</html>

@@ -1,0 +1,21 @@
+.DS_Store
+.env
+.env.*
+.venv/
+__pycache__/
+*.pyc
+node_modules/
+.codegraph/
+.cursor/
+
+# 对照仓不当本产品代码；Narra 是唯一世界库，源码入库
+vendor/*
+!vendor/README.md
+!vendor/narra/
+!vendor/narra/**
+vendor/narra/target/
+vendor/narra/.git/
+vendor/narra/.fastembed_cache/
+
+# 本机 Narra 世界数据，不进库
+demos/narra-preview/.narra/

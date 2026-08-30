@@ -1,0 +1,150 @@
+{
+  "generated_at": "2026-08-30T06:17:00Z",
+  "source": "Narra 命令行快照 · 对照预览，不是设定图正史",
+  "world": "黑色案件 · 沃斯 / 格雷局长 / 埃迪",
+  "status": {
+    "embedding_model": "本地嵌入",
+    "embedding_provider": "candle",
+    "embedding_dimensions": 384,
+    "entities": [
+      {"entity_type": "人物", "total": 3, "embedded": 3, "coverage": "已嵌入"},
+      {"entity_type": "地点", "total": 3, "embedded": 3, "coverage": "已嵌入"},
+      {"entity_type": "事件", "total": 4, "embedded": 4, "coverage": "已嵌入"},
+      {"entity_type": "场面", "total": 3, "embedded": 3, "coverage": "已嵌入"},
+      {"entity_type": "知情", "total": 3, "embedded": 3, "coverage": "已嵌入"},
+      {"entity_type": "关系", "total": 3, "embedded": 3, "coverage": "已嵌入"}
+    ]
+  },
+  "characters": [
+    {
+      "id": "alice",
+      "name": "沃斯",
+      "short": "沃斯",
+      "roles": ["警探"],
+      "profile": {
+        "伤口": ["三年前搭档被杀"],
+        "欲望": ["给搭档讨回公道"],
+        "秘密": ["她知道是格雷局长下的杀令"],
+        "矛盾": ["白天维护法律，私下盘算法外复仇"]
+      }
+    },
+    {
+      "id": "eddie",
+      "name": "埃迪",
+      "short": "埃迪",
+      "roles": ["线人"],
+      "profile": {
+        "伤口": ["十四岁被家里扔掉"],
+        "欲望": ["攒够钱消失"],
+        "秘密": ["疑心格雷不干净，但拿不出证据"],
+        "矛盾": ["靠卖情报活着，又恨出卖"]
+      }
+    },
+    {
+      "id": "gray",
+      "name": "格雷局长",
+      "short": "格雷",
+      "roles": ["对手"],
+      "profile": {
+        "伤口": ["穷窝里长大，怕再失去权"],
+        "欲望": ["把整座城捏在手里"],
+        "秘密": ["下令杀了沃斯的搭档"],
+        "矛盾": ["台上是肃清先锋，台下是最大的罪犯"]
+      }
+    }
+  ],
+  "locations": [
+    {"id": "precinct", "name": "第十三分局", "loc_type": "建筑", "description": "仓库区那栋旧警局。沃斯的据点。"},
+    {"id": "blind_pig", "name": "盲猪酒吧", "loc_type": "酒吧", "description": "埃迪倒卖消息的地方。后座、只收现金。"},
+    {"id": "city_hall", "name": "市政厅", "loc_type": "建筑", "description": "格雷局长的权座。大理石走廊，门都关着。"}
+  ],
+  "events": [
+    {"id": "murder", "title": "搭档被杀", "sequence": 1, "description": "沃斯的搭档死在一场看似抢劫的案子里。案卷冷掉。"},
+    {"id": "promotion", "title": "格雷升官", "sequence": 2, "description": "格雷当上局长，当众许诺要清洗这座城。"},
+    {"id": "tip", "title": "埃迪报信", "sequence": 3, "description": "埃迪找到沃斯，带去格雷保护费的传闻。"},
+    {"id": "confrontation", "title": "当面对质", "sequence": 4, "description": "沃斯把证据拍在格雷桌上。真相摊开。"}
+  ],
+  "scenes": [
+    {"id": "cold_case", "title": "桌上那份冷卷", "summary": "沃斯又把抢劫报告翻了一遍，怎么看都不对劲。", "event": "murder", "location": "precinct", "people": ["alice"]},
+    {"id": "back_booth", "title": "盲猪后座", "summary": "埃迪把格雷收保护费的传闻卖给沃斯。", "event": "tip", "location": "blind_pig", "people": ["eddie", "alice"]},
+    {"id": "marble", "title": "市政厅对质", "summary": "沃斯把证据拍在格雷桌上。", "event": "confrontation", "location": "city_hall", "people": ["alice", "gray"]}
+  ],
+  "knowledge": [
+    {
+      "id": "b6ub0rv32dkg3eckx8fx",
+      "fact": "格雷局长下令杀了沃斯的搭档",
+      "who": "alice",
+      "certainty": "knows",
+      "method": "发现",
+      "event": "murder"
+    },
+    {
+      "id": "qrighih7n7nhl0ff53zo",
+      "fact": "格雷局长和黑帮有牵连",
+      "who": "eddie",
+      "certainty": "suspects",
+      "method": "推断",
+      "event": "tip"
+    },
+    {
+      "id": "8b974vv5fk2pjkm7nnlo",
+      "fact": "没人怀疑搭档那桩案子跟我有关",
+      "who": "gray",
+      "certainty": "believes_wrongly",
+      "method": "推断",
+      "event": "promotion"
+    }
+  ],
+  "relationships": [
+    {"from": "alice", "to": "gray", "rel_type": "对立", "subtype": null, "label": "猎手和猎物——谁也分不清自己是哪边"},
+    {"from": "eddie", "to": "alice", "rel_type": "公务", "subtype": "线人", "label": "埃迪拿钱给沃斯送消息"},
+    {"from": "gray", "to": "eddie", "rel_type": "公务", "subtype": "眼线", "label": "格雷拿埃迪当街上的眼睛"}
+  ],
+  "perceptions": [
+    {"observer": "gray", "target": "alice", "text": "一个还能用的警探，仍以为搭档死于抢劫。", "feelings": "轻蔑、戒备", "tension": 7},
+    {"observer": "alice", "target": "gray", "text": "大理石台上的改革派。她已经知道那台是假的。", "feelings": "怒、忍", "tension": 9},
+    {"observer": "eddie", "target": "gray", "text": "这座城的主人。别把这名字说太响。", "feelings": "怕", "tension": 8}
+  ],
+  "asymmetries": [
+    {
+      "knowing_character_id": "alice",
+      "unknowing_character_id": "gray",
+      "fact": "格雷局长下令杀了沃斯的搭档",
+      "certainty": "Knows",
+      "signal_strength": "low",
+      "tension_level": 9,
+      "feelings": "怒、忍"
+    },
+    {
+      "knowing_character_id": "gray",
+      "unknowing_character_id": "alice",
+      "fact": "没人怀疑搭档那桩案子跟我有关",
+      "certainty": "BelievesWrongly",
+      "signal_strength": "low",
+      "tension_level": 7,
+      "feelings": "轻蔑、戒备"
+    }
+  ],
+  "conflicts": [
+    {
+      "who": "gray",
+      "certainty": "BelievesWrongly",
+      "truth_value": "没人怀疑搭档那桩案子跟我有关"
+    }
+  ],
+  "dossiers": {
+    "alice": {
+      "primary_role": "守秘人",
+      "secondary_roles": ["复杂人物", "悲剧人物"],
+      "confidence": 0.73,
+      "centrality_rank": 2,
+      "influence_reach": 0,
+      "avg_tension_toward_them": 7.0,
+      "suggestions": [
+        "沃斯是结构上的中心人物（第 2 位），她的动作会牵动整张网。",
+        "沃斯没有影响力通路，在情报网上是孤立的。",
+        "有 1 个观察者对沃斯张力很高，冲突还没收。"
+      ]
+    }
+  }
+}

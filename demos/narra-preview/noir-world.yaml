@@ -1,0 +1,140 @@
+# Official README walkthrough (noir). Isolated preview data, not 设定图正史.
+characters:
+  - id: alice
+    name: "Alice Voss"
+    role: "Detective"
+    description: "Homicide detective, 15 years on the force. Methodical, relentless."
+    profile:
+      wound: ["partner murdered 3 years ago"]
+      desire: ["justice for her partner"]
+      secret: ["knows Commissioner Gray ordered the hit"]
+      contradiction: ["upholds the law while planning extralegal revenge"]
+
+  - id: gray
+    name: "Commissioner Gray"
+    role: "Antagonist"
+    description: "Police commissioner with a public image of reform. Privately runs a protection racket."
+    profile:
+      wound: ["grew up in poverty, fears losing power"]
+      desire: ["absolute control of the city"]
+      secret: ["ordered the murder of Alice's partner"]
+      contradiction: ["champion of justice who is the biggest criminal"]
+
+  - id: eddie
+    name: "Eddie Malone"
+    role: "Informant"
+    description: "Street-level informant who plays all sides. Knows more than he lets on."
+    profile:
+      wound: ["abandoned by family at 14"]
+      desire: ["enough money to disappear"]
+      secret: ["suspects Gray is dirty but has no proof"]
+      contradiction: ["sells information to survive while hating betrayal"]
+
+locations:
+  - id: precinct
+    name: "Precinct 13"
+    loc_type: "building"
+    description: "Aging police station in the warehouse district. Alice's home base."
+
+  - id: blind_pig
+    name: "The Blind Pig"
+    loc_type: "bar"
+    description: "Dive bar where Eddie brokers information. Back booth, cash only."
+
+  - id: city_hall
+    name: "City Hall"
+    loc_type: "building"
+    description: "Commissioner Gray's seat of power. Marble corridors, closed doors."
+
+events:
+  - id: murder
+    title: "Partner's Murder"
+    sequence: 1
+    description: "Alice's partner killed in an apparent robbery. Case goes cold."
+
+  - id: promotion
+    title: "Gray's Promotion"
+    sequence: 2
+    description: "Gray becomes commissioner, promising to clean up the city."
+
+  - id: tip
+    title: "Eddie's Tip"
+    sequence: 3
+    description: "Eddie approaches Alice with a rumor about Gray's protection racket."
+
+  - id: confrontation
+    title: "The Confrontation"
+    sequence: 4
+    description: "Alice confronts Gray with evidence. The truth comes out."
+
+scenes:
+  - id: cold_case
+    title: "Cold file on the desk"
+    event_id: "event:murder"
+    location_id: "location:precinct"
+    summary: "Alice rereads the robbery report that never sat right."
+    participants:
+      - character_id: alice
+        role: pov
+
+  - id: back_booth
+    title: "Back booth at the Blind Pig"
+    event_id: "event:tip"
+    location_id: "location:blind_pig"
+    summary: "Eddie sells Alice a rumor about Gray's protection racket."
+    participants:
+      - character_id: eddie
+        role: informant
+      - character_id: alice
+        role: pov
+
+  - id: marble
+    title: "City Hall confrontation"
+    event_id: "event:confrontation"
+    location_id: "location:city_hall"
+    summary: "Alice puts the evidence on Gray's desk."
+    participants:
+      - character_id: alice
+        role: pov
+      - character_id: gray
+        role: antagonist
+
+relationships:
+  - from_character_id: alice
+    to_character_id: gray
+    rel_type: rivalry
+    label: "Hunter and prey — neither knows who is which"
+
+  - from_character_id: eddie
+    to_character_id: alice
+    rel_type: professional
+    subtype: informant
+    label: "Eddie feeds Alice information for cash"
+
+  - from_character_id: gray
+    to_character_id: eddie
+    rel_type: professional
+    subtype: asset
+    label: "Gray uses Eddie as eyes on the street"
+
+knowledge:
+  - character_id: "character:alice"
+    target_id: "character:gray"
+    fact: "Commissioner Gray ordered the murder of Alice's partner"
+    certainty: knows
+    method: discovered
+    event_id: event:murder
+
+  - character_id: "character:eddie"
+    target_id: "character:gray"
+    fact: "Commissioner Gray is connected to organized crime"
+    certainty: suspects
+    method: deduced
+    event_id: event:tip
+
+  - character_id: "character:gray"
+    target_id: "character:alice"
+    fact: "No one suspects my involvement in the partner's murder"
+    certainty: believes_wrongly
+    method: deduced
+    event_id: event:promotion

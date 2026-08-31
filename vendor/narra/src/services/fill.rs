@@ -75,6 +75,107 @@ pub fn chat_completions_url(base: &str) -> String {
     }
 }
 
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+pub struct TalkConcern {
+    pub kind: String,
+    pub message: String,
+    pub anchor: String,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+pub struct TalkOut {
+    pub reply: String,
+    pub concerns: Vec<TalkConcern>,
+}
+
+pub fn talk_system_prompt() -> &'static str {
+    "你在和作者讨论这一场的任务，不是生成整场，也不是写入历史。\
+只评这么写会不会穿帮、会不会塌。不要评价该不该写这场。不要输出成稿。\
+只输出一个 JSON 对象：{\"reply\":\"对作者说的话\",\"concerns\":[{\"kind\":\"break|drama|option\",\"message\":\"人话\",\"anchor\":\"必须是规定情境里出现过的原文片段\"}]}。\
+kind=break 是穿帮关切，drama 是平在哪，option 是可选方向。\
+锚不出规定情境里的事实，就不要写进 concerns。讨论不是历史。"
+}
+
+pub fn talk_user_prompt(field: &str, draft_text: &str, pkt: &ScenePacket, presence: &[String]) -> String {
+    let pkt_json = serde_json::to_string_pretty(pkt).unwrap_or_else(|_| "{}".into());
+    format!(
+        "正在讨论的格子：{field}\n当前草稿：{draft_text}\n在场：{}\n规定情境：\n{pkt_json}\n",
+        presence.join("、")
+    )
+}
+
+pub fn parse_talk_content(raw: &str, facts: &[String]) -> Result<TalkOut, String> {
+    let t = raw.trim();
+    let start = t.find('{').ok_or_else(|| "讨论没返回对象".to_string())?;
+    let end = t.rfind('}').ok_or_else(|| "讨论没返回对象".to_string())?;
+    if end < start {
+        return Err("讨论没返回对象".into());
+    }
+    let v: Value = serde_json::from_str(&t[start..=end]).map_err(|e| format!("讨论稿不是对象：{e}"))?;
+    let reply = v
+        .get("reply")
+        .and_then(|x| x.as_str())
+        .unwrap_or("")
+        .trim()
+        .to_string();
+    let mut concerns = Vec::new();
+    if let Some(arr) = v.get("concerns").and_then(|x| x.as_array()) {
+        for c in arr {
+            let kind = c
+                .get("kind")
+                .and_then(|x| x.as_str())
+                .unwrap_or("")
+                .trim()
+                .to_string();
+            let message = c
+                .get("message")
+                .and_then(|x| x.as_str())
+                .unwrap_or("")
+                .trim()
+                .to_string();
+            let anchor = c
+                .get("anchor")
+                .and_then(|x| x.as_str())
+                .unwrap_or("")
+                .trim()
+                .to_string();
+            if message.is_empty() || anchor.chars().count() < 2 {
+                continue;
+            }
+            if !facts.iter().any(|f| f.contains(&anchor) || anchor.contains(f)) {
+                continue;
+            }
+            if !matches!(kind.as_str(), "break" | "drama" | "option") {
+                continue;
+            }
+            concerns.push(TalkConcern {
+                kind,
+                message,
+                anchor,
+            });
+        }
+    }
+    if reply.is_empty() && concerns.is_empty() {
+        return Err("讨论没有可显示的内容".into());
+    }
+    Ok(TalkOut { reply, concerns })
+}
+
+pub fn packet_facts(pkt: &ScenePacket) -> Vec<String> {
+    let mut facts = pkt.stakes.clone();
+    facts.extend(pkt.knowledge_gaps.clone());
+    facts.extend(pkt.default_witnesses.clone());
+    if let Some(s) = &pkt.last_value_shift {
+        facts.push(s.clone());
+    }
+    for p in &pkt.open_promises {
+        facts.push(p.name.clone());
+        facts.push(p.id.clone());
+    }
+    facts.push(pkt.intent.clone());
+    facts
+}
+
 pub fn extract_chat_content(body: &Value) -> Result<String, String> {
     body.get("choices")
         .and_then(|c| c.get(0))
@@ -122,5 +223,13 @@ mod tests {
             chat_completions_url("https://api.x.ai/v1/chat/completions"),
             "https://api.x.ai/v1/chat/completions"
         );
+    }
+
+    #[test]
+    fn drop_unanchored_talk() {
+        let raw = r#"{"reply":"会穿帮","concerns":[{"kind":"break","message":"空话加强冲突","anchor":"没有这条"},{"kind":"break","message":"她不该知道刀","anchor":"刀在抽屉"}]}"#;
+        let out = parse_talk_content(raw, &["刀在抽屉".into()]).unwrap();
+        assert_eq!(out.concerns.len(), 1);
+        assert_eq!(out.concerns[0].anchor, "刀在抽屉");
     }
 }

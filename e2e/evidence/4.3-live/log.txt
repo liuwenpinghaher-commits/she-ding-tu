@@ -1,4 +1,7 @@
-4.3-live status=blocked reason=SETTING_LLM_API_KEY 未设置
-code=fill_live_http_chat_completions
-auto_canon=false
-note=有密钥不再返回未实现；本环境缺密钥所以 blocked
+4.3-live status=pass-live model=qwen3.8-flash
+auto_canon=false live=true
+fill_do_prefix=阿福把刀从油布里解开
+world_playing_after_commit=1
+talk_notice=讨论不是历史
+talk_concerns=4
+note=部署机 127.0.0.1:8787；密钥不入库

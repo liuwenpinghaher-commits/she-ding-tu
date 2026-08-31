@@ -4,6 +4,7 @@ pub mod canon;
 pub mod circumstances;
 pub mod constrain;
 pub mod fill;
+pub mod span;
 pub mod ferry;
 pub mod materialize;
 pub mod world;

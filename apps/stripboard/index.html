@@ -88,6 +88,11 @@
     <aside id="side">
       <label>本场任务 <input id="intent" data-testid="intent" /></label>
       <button id="talk" data-testid="talk">讨论</button>
+      <div id="talk-out" data-testid="talk-out"></div>
+      <p id="talk-notice" class="hidden" data-testid="talk-notice">讨论不是历史</p>
+      <button id="plan-suggest" data-testid="plan-suggest">铺场建议</button>
+      <button id="plan-apply" data-testid="plan-apply">落为预场</button>
+      <pre id="plan-out" data-testid="plan-out"></pre>
       <button id="write-box" data-testid="write-box">写入此框</button>
       <textarea id="do-text" data-testid="do-text" placeholder="动作"></textarea>
       <textarea id="say-text" data-testid="say-text" placeholder="对白"></textarea>
@@ -522,7 +527,54 @@ $('set-telling').onclick = async () => {
   await api('/api/telling', { method: 'POST', body: JSON.stringify({ beat_id: id, telling_ord: ord }) });
   refresh();
 };
-$('talk').onclick = () => { pendingTalk = '讨论稿：' + ($('intent').value || '动作'); };
+let lastBones = [];
+$('talk').onclick = async () => {
+  if (!currentDraft) {
+    $('sidebar').textContent = '先开一场再讨论';
+    return;
+  }
+  try {
+    const r = await api('/api/talk', { method: 'POST', body: JSON.stringify({
+      id: currentDraft,
+      field: 'intent',
+      text: $('intent').value
+    }) });
+    $('talk-notice').classList.remove('hidden');
+    $('talk-out').textContent = (r.notice || '讨论不是历史') + '\n' + (r.reply || '') + '\n' +
+      (r.concerns || []).map(c => '· ' + c.kind + '：' + c.message + '（' + c.anchor + '）').join('\n');
+    $('sidebar').textContent = r.notice || '讨论不是历史';
+  } catch (e) {
+    $('sidebar').textContent = String(e.message || e);
+  }
+};
+$('plan-suggest').onclick = async () => {
+  const goal = currentDraft || currentCanon;
+  if (!goal) {
+    $('sidebar').textContent = '先选目标场';
+    return;
+  }
+  try {
+    const r = await api('/api/plan-suggest', { method: 'POST', body: JSON.stringify({ goal_id: goal }) });
+    lastBones = r.bones || [];
+    $('plan-out').textContent = JSON.stringify(r, null, 2);
+    $('sidebar').textContent = r.need_structure ? (r.notice || '先解决结构') : (r.notice || '建议不进历史');
+  } catch (e) {
+    $('sidebar').textContent = String(e.message || e);
+  }
+};
+$('plan-apply').onclick = async () => {
+  if (!lastBones.length) {
+    $('sidebar').textContent = '没有要落下的骨架';
+    return;
+  }
+  try {
+    const r = await api('/api/plan-apply', { method: 'POST', body: JSON.stringify({ mode: 'tail', bones: lastBones }) });
+    $('sidebar').textContent = r.notice || '预场已落下，仍是草稿';
+    refresh();
+  } catch (e) {
+    $('sidebar').textContent = String(e.message || e);
+  }
+};
 $('write-box').onclick = async () => {
   if (pendingFill && currentDraft) {
     if ($('do-text').value) pendingFill.do_text = $('do-text').value;

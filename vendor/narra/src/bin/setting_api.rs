@@ -217,6 +217,34 @@ fn persist_drafts(root: &std::path::Path, name: &str, drafts: &[UiDraft]) {
     );
 }
 
+fn load_dotenv() {
+    let mut dir = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+    for _ in 0..8 {
+        let f = dir.join(".env");
+        if f.is_file() {
+            if let Ok(s) = std::fs::read_to_string(&f) {
+                for line in s.lines() {
+                    let line = line.trim();
+                    if line.is_empty() || line.starts_with('#') {
+                        continue;
+                    }
+                    if let Some((k, v)) = line.split_once('=') {
+                        let k = k.trim();
+                        let v = v.trim().trim_matches('"');
+                        if std::env::var(k).is_err() {
+                            std::env::set_var(k, v);
+                        }
+                    }
+                }
+            }
+            return;
+        }
+        if !dir.pop() {
+            break;
+        }
+    }
+}
+
 fn disk_books(root: &std::path::Path) -> Vec<String> {
     let mut names = vec![];
     if let Ok(rd) = std::fs::read_dir(root) {
@@ -234,6 +262,7 @@ fn disk_books(root: &std::path::Path) -> Vec<String> {
 
 #[tokio::main]
 async fn main() {
+    load_dotenv();
     let data_root = std::env::var("SETTING_DATA")
         .map(PathBuf::from)
         .unwrap_or_else(|_| PathBuf::from("./data/books"));
@@ -1904,6 +1933,31 @@ async fn set_telling(
     Ok(Json(serde_json::json!({"ok": true, "beat_id": body.beat_id, "telling_ord": body.telling_ord})))
 }
 
+fn parse_fill_json(raw: &str) -> Result<(Option<String>, Option<String>, Option<String>), String> {
+    let s = raw.trim();
+    let s = s
+        .strip_prefix("```json")
+        .or_else(|| s.strip_prefix("```"))
+        .unwrap_or(s)
+        .trim()
+        .trim_end_matches("```")
+        .trim();
+    let start = s.find('{').ok_or_else(|| "模型返回无 JSON 对象".to_string())?;
+    let end = s.rfind('}').ok_or_else(|| "模型返回 JSON 不完整".to_string())?;
+    let v: serde_json::Value =
+        serde_json::from_str(&s[start..=end]).map_err(|e| format!("模型 JSON 解析失败: {e}"))?;
+    let pick = |keys: &[&str]| {
+        keys.iter()
+            .find_map(|k| v.get(*k).and_then(|x| x.as_str()).map(|s| s.to_string()))
+            .filter(|s| !s.trim().is_empty())
+    };
+    Ok((
+        pick(&["do_text", "动作", "do"]),
+        pick(&["say_text", "对白", "say"]),
+        pick(&["think_text", "内心", "think"]),
+    ))
+}
+
 async fn fill_live(
     State(app): State<App>,
     Json(body): Json<serde_json::Value>,
@@ -1912,9 +1966,101 @@ async fn fill_live(
     if key.trim().is_empty() {
         return Err((StatusCode::SERVICE_UNAVAILABLE, "缺 SETTING_LLM_API_KEY".into()));
     }
-    let _ = (app, body);
-    Err((
-        StatusCode::NOT_IMPLEMENTED,
-        "真调档未接：有密钥但本切片只断言结构，当前环境未实现 HTTP 出站".into(),
-    ))
+    let base = std::env::var("SETTING_LLM_BASE_URL")
+        .unwrap_or_else(|_| "https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1".into());
+    let model = std::env::var("SETTING_LLM_MODEL").unwrap_or_else(|_| "qwen3.8-flash".into());
+    let id = body.get("id").and_then(|v| v.as_str()).unwrap_or("");
+    let (draft0, pkt) = {
+        let g = app.inner.lock().await;
+        let name = g.current.clone().ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
+        let sess = g.books.get(&name).unwrap();
+        let draft0 = sess
+            .drafts
+            .iter()
+            .find(|x| x.id == id)
+            .ok_or((StatusCode::BAD_REQUEST, "无草稿".into()))?
+            .draft
+            .clone();
+        if draft0.intent.trim().is_empty() {
+            return Err((StatusCode::BAD_REQUEST, "没有本场任务不准填".into()));
+        }
+        let pkt = sess
+            .book
+            .given_circumstances(&draft0)
+            .await
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+        (draft0, pkt)
+    };
+    let pkt_json = serde_json::to_value(&pkt).unwrap_or(serde_json::json!({}));
+    let user = format!(
+        "你在写设定图的一场戏。只根据已正史规定情境和本场任务填格子。\n\
+不要指定写哪一场。不要兑现伏笔建议。不要结构建议。不要把内容写成正史。\n\
+本场任务：{}\n规定情境 JSON：{}\n\
+只返回 JSON：{{\"do_text\":\"动作\",\"say_text\":\"对白\",\"think_text\":\"内心\"}}",
+        draft0.intent,
+        pkt_json
+    );
+    let url = format!("{}/chat/completions", base.trim_end_matches('/'));
+    let payload = serde_json::json!({
+        "model": model,
+        "messages": [
+            {"role": "system", "content": "只输出一个 JSON 对象，不要Markdown。"},
+            {"role": "user", "content": user}
+        ],
+        "temperature": 0.4
+    });
+    let resp = reqwest::Client::new()
+        .post(&url)
+        .bearer_auth(&key)
+        .header("Content-Type", "application/json")
+        .json(&payload)
+        .send()
+        .await
+        .map_err(|e| (StatusCode::BAD_GATEWAY, format!("真调请求失败: {e}")))?;
+    let status = resp.status();
+    let text = resp
+        .text()
+        .await
+        .map_err(|e| (StatusCode::BAD_GATEWAY, format!("真调读体失败: {e}")))?;
+    if !status.is_success() {
+        let clipped: String = text.chars().take(240).collect();
+        return Err((StatusCode::BAD_GATEWAY, format!("真调 HTTP {status}: {clipped}")));
+    }
+    let outer: serde_json::Value = serde_json::from_str(&text)
+        .map_err(|e| (StatusCode::BAD_GATEWAY, format!("真调外层 JSON 失败: {e}")))?;
+    let content = outer
+        .pointer("/choices/0/message/content")
+        .and_then(|v| v.as_str())
+        .ok_or((StatusCode::BAD_GATEWAY, "真调无 choices[0].message.content".into()))?;
+    let (do_text, say_text, think_text) =
+        parse_fill_json(content).map_err(|e| (StatusCode::BAD_GATEWAY, e))?;
+    if do_text.is_none() && say_text.is_none() && think_text.is_none() {
+        return Err((StatusCode::BAD_GATEWAY, "真调 JSON 无动作/对白/内心".into()));
+    }
+    let mut g = app.inner.lock().await;
+    let name = g.current.clone().ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
+    let sess = g.books.get_mut(&name).unwrap();
+    let mut suggested = draft0.clone();
+    if do_text.is_some() {
+        suggested.do_text = do_text.clone();
+    }
+    if say_text.is_some() {
+        suggested.say_text = say_text.clone();
+    }
+    if think_text.is_some() {
+        suggested.think_text = think_text.clone();
+    }
+    sess.fill_pending = Some(suggested);
+    Ok(Json(serde_json::json!({
+        "do_text": do_text,
+        "say_text": say_text,
+        "think_text": think_text,
+        "intent": draft0.intent,
+        "auto_canon": false,
+        "live": true,
+        "model": model,
+        "model_input": pkt_json,
+        "model_input_has_suggestion": false,
+        "model_input_has_structure": false,
+    })))
 }

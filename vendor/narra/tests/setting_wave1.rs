@@ -9,8 +9,8 @@ use narra::services::ferry::{self, AFU, AHE, CITY, COL0, COL1, COL2, FERRY, GANG
 use narra::services::constrain;
 use narra::services::craft::{self, BookCraft, CraftChapter, ExportBeat};
 use narra::services::world::{
-    BeatDraft, Column, Delta, Entity, KnowledgeWrite, Presence, ROLE_MENTIONED, ROLE_PRESENT,
-    ATTR_HOLDS, CERT_WRONG, KIND_RULE,
+    BeatDraft, Column, Delta, Entity, KnowledgeWrite, Presence, Promise, PromiseOp, ROLE_MENTIONED,
+    ROLE_PRESENT, ATTR_HOLDS, CERT_WRONG, KIND_RULE,
 };
 use std::sync::Arc;
 
@@ -1214,5 +1214,64 @@ async fn s7_rule_universe_fact_fills_empty_profile() {
         "空档案应从 universe_fact 补回 {:?}",
         e.profile
     );
+}
+
+fn scene(id: &str, col: &str, intent: &str, from: i64, to: i64) -> BeatDraft {
+    BeatDraft {
+        id: Some(id.into()),
+        kind: "scene".into(),
+        column_id: col.into(),
+        intent: intent.into(),
+        value_shift: Some("转".into()),
+        do_text: Some("走一步".into()),
+        clock_from: from,
+        clock_to: to,
+        place_id: Some(FERRY.into()),
+        presences: vec![p(AFU, ROLE_PRESENT)],
+        ..BeatDraft::default()
+    }
+}
+
+#[tokio::test]
+async fn s_promise_illegal_jumps_blocked() {
+    let (_h, book) = book().await;
+    book.upsert_promise(&Promise {
+        id: "token_due".into(),
+        name: "铜牌三日".into(),
+        status: "open".into(),
+        related: vec![TOKEN.into()],
+        plant_clock: Some(0),
+        deadline_clock: Some(180),
+        red_herring: false,
+    })
+    .await
+    .unwrap();
+
+    let mut never = scene("pay_none", COL0, "凭空兑现", 0, 60);
+    never.promise_ops = vec![PromiseOp {
+        promise_id: "ghost".into(),
+        op: "payoff".into(),
+    }];
+    let r = book.constrain_draft(&never).await.unwrap();
+    assert!(r.blocks());
+    assert!(r.findings.iter().any(|f| f.code == "promise_payoff"));
+    assert!(book.commit(never).await.is_err());
+
+    let mut pay = scene("pay_ok", COL0, "兑现铜牌", 0, 60);
+    pay.promise_ops = vec![PromiseOp {
+        promise_id: "token_due".into(),
+        op: "payoff".into(),
+    }];
+    book.commit(pay).await.expect("未收可以兑现");
+
+    let mut replant = scene("replant", COL1, "再埋", 60, 120);
+    replant.promise_ops = vec![PromiseOp {
+        promise_id: "token_due".into(),
+        op: "plant".into(),
+    }];
+    let r2 = book.constrain_draft(&replant).await.unwrap();
+    assert!(r2.blocks());
+    assert!(r2.findings.iter().any(|f| f.code == "promise_replant"));
+    assert!(book.commit(replant).await.is_err());
 }
 

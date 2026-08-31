@@ -4,22 +4,24 @@ use crate::services::world::{
     Beat, BeatDraft, Canon, Presence, ROLE_PRESENT, World, BEAT_SCENE, ATTR_WHERE, KIND_RULE,
     STATUS_COMMITTED,
 };
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum Grade {
     Info,
     Warn,
     Strict,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Finding {
     pub grade: Grade,
     pub code: String,
     pub message: String,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ConstraintReport {
     pub findings: Vec<Finding>,
 }
@@ -229,7 +231,13 @@ pub fn constrain(world: &World, canon: &Canon, draft: &BeatDraft) -> ConstraintR
                 if payload.chars().count() >= 2
                     && (say.contains(payload) || think.contains(payload) && who != speaker)
                 {
-                    if say.contains(payload) {
+                    if say.contains(payload)
+                        && !world
+                            .knows
+                            .get(speaker)
+                            .map(|fs| fs.iter().any(|f| f == payload || f.contains(payload)))
+                            .unwrap_or(false)
+                    {
                         r.findings.push(Finding {
                             grade: Grade::Warn,
                             code: "knowledge_leak".into(),
@@ -244,6 +252,7 @@ pub fn constrain(world: &World, canon: &Canon, draft: &BeatDraft) -> ConstraintR
         lie_visible(&mut r, world, draft, liar);
     }
 
+    promise_ops_strict(world, draft, &mut r);
     rule_enforcement(&mut r, canon, draft);
 
     let _ = (world, draft_as_beat(draft, "draft"));
@@ -400,6 +409,59 @@ fn rule_enforcement(r: &mut ConstraintReport, canon: &Canon, draft: &BeatDraft) 
                 code: "rule_warn".into(),
                 message: format!("规则标黄：{}（{}）", e.name, scope),
             });
+        }
+    }
+}
+
+fn promise_ops_strict(world: &World, draft: &BeatDraft, r: &mut ConstraintReport) {
+    let mut st: std::collections::BTreeMap<String, String> = world
+        .promises
+        .iter()
+        .map(|p| (p.id.clone(), p.status.clone()))
+        .collect();
+    for op in &draft.promise_ops {
+        let cur = st.get(&op.promise_id).map(|s| s.as_str());
+        match op.op.as_str() {
+            "plant" => {
+                if matches!(cur, Some("paid") | Some("discarded")) {
+                    r.findings.push(Finding {
+                        grade: Grade::Strict,
+                        code: "promise_replant".into(),
+                        message: format!("伏笔「{}」已经收了，不能再埋", op.promise_id),
+                    });
+                }
+                st.insert(op.promise_id.clone(), "open".into());
+            }
+            "advance" => {
+                if cur != Some("open") {
+                    r.findings.push(Finding {
+                        grade: Grade::Strict,
+                        code: "promise_advance".into(),
+                        message: format!("伏笔「{}」没在收着，不能推进", op.promise_id),
+                    });
+                }
+            }
+            "payoff" => {
+                if cur != Some("open") {
+                    r.findings.push(Finding {
+                        grade: Grade::Strict,
+                        code: "promise_payoff".into(),
+                        message: format!("伏笔「{}」没埋着，不能兑现", op.promise_id),
+                    });
+                }
+                st.insert(op.promise_id.clone(), "paid".into());
+            }
+            "discard" => {
+                if cur != Some("open") {
+                    r.findings.push(Finding {
+                        grade: Grade::Strict,
+                        code: "promise_discard".into(),
+                        message: format!("伏笔「{}」没在收着，不能作废", op.promise_id),
+                    });
+                }
+                st.insert(op.promise_id.clone(), "discarded".into());
+            }
+            _ => {}
         }
     }
 }

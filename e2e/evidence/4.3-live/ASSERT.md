@@ -2,5 +2,7 @@
 
 | 断言 | 结果 | 实际值 |
 |---|---|---|
-| 缺密钥 blocked | blocked | SETTING_LLM_API_KEY 未设置 |
-| 不挡 4.3 | pass | 4.3 同时 done |
+| 真调 qwen3.8-flash | pass | live=true；动作开头「阿福把刀从油布里解开」 |
+| 未自动正史 | pass | auto_canon=false |
+| 写入正史后才看见 | pass | commit 后 playing 含该场 |
+| 讨论不是历史 | pass | notice=讨论不是历史；concerns=4 |

@@ -1,1 +1,3 @@
-wave2 ALL PASS; F40 PATH PASS playing=[d1] export has 正史+草稿
+slice=5.5 COPIED_LOG_REMOVED
+was_identical_to=wave2 ALL PASS one-liner
+status=needs-unique-log

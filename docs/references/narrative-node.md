@@ -41,7 +41,7 @@ flowchart LR
 | 问题形状 | 借问题，不借数据结构 | 知情、关系、知识、同场多人 | 知情 = 他知道什么；伏笔单独一类；关系 = 边 |
 | 怎么算世界 | 零 | 每人一条线、出线优先、一改即历史、画布坐标参与故事序 | [`世界引擎.md`](../世界引擎.md) |
 
-打开默认是分场条，见 v1。demo [`../../demos/stripboard-v1.html`](../../demos/stripboard-v1.html) 已有一场一块 + 在场标记。全书细条、出场飞出层已拍板上 v1（只导航；全高出场表仍后做）。
+打开默认是分场条，见 v1。demo [`../../demos/stripboard-v1.html`](../../demos/stripboard-v1.html) 已有一场一块 + 在场标记。全书细条、出场飞出层已拍板上 v1（只导航；全高出场表作法必有、打开仍不是默认主面）。
 
 ---
 
@@ -57,7 +57,7 @@ flowchart LR
 |---|---|
 | `frontend/src/components/nodes/SceneNode.jsx` | 分场条一行（或戏卡一块）= 一场 |
 | `frontend/src/utils/entityHelpers.js` 的 `ENTITY_BUCKETS`：`characters, locations, items, factions, customs` | 这场碰了谁从地点、出场人物、本场变化、伏笔操作算出来，见 v1「纵轴」 |
-| 连线默认不是网格 | 看全在场用标尺色点 + 点一列（v1）；出场飞出层只读矩阵已拍板；全高出场表后做；连线图后做 |
+| 连线默认不是网格 | 看全在场用标尺色点 + 点一列（v1）；出场飞出层只读矩阵已拍板；全高出场表与连线图作法必有、打开不是默认主面 |
 
 ### 2. 变更挂在标记下，不是另开台账
 

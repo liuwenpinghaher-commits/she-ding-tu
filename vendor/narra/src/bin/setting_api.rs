@@ -18,8 +18,9 @@ use narra::services::fill::{
 use narra::services::relations;
 use narra::services::span::{parse_plan_content, plan_system_prompt, span_circumstances, PlanBone};
 use narra::services::world::{
-    Beat, BeatDraft, Canon, Column, Delta, Entity, KnowledgeWrite, Presence, Promise, PromiseOp,
-    KIND_PERSON, KIND_PLACE, KIND_RULE, ROLE_PRESENT, STATUS_COMMITTED, World,
+    apply_track_flatten, Beat, BeatDraft, Canon, Column, Delta, Entity, KnowledgeWrite, PersonTrack,
+    Presence, Promise, PromiseOp, KIND_PERSON, KIND_PLACE, KIND_RULE, ROLE_PRESENT, STATUS_COMMITTED,
+    World,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
@@ -156,6 +157,7 @@ struct PatchDraft {
     knowledge_writes: Option<Vec<KnowledgeWrite>>,
     promise_ops: Option<Vec<PromiseOp>>,
     cause_beat: Option<String>,
+    tracks: Option<Vec<PersonTrack>>,
 }
 
 #[derive(Deserialize)]
@@ -1296,6 +1298,10 @@ async fn patch_draft(
             if f.think_text.is_some() {
                 d.draft.think_text = f.think_text;
             }
+            if !f.tracks.is_empty() {
+                d.draft.tracks = f.tracks;
+            }
+            apply_track_flatten(&mut d.draft);
             sess.fill_pending = None;
         }
     }
@@ -1347,6 +1353,10 @@ async fn patch_draft(
         } else {
             Some(v)
         };
+    }
+    if let Some(v) = body.tracks {
+        d.draft.tracks = v;
+        apply_track_flatten(&mut d.draft);
     }
     sess.selected = Some(body.id.clone());
     let out = d.draft.clone();
@@ -1986,9 +1996,41 @@ async fn fill_fake(
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     let mut suggested = draft0;
-    suggested.do_text = Some(format!("（假模型）为「{}」走了一步", suggested.intent));
-    suggested.say_text = Some("阿莲：东西呢。".into());
-    suggested.think_text = Some("铜牌不能丢。".into());
+    let people: Vec<String> = suggested
+        .presences
+        .iter()
+        .filter(|p| p.role == ROLE_PRESENT)
+        .map(|p| p.entity_id.clone())
+        .collect();
+    if people.is_empty() {
+        suggested.do_text = Some(format!("（假模型）为「{}」走了一步", suggested.intent));
+        suggested.say_text = Some("东西呢。".into());
+        suggested.think_text = Some("不能丢。".into());
+    } else {
+        suggested.tracks = people
+            .iter()
+            .enumerate()
+            .map(|(i, pid)| PersonTrack {
+                person_id: pid.clone(),
+                do_text: if i == 0 {
+                    Some(format!("（假模型）为「{}」走了一步", suggested.intent))
+                } else {
+                    None
+                },
+                say_text: if i == 0 {
+                    Some("东西呢。".into())
+                } else {
+                    None
+                },
+                think_text: if i == 0 {
+                    Some("不能丢。".into())
+                } else {
+                    None
+                },
+            })
+            .collect();
+        apply_track_flatten(&mut suggested);
+    }
     sess.fill_pending = Some(suggested.clone());
     persist_drafts(&app.data_root, &name, &sess.drafts);
     let pkt_json = serde_json::to_value(&pkt).unwrap_or(serde_json::json!({}));
@@ -1996,6 +2038,7 @@ async fn fill_fake(
         "do_text": suggested.do_text,
         "say_text": suggested.say_text,
         "think_text": suggested.think_text,
+        "tracks": suggested.tracks,
         "intent": suggested.intent,
         "auto_canon": false,
         "model_input": pkt_json,
@@ -3586,6 +3629,10 @@ async fn fill_live(
     if let Some(t) = fields.value_shift.clone() {
         suggested.value_shift = Some(t);
     }
+    if !fields.tracks.is_empty() {
+        suggested.tracks = fields.tracks.clone();
+        apply_track_flatten(&mut suggested);
+    }
     sess.fill_pending = Some(suggested.clone());
     persist_drafts(&app.data_root, &name, &sess.drafts);
     let pkt_json = serde_json::to_value(&pkt).unwrap_or(serde_json::json!({}));
@@ -3594,6 +3641,7 @@ async fn fill_live(
         "say_text": suggested.say_text,
         "think_text": suggested.think_text,
         "value_shift": suggested.value_shift,
+        "tracks": suggested.tracks,
         "intent": suggested.intent,
         "auto_canon": false,
         "live": true,

@@ -4,7 +4,7 @@
 
 ## 当前状态（2026-08-31）
 
-**分场条主面（HTML + `setting_api`）已按 UI 合同做到第 6 期，并合入 GitHub 一期交互。** 空书本页列数 N=1；已有场的书打开为 4。入口仍是 `apps/stripboard/index.html`（`setting-api` 的 `include_str!`），默认 `127.0.0.1:8787`。F40 26 步脚本 `e2e/playwright/f40.click.mjs` 已按合同重跑，证据 `e2e/evidence/6.1/`。全高出场表、连线图作法必有，打开仍不是默认主面。不先拆 Vite/React。
+**分场条主面已按《界面交互全面优化》三期落地。** 顶栏瘦身 + 七模式右栏 + 列头标尺（序号/钟/时长/透镜条/覆盖点）+ 齿条窗口框 + 场卡形状（虚线草稿/斜纹省略/闪回缩进）+ 左栏分组与「场」透镜 + 空列文案 + 按人分轨（`PersonTrack`，填场 `tracks`）+ 「这一刻」人话 + 确认变更上下文卡片。入口仍是 `apps/stripboard/index.html`（`setting-api` 的 `include_str!`），默认 `127.0.0.1:8787`。结构验收 `scripts/test_stripboard_ui.py` 与 `scripts/test_stripboard_phase1.py`。全高出场表、连线图作法必有，打开仍不是默认主面。不先拆 Vite/React。
 
 **文学教授第 9 节已于 2026-08-31 拍板**，真源已改：[`设定图-v1.md`](./设定图-v1.md)、[`世界引擎.md`](./世界引擎.md)、[`plans/2026-08-30-设定图-Narra底座.md`](./plans/2026-08-30-设定图-Narra底座.md)。规划正文：[`plans/2026-08-31-文学教授-目标改造.md`](./plans/2026-08-31-文学教授-目标改造.md)。第 1–5 期已做。下一期无。
 

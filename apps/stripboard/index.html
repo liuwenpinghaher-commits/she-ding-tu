@@ -62,8 +62,20 @@
       font-size: 13.5px;
       line-height: 1.45;
       display: grid;
-      grid-template-rows: auto auto 1fr;
+      grid-template-rows: auto auto auto 1fr;
+      position: relative;
     }
+    body::before {
+      content: "";
+      pointer-events: none;
+      position: fixed;
+      inset: 0;
+      opacity: .07;
+      background-image: radial-gradient(var(--line) 0.6px, transparent 0.7px);
+      background-size: 4px 4px;
+      z-index: 0;
+    }
+    body > * { position: relative; z-index: 1; }
     .skip { position: absolute; left: -999px; }
     .skip:focus { left: 8px; top: 8px; z-index: 50; background: var(--panel); padding: 6px 10px; }
     header {
@@ -111,25 +123,57 @@
     #stage { flex: 1; display: flex; flex-direction: column; min-width: 0; position: relative; }
     #cols { display: flex; flex: 1; overflow: hidden; }
     .col { flex: 1; border-right: 1px solid var(--line); padding: 8px; min-width: 0; position: relative; }
-    .col-head { font-family: var(--serif); font-size: 18px; margin: 0 0 4px; cursor: pointer; }
-    .col-clock { font-family: var(--mono); font-size: 11px; color: var(--mute); }
+    .col-head { font-family: var(--serif); font-size: 28px; margin: 0; cursor: pointer; line-height: 1.1; }
+    .col-clock { font-family: var(--mono); font-size: 12px; color: var(--mute); }
+    .col-dur { font-size: 11px; color: var(--mute); }
+    .col-lens { height: 6px; background: var(--line); margin: 4px 0 6px; }
+    .col-lens i { display: block; height: 100%; background: var(--brass); }
+    .cover-dots { display: flex; gap: 4px; margin: 4px 0 8px; }
+    .cover-dots span { width: 8px; height: 8px; border-radius: 50%; opacity: .2; }
+    .cover-dots span.on { opacity: 1; }
     .col-handle { position: absolute; right: 0; top: 0; bottom: 0; width: 8px; cursor: ew-resize; background: var(--line); }
-    .card { border: 2px solid var(--line); padding: 8px; margin: 8px 0; background: var(--panel); }
+    .empty-col { color: var(--mute); font-size: 12px; padding: 24px 8px; }
+    .card { border: 2px solid var(--line); padding: 8px; margin: 8px 0; background: var(--panel); animation: rise .18s ease; }
+    @keyframes rise { from { transform: translateY(6px); opacity: .4; } to { transform: none; opacity: 1; } }
     .card.canon { border-style: solid; }
     .card.draft { border-style: dashed; background: transparent; }
+    .card.ellipsis { background: repeating-linear-gradient(135deg, var(--panel), var(--panel) 6px, var(--panel-2) 6px, var(--panel-2) 12px); }
+    .card.flashback { margin-left: 16px; }
+    .card.off-reader { opacity: .55; }
     .card.warn { outline: 2px solid var(--warn); background: var(--warn-bg); }
+    .card.pre { }
+    .badge { display: inline-block; font-size: 10px; padding: 1px 6px; border: 1px solid var(--line); margin-left: 4px; }
+    .badge.warn { border-color: var(--warn); color: var(--warn); }
+    .track-block { border: 1px solid var(--line); padding: 6px; margin: 6px 0; background: var(--panel-2); }
+    .track-block .who { font-weight: 600; margin-bottom: 4px; }
+    .field-head { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-top: 8px; }
+    .discuss-btn { padding: 2px 8px; font-size: 12px; }
+    .concern { border: 1px solid var(--line); padding: 6px; margin: 6px 0; }
+    .concern .anchor { font-family: var(--mono); font-size: 11px; color: var(--mute); }
+    #filter-banner { background: var(--warn-bg); color: var(--warn); padding: 0 14px; max-height: 0; overflow: hidden; }
+    #filter-banner.show { display: flex; align-items: center; gap: 8px; max-height: 40px; padding: 6px 14px; }
+    #minimap { padding: 8px 14px 10px; position: relative; min-height: 36px; }
+    #tooth-track { position: relative; display: flex; align-items: flex-end; min-height: 24px; }
+    .tooth { width: 14px; height: 20px; display: inline-block; margin: 0 2px; cursor: pointer; position: relative; }
+    .tooth.ellipsis { background: repeating-linear-gradient(135deg, #555, #555 3px, #777 3px, #777 6px); }
+    #win-box { position: absolute; top: -2px; height: 24px; border: 2px solid var(--brass); pointer-events: none; }
+    dialog { max-width: 520px; background: var(--panel); color: var(--cream); border: 1px solid var(--brass); box-shadow: 0 12px 40px #0008; }
+    dialog[data-wide="1"] { max-width: 92vw; width: 720px; max-height: 80vh; overflow: auto; }
+    .lib-group { margin: 10px 0 4px; font-size: 11px; color: var(--mute); letter-spacing: .08em; }
+    .rail-act { margin-left: auto; font-size: 11px; padding: 1px 6px; }
+    #now-human { white-space: pre-wrap; }
+    #world { font-size: 11px; color: var(--mute); max-height: 8em; overflow: auto; }
     #warn-list { background: var(--warn-bg); color: var(--warn); padding: 8px; margin: 8px 0; white-space: pre-wrap; min-height: 1em; }
     .chip { display: inline-flex; align-items: center; gap: 4px; background: var(--panel-2); margin: 2px; padding: 2px 6px; cursor: grab; }
     .chip .dot { width: 8px; height: 8px; border-radius: 50%; }
     #side { width: var(--side); border-left: 1px solid var(--line); padding: 12px; overflow: auto; background: var(--panel); }
-    .tooth { width: 12px; height: 20px; display: inline-block; margin: 0 2px; cursor: pointer; position: relative; }
     .tooth.canon { background: #2e7d32; }
     .tooth.draft { background: var(--warn); }
     .tooth.empty { background: #555; }
     .tooth.telling-diff::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: #1565c0; }
     .hidden { display: none !important; }
     #book-label { min-width: 4em; min-height: 1em; display: inline-block; }
-    dialog { max-width: 480px; background: var(--panel); color: var(--cream); border: 1px solid var(--line); }
+    /* dialog skin above */
     #ent-list li, .lib-item { cursor: grab; padding: 4px; list-style: none; display: flex; align-items: center; gap: 6px; }
     #ent-list { padding: 0; margin: 0; }
     textarea, input, select { width: 100%; font: inherit; background: var(--night); color: var(--cream); border: 1px solid var(--line); padding: 6px; }
@@ -199,6 +243,7 @@
       </div>
     </details>
   </header>
+  <div id="filter-banner" data-testid="filter-banner"></div>
   <div id="minimap" data-testid="minimap"></div>
   <div id="board">
     <aside id="rail" data-testid="left-rail">
@@ -225,10 +270,12 @@
         <input id="place-id" data-testid="place-id" placeholder="本场地点" />
         <input id="telling-ord" data-testid="telling-ord" placeholder="读序" style="width:4em" />
         <button id="set-telling" data-testid="set-telling">标读序</button>
-        <textarea id="do-text" data-testid="do-text" placeholder="动作"></textarea>
-        <textarea id="say-text" data-testid="say-text" placeholder="对白"></textarea>
-        <textarea id="think-text" data-testid="think-text" placeholder="内心"></textarea>
+        <div class="field-head"><span>价值转折</span><button type="button" class="discuss-btn" data-discuss="value_shift" data-testid="talk-shift">讨论</button></div>
         <input id="value-shift" data-testid="value-shift" placeholder="价值转折，例如 无知→把柄" />
+        <div id="tracks" data-testid="tracks"></div>
+        <textarea id="do-text" data-testid="do-text" class="hidden" placeholder="动作"></textarea>
+        <textarea id="say-text" data-testid="say-text" class="hidden" placeholder="对白"></textarea>
+        <textarea id="think-text" data-testid="think-text" class="hidden" placeholder="内心"></textarea>
         <div class="row">
           <input id="delta-ent" data-testid="delta-ent" placeholder="实体" />
           <input id="delta-attr" data-testid="delta-attr" placeholder="属性" />
@@ -284,19 +331,23 @@
       </div>
       <div id="mode-about" class="mode-panel hidden" data-mode-name="这场·它">
         <p id="about-why"></p>
+        <div id="about-state" data-testid="about-state"></div>
         <div id="knows-list" data-testid="knows-list"></div>
+        <button type="button" id="about-prev" data-testid="about-prev">上一场</button>
+        <button type="button" id="about-next" data-testid="about-next">下一场</button>
       </div>
       <div id="mode-dossier" class="mode-panel hidden" data-mode-name="档案">
         <p id="dossier-inline"></p>
       </div>
       <div id="mode-now" class="mode-panel hidden" data-mode-name="这一刻">
         <p id="now-copy"></p>
+        <div id="now-human" data-testid="now-human"></div>
         <pre id="world" data-testid="world"></pre>
       </div>
       <div id="mode-write" class="mode-panel hidden" data-mode-name="写下一场">
         <div id="intent-row">
           <label>本场任务 <input id="intent" data-testid="intent" /></label>
-          <button id="talk" data-testid="talk">讨论</button>
+          <button id="talk" data-testid="talk" class="discuss-btn" data-discuss="intent">讨论</button>
         </div>
         <p>先写本场任务，再点顶上的「写下一场」。没有本场任务不准写下一场。</p>
         <button id="plan-suggest" data-testid="plan-suggest">铺场建议</button>
@@ -397,6 +448,8 @@ let pendingDeltas = [];
 let pendingKnows = [];
 let craftDraft = { premise: '', chapters: [] };
 let fillingBooks = false;
+let railFilterEntity = '';
+let pendingTracks = [];
 const SIDE_MODES = {
   scene: '本场',
   about: '这场·它',
@@ -455,18 +508,38 @@ function renderSide() {
   const title = $('side-mode-title');
   if (title) title.textContent = SIDE_MODES[uiMode] || '本场';
   if (uiMode === 'now') {
-    const col = (state.columns || [])[state.window_start || 0];
-    const now = $('now-copy');
-    if (now) {
-      now.textContent = col
-        ? ('这一列故事时间 ' + col.clock_from + '–' + col.clock_to + '。')
-        : '还没有列。';
-    }
-    if ($('world')) {
-      $('world').textContent = state.world
-        ? JSON.stringify({ playing: state.world.playing, where: state.world.where }, null, 0)
-        : '';
-    }
+    const col = (state.columns || []).find(c => c.id === (state.selected_col)) || (state.columns || [])[state.window_start || 0];
+    renderNow(col);
+  }
+  if (uiMode === 'scene') renderTracks();
+}
+function renderNow(col) {
+  const now = $('now-copy');
+  const human = $('now-human');
+  if (!col) {
+    if (now) now.textContent = '还没有列。';
+    if (human) human.textContent = '';
+    return;
+  }
+  const beats = (state.committed || []).filter(b => b.column_id === col.id);
+  const drafts = (state.drafts || []).filter(d => d.draft.column_id === col.id);
+  if (now) now.textContent = '这一列故事时间 ' + col.clock_from + '–' + col.clock_to + '（' + clockLabel(col.clock_from, col.clock_to) + '）。';
+  const lines = [];
+  lines.push('这一列有 ' + beats.length + ' 场正史、' + drafts.length + ' 场草稿。');
+  beats.forEach(b => lines.push('正史 · ' + (b.intent || b.id)));
+  drafts.forEach(d => lines.push('草稿 · ' + (d.draft.intent || d.id)));
+  const w = state.world || {};
+  const playing = w.playing || [];
+  const where = w.where || {};
+  if (playing.length) lines.push('此刻在场：' + playing.join('、') + '。');
+  const places = Object.keys(where);
+  if (places.length) lines.push('此刻所在：' + places.map(p => p + '在' + where[p]).join('；') + '。');
+  if (!beats.length && !drafts.length) lines.push('这段故事时间没有戏。空场次 ≠ 省略场。');
+  if (human) human.textContent = lines.join('\n');
+  if ($('world')) {
+    $('world').textContent = state.world
+      ? JSON.stringify({ playing: state.world.playing, where: state.world.where }, null, 0)
+      : '';
   }
 }
 function kindColor(kind) {
@@ -474,6 +547,48 @@ function kindColor(kind) {
 }
 function kindLabel(kind) {
   return ({ person: '人', place: '地', thing: '物', faction: '组织', promise: '伏笔', rule: '规则' })[kind] || kind;
+}
+function clockLabel(from, to) {
+  const d = Math.max(0, (to || 0) - (from || 0));
+  if (d <= 0) return '0';
+  if (d % 60 === 0) return (d / 60) + ' 小时';
+  return d + ' 分钟';
+}
+function entityOf(id) {
+  return (state.entities || []).find(e => e.id === id || e.name === id) || { id, name: id, kind: 'person' };
+}
+function presentPeople(b) {
+  return (b.presences || []).filter(p => {
+    if (p.role === 'mentioned') return false;
+    return entityOf(p.entity_id).kind === 'person';
+  }).map(p => p.entity_id);
+}
+function tracksOf(b) {
+  if (b && b.tracks && b.tracks.length) return b.tracks;
+  const people = presentPeople(b || {});
+  if (!people.length) {
+    if (b && (b.do_text || b.say_text || b.think_text)) {
+      return [{ person_id: '场面', do_text: b.do_text, say_text: b.say_text, think_text: b.think_text }];
+    }
+    return [];
+  }
+  return people.map((pid, i) => ({
+    person_id: pid,
+    do_text: i === 0 ? (b.do_text || '') : '',
+    say_text: i === 0 ? (b.say_text || '') : '',
+    think_text: i === 0 ? (b.think_text || '') : ''
+  }));
+}
+function colKinds(colId) {
+  const kinds = { place: 0, person: 0, thing: 0, faction: 0, promise: 0 };
+  const take = (b) => (b.presences || []).forEach(p => {
+    const k = entityOf(p.entity_id).kind;
+    if (k in kinds) kinds[k] = 1;
+    if (b.place_id) kinds.place = 1;
+  });
+  (state.committed || []).filter(b => b.column_id === colId).forEach(take);
+  (state.drafts || []).filter(d => d.draft.column_id === colId).forEach(d => take(d.draft));
+  return kinds;
 }
 function windowEntityIds() {
   const cols = (state.columns || []).slice(state.window_start || 0, (state.window_start || 0) + (state.n || 1));
@@ -556,100 +671,220 @@ function render() {
   const emptyBoard = !(state.committed || []).length && !(state.drafts || []).length;
   $('empty-book').classList.toggle('hidden', !emptyBoard);
   $('cols').innerHTML = '';
+  const maxDur = Math.max(1, ...cols.map(c => Math.max(0, c.clock_to - c.clock_from)));
   view.forEach((c, i) => {
+    const abs = start + i;
     const div = document.createElement('div');
     div.className = 'col';
     div.dataset.testid = 'column-' + i;
     div.dataset.colId = c.id;
     const head = document.createElement('h4');
     head.className = 'col-head';
-    head.textContent = String((state.window_start || 0) + i + 1);
-    head.onclick = () => { setMode('now'); };
+    head.textContent = String(abs + 1);
+    head.onclick = () => {
+      api('/api/select', { method: 'POST', body: JSON.stringify({ column_id: c.id }) });
+      setMode('now');
+      renderNow(c);
+    };
     const clock = document.createElement('div');
     clock.className = 'col-clock';
     clock.textContent = c.clock_from + '–' + c.clock_to;
+    const dur = document.createElement('div');
+    dur.className = 'col-dur';
+    dur.textContent = clockLabel(c.clock_from, c.clock_to);
+    const lens = document.createElement('div');
+    lens.className = 'col-lens';
+    const bar = document.createElement('i');
+    bar.style.width = Math.max(8, Math.round(100 * Math.max(0, c.clock_to - c.clock_from) / maxDur)) + '%';
+    lens.appendChild(bar);
+    const dots = document.createElement('div');
+    dots.className = 'cover-dots';
+    const kinds = colKinds(c.id);
+    ['place','person','thing','faction','promise'].forEach(k => {
+      const s = document.createElement('span');
+      s.className = 'kind-' + k + (kinds[k] ? ' on' : '');
+      s.title = kindLabel(k);
+      dots.appendChild(s);
+    });
     div.appendChild(head);
     div.appendChild(clock);
+    div.appendChild(dur);
+    div.appendChild(lens);
+    div.appendChild(dots);
     const handle = document.createElement('div');
     handle.className = 'col-handle';
     handle.dataset.testid = 'col-handle-' + i;
     handle.title = '拖列右缘';
     handle.onmousedown = () => previewInvade(c.id);
     div.appendChild(handle);
-    (state.committed || []).filter(b => b.column_id === c.id).forEach(b => {
-      div.appendChild(renderCard(b, true));
-    });
-    (state.drafts || []).filter(d => d.draft.column_id === c.id).forEach(d => {
-      div.appendChild(renderCard(d, false));
-    });
+    const committed = (state.committed || []).filter(b => b.column_id === c.id);
+    const drafts = (state.drafts || []).filter(d => d.draft.column_id === c.id);
+    if (!committed.length && !drafts.length) {
+      const empty = document.createElement('p');
+      empty.className = 'empty-col';
+      empty.dataset.testid = 'empty-col-' + i;
+      empty.textContent = '这段故事时间没有戏。空场次 ≠ 省略场。';
+      div.appendChild(empty);
+    }
+    committed.forEach(b => div.appendChild(renderCard(b, true)));
+    drafts.forEach(d => div.appendChild(renderCard(d, false)));
     div.addEventListener('dragover', e => e.preventDefault());
     div.addEventListener('drop', e => onDropOnCol(e, c.id));
     $('cols').appendChild(div);
   });
   renderRail();
-  $('minimap').innerHTML = (state.columns||[]).map((c, i) => {
-    const beats = (state.committed||[]).filter(b => b.column_id === c.id);
-    const hasC = beats.length > 0;
-    const hasD = (state.drafts||[]).some(d => d.draft.column_id === c.id);
-    const cls = hasC ? 'canon' : hasD ? 'draft' : 'empty';
-    const tellingDiff = beats.some(b => b.telling_ord != null && b.telling_ord !== c.display_ord);
-    return `<span class="tooth ${cls}${tellingDiff ? ' telling-diff' : ''}" data-testid="tooth-${i}" onclick="jump(${i})"></span>`;
-  }).join('');
+  renderMinimap();
   const beat = currentBeat() || {};
   const intentVal = ($('intent').value || beat.intent || '').trim();
-  $('talk').disabled = !currentDraft || !intentVal;
-  $('plan-suggest').disabled = !(currentDraft || currentCanon) || !intentVal;
-  $('plan-apply').disabled = !lastBones.length;
-  $('write-box').disabled = !pendingTalk && !pendingFill;
+  if ($('talk')) $('talk').disabled = !currentDraft || !intentVal;
+  if ($('plan-suggest')) $('plan-suggest').disabled = !(currentDraft || currentCanon) || !intentVal;
+  if ($('plan-apply')) $('plan-apply').disabled = !lastBones.length;
+  if ($('write-box')) $('write-box').disabled = !pendingTalk && !pendingFill;
   renderInspector();
   renderPaste();
+  renderTracks();
   loadCircumstances();
   loadKnows();
   renderSide();
+  renderFilterBanner();
+}
+function renderMinimap() {
+  const cols = state.columns || [];
+  const start = state.window_start || 0;
+  const n = state.n || 1;
+  const track = document.createElement('div');
+  track.id = 'tooth-track';
+  cols.forEach((c, i) => {
+    const beats = (state.committed||[]).filter(b => b.column_id === c.id);
+    const drafts = (state.drafts||[]).filter(d => d.draft.column_id === c.id);
+    const ellipsis = beats.some(b => b.kind === 'ellipsis') || drafts.some(d => d.draft.kind === 'ellipsis');
+    const hasC = beats.length > 0;
+    const hasD = drafts.length > 0;
+    const cls = ellipsis ? 'ellipsis' : hasC ? 'canon' : hasD ? 'draft' : 'empty';
+    const tellingDiff = beats.some(b => b.telling_ord != null && b.telling_ord !== c.display_ord);
+    const sp = document.createElement('span');
+    sp.className = 'tooth ' + cls + (tellingDiff ? ' telling-diff' : '');
+    sp.dataset.testid = 'tooth-' + i;
+    sp.title = '列 ' + (i + 1) + ' · ' + c.clock_from + '–' + c.clock_to;
+    sp.onclick = () => jump(i);
+    track.appendChild(sp);
+  });
+  const box = document.createElement('div');
+  box.id = 'win-box';
+  box.dataset.testid = 'win-box';
+  const step = 16;
+  box.style.left = (start * step) + 'px';
+  box.style.width = (n * step) + 'px';
+  track.appendChild(box);
+  $('minimap').innerHTML = '';
+  $('minimap').appendChild(track);
 }
 function renderRail() {
   const q = ($('ent-search').value || railFilter || '').trim();
   const inWin = windowEntityIds();
   let list = state.entities || [];
   $('search-hits').innerHTML = '';
+  const searching = !!q;
   if (q) {
-    list = list.filter(e => (e.name || e.id || '').indexOf(q) >= 0);
+    list = list.filter(e => (e.name || e.id || '').indexOf(q) >= 0 || ((e.profile && (e.profile.aliases || '')) + '').indexOf(q) >= 0);
     if (!list.length) {
-      $('search-hits').innerHTML = '<li data-testid="search-empty">无</li>';
+      const li = document.createElement('li');
+      li.dataset.testid = 'search-empty';
+      const btn = document.createElement('button');
+      btn.dataset.testid = 'search-create';
+      btn.textContent = '用「' + q + '」新建';
+      btn.onclick = () => {
+        $('ent-name').value = q;
+        setMode('create');
+      };
+      li.appendChild(btn);
+      $('search-hits').appendChild(li);
     }
   } else {
     list = list.filter(e => inWin.has(e.id) || inWin.has(e.name));
   }
   $('ent-list').innerHTML = '';
+  const groups = { person: [], place: [], thing: [], faction: [], promise: [], rule: [] };
   list.forEach(e => {
-    const li = document.createElement('li');
-    li.className = 'lib-item';
-    li.draggable = true;
-    li.dataset.id = e.id;
-    li.dataset.testid = 'ent-' + e.id;
-    const dot = document.createElement('span');
-    dot.className = 'dot kind-' + (e.kind || 'person');
-    dot.style.background = kindColor(e.kind);
-    const name = document.createElement('span');
-    name.textContent = e.name + (q && !inWin.has(e.id) && !inWin.has(e.name) ? ' 不在本页' : '');
-    li.appendChild(dot);
-    li.appendChild(name);
-    li.ondragstart = ev => ev.dataTransfer.setData('text/plain', JSON.stringify({type:'entity', id: e.id}));
-    li.onclick = () => {
-      setMode('dossier');
-      openDossier(e.id);
-    };
-    $('ent-list').appendChild(li);
+    const k = e.kind || 'person';
+    (groups[k] || (groups[k] = [])).push(e);
+  });
+  Object.keys(groups).forEach(k => {
+    if (!groups[k].length) return;
+    const h = document.createElement('div');
+    h.className = 'lib-group';
+    h.textContent = kindLabel(k);
+    $('ent-list').appendChild(h);
+    groups[k].forEach(e => {
+      const li = document.createElement('li');
+      li.className = 'lib-item';
+      li.draggable = e.kind !== 'rule';
+      li.dataset.id = e.id;
+      li.dataset.testid = 'ent-' + e.id;
+      const dot = document.createElement('span');
+      dot.className = 'dot kind-' + (e.kind || 'person');
+      dot.style.background = kindColor(e.kind);
+      const name = document.createElement('span');
+      const off = searching && !inWin.has(e.id) && !inWin.has(e.name);
+      name.textContent = e.name + (off ? ' 不在本页' : '');
+      li.appendChild(dot);
+      li.appendChild(name);
+      const filt = document.createElement('button');
+      filt.className = 'rail-act';
+      filt.dataset.testid = 'rail-filter-' + e.id;
+      filt.textContent = '场';
+      filt.onclick = ev => {
+        ev.stopPropagation();
+        railFilterEntity = railFilterEntity === e.id ? '' : e.id;
+        render();
+      };
+      li.appendChild(filt);
+      if (e.kind !== 'rule') {
+        li.ondragstart = ev => ev.dataTransfer.setData('text/plain', JSON.stringify({type:'entity', id: e.id}));
+      }
+      li.onclick = () => {
+        setMode('dossier');
+        openDossier(e.id);
+      };
+      $('ent-list').appendChild(li);
+    });
   });
   const total = (state.entities || []).length;
-  $('lib-meta').textContent = '本页 ' + list.length + ' 项 · 设定共 ' + total + ' 项';
+  const pageN = Object.values(groups).reduce((n, a) => n + a.length, 0);
+  $('lib-meta').textContent = '本页 ' + pageN + ' 项 · 设定共 ' + total + ' 项';
+}
+function renderFilterBanner() {
+  const bar = $('filter-banner');
+  if (!bar) return;
+  if (!railFilterEntity) {
+    bar.classList.remove('show');
+    bar.innerHTML = '';
+    return;
+  }
+  const e = entityOf(railFilterEntity);
+  bar.classList.add('show');
+  bar.innerHTML = '正在只看：' + (e.name || e.id) + ' <button type="button" data-testid="filter-clear">×</button>';
+  bar.querySelector('button').onclick = () => { railFilterEntity = ''; render(); };
 }
 function renderCard(obj, canon) {
   const b = canon ? obj : obj.draft;
   const id = canon ? obj.id : obj.id;
+  if (railFilterEntity) {
+    const hit = (b.presences || []).some(p => p.entity_id === railFilterEntity || entityOf(p.entity_id).id === railFilterEntity);
+    if (!hit) {
+      const skip = document.createElement('div');
+      skip.style.display = 'none';
+      return skip;
+    }
+  }
   const card = document.createElement('div');
   const leak = !canon && lastFindings.some(f => f.code === 'knowledge_leak');
+  const n = state.n || 1;
   card.className = 'card ' + (canon ? 'canon' : 'draft') + (leak ? ' warn' : '');
+  if (b.kind === 'ellipsis') card.classList.add('ellipsis');
+  if (b.kind === 'flashback' || b.flashback) card.classList.add('flashback');
+  if (b.visible_to && b.visible_to.length) card.classList.add('off-reader');
+  if (!canon && (obj.title === '预场' || (id || '').indexOf('pre') === 0)) card.classList.add('pre');
   card.dataset.testid = (canon ? 'card-' : 'draft-') + id;
   if (leak) card.dataset.knowledgeWarn = '1';
   card.dataset.draftId = canon ? '' : id;
@@ -658,10 +893,42 @@ function renderCard(obj, canon) {
   card.ondragstart = ev => {
     ev.dataTransfer.setData('text/plain', JSON.stringify({ type: 'beat', id, canon }));
   };
-  const dense = (state.n || 1) >= 5;
+  const dense = n >= 5;
+  const mid = n >= 3 && n <= 4;
   const title = document.createElement('b');
-  title.textContent = id + (b.telling_ord != null ? ' 读序' + b.telling_ord : '');
+  title.textContent = (obj.title || id) + (b.telling_ord != null ? ' 读序' + b.telling_ord : '');
   card.appendChild(title);
+  if (!canon && (obj.title === '预场' || (id || '').indexOf('pre') === 0)) {
+    const pre = document.createElement('span');
+    pre.className = 'badge';
+    pre.textContent = '预';
+    pre.dataset.testid = 'pre-badge-' + id;
+    card.appendChild(pre);
+  }
+  if (b.kind === 'ellipsis') {
+    const badge = document.createElement('span');
+    badge.className = 'badge';
+    badge.textContent = '省略场';
+    card.appendChild(badge);
+  }
+  if (b.kind === 'flashback' || b.flashback) {
+    const badge = document.createElement('span');
+    badge.className = 'badge';
+    badge.textContent = '闪回';
+    card.appendChild(badge);
+  }
+  if (b.visible_to && b.visible_to.length) {
+    const badge = document.createElement('span');
+    badge.className = 'badge';
+    badge.textContent = '不在读者眼前';
+    card.appendChild(badge);
+  }
+  if (leak || (b.strict)) {
+    const badge = document.createElement('span');
+    badge.className = 'badge warn';
+    badge.textContent = leak ? '知情穿帮' : String(b.strict);
+    card.appendChild(badge);
+  }
   if (!canon && obj.stale_world) {
     card.classList.add('warn');
     const tag = document.createElement('div');
@@ -684,13 +951,27 @@ function renderCard(obj, canon) {
     };
     card.appendChild(regen);
   }
-  if (!dense) {
+  if (!dense && !mid) {
     const intent = document.createElement('div');
     intent.textContent = b.intent || '';
     card.appendChild(intent);
-    const doEl = document.createElement('div');
-    doEl.textContent = b.do_text || '';
-    card.appendChild(doEl);
+    tracksOf(b).forEach(tr => {
+      const blk = document.createElement('div');
+      blk.className = 'track-block';
+      blk.dataset.testid = 'card-track-' + tr.person_id;
+      blk.innerHTML = '<div class="who">' + (entityOf(tr.person_id).name || tr.person_id) + '</div>' +
+        (tr.do_text ? '<p>动作 ' + tr.do_text + '</p>' : '') +
+        (tr.say_text ? '<p>对白 ' + tr.say_text + '</p>' : '') +
+        (tr.think_text ? '<p>内心 ' + tr.think_text + '</p>' : '');
+      card.appendChild(blk);
+    });
+  } else if (mid) {
+    const intent = document.createElement('div');
+    intent.textContent = b.intent || '';
+    card.appendChild(intent);
+    const vs = document.createElement('div');
+    vs.textContent = '价值转折：' + (b.value_shift || '无');
+    card.appendChild(vs);
   }
   const chips = document.createElement('div');
   (b.presences || []).forEach(p => {
@@ -702,7 +983,7 @@ function renderCard(obj, canon) {
     dot.className = 'dot kind-' + (ent.kind || 'person');
     dot.style.background = kindColor(ent.kind);
     ch.appendChild(dot);
-    ch.appendChild(document.createTextNode(kindLabel(ent.kind) + ' ' + p.entity_id));
+    ch.appendChild(document.createTextNode(kindLabel(ent.kind) + ' ' + (ent.name || p.entity_id)));
     ch.dataset.testid = 'chip-' + p.entity_id;
     ch.ondragstart = ev => {
       ev.stopPropagation();
@@ -751,6 +1032,88 @@ async function selectBeat(id, canon) {
     await api('/api/select', { method: 'POST', body: JSON.stringify({ draft_id: id }) });
   }
 }
+function renderTracks() {
+  const host = $('tracks');
+  if (!host) return;
+  const b = currentBeat() || {};
+  const people = presentPeople(b);
+  let tracks = (b.tracks && b.tracks.length) ? b.tracks.map(t => ({
+    person_id: t.person_id,
+    do_text: t.do_text || '',
+    say_text: t.say_text || '',
+    think_text: t.think_text || ''
+  })) : [];
+  if (!tracks.length) tracks = tracksOf(b).map(t => ({
+    person_id: t.person_id,
+    do_text: t.do_text || '',
+    say_text: t.say_text || '',
+    think_text: t.think_text || ''
+  }));
+  people.forEach(pid => {
+    if (!tracks.some(t => t.person_id === pid)) tracks.push({ person_id: pid, do_text: '', say_text: '', think_text: '' });
+  });
+  pendingTracks = tracks;
+  host.innerHTML = '';
+  if (!tracks.length) {
+    host.innerHTML = '<p class="muted">' + ((b.kind === 'ellipsis') ? '省略场没有动作 / 对白 / 内心。' : '把人物拖进卡，按人分轨写动作、对白、内心。') + '</p>';
+    $('do-text').value = b.do_text || '';
+    $('say-text').value = b.say_text || '';
+    $('think-text').value = b.think_text || '';
+    return;
+  }
+  tracks.forEach((tr, idx) => {
+    const blk = document.createElement('div');
+    blk.className = 'track-block';
+    blk.dataset.testid = 'track-' + tr.person_id;
+    const who = entityOf(tr.person_id).name || tr.person_id;
+    blk.innerHTML = '<div class="who">' + who + '</div>' +
+      '<div class="field-head"><span>动作</span><button type="button" class="discuss-btn" data-discuss="track|' + idx + '|do_text">讨论</button></div>' +
+      '<textarea data-track="' + idx + '" data-f="do_text" rows="2">' + (tr.do_text || '') + '</textarea>' +
+      '<div class="field-head"><span>对白</span><button type="button" class="discuss-btn" data-discuss="track|' + idx + '|say_text">讨论</button></div>' +
+      '<textarea data-track="' + idx + '" data-f="say_text" rows="2">' + (tr.say_text || '') + '</textarea>' +
+      '<div class="field-head"><span>内心</span><button type="button" class="discuss-btn" data-discuss="track|' + idx + '|think_text">讨论</button></div>' +
+      '<textarea data-track="' + idx + '" data-f="think_text" rows="2">' + (tr.think_text || '') + '</textarea>';
+    host.appendChild(blk);
+  });
+  host.querySelectorAll('textarea[data-track]').forEach(ta => {
+    ta.addEventListener('change', async () => {
+      const i = Number(ta.dataset.track);
+      pendingTracks[i][ta.dataset.f] = ta.value;
+      $('do-text').value = pendingTracks.map(t => t.do_text).filter(Boolean).join('\n');
+      $('say-text').value = pendingTracks.map(t => t.say_text).filter(Boolean).join('\n');
+      $('think-text').value = pendingTracks.map(t => t.think_text).filter(Boolean).join('\n');
+      if (!currentDraft) return;
+      try {
+        await api('/api/drafts/patch', { method: 'POST', body: JSON.stringify({
+          id: currentDraft,
+          tracks: pendingTracks,
+          do_text: $('do-text').value,
+          say_text: $('say-text').value,
+          think_text: $('think-text').value
+        }) });
+      } catch (e) {
+        $('sidebar').textContent = String(e.message || e);
+      }
+    });
+  });
+  host.querySelectorAll('.discuss-btn').forEach(btn => {
+    btn.onclick = () => startFieldTalk(btn.dataset.discuss);
+  });
+  $('do-text').value = pendingTracks.map(t => t.do_text).filter(Boolean).join('\n');
+  $('say-text').value = pendingTracks.map(t => t.say_text).filter(Boolean).join('\n');
+  $('think-text').value = pendingTracks.map(t => t.think_text).filter(Boolean).join('\n');
+}
+function startFieldTalk(field) {
+  pendingTalkField = field || 'intent';
+  let text = $('intent').value;
+  if (field === 'value_shift') text = $('value-shift').value;
+  if (field && field.indexOf('track|') === 0) {
+    const parts = field.split('|');
+    const tr = pendingTracks[Number(parts[1])] || {};
+    text = tr[parts[2]] || '';
+  }
+  runTalk(field, text);
+}
 function renderInspector() {
   const b = currentBeat() || {};
   $('g-intent').textContent = b.intent || '';
@@ -770,14 +1133,23 @@ function renderTalk(log) {
     block.textContent = (r.notice || '讨论不是历史') + '\n' + (r.reply || '');
     $('talk-out').appendChild(block);
     (r.concerns || []).forEach(c => {
+      const card = document.createElement('div');
+      card.className = 'concern';
+      card.dataset.testid = 'concern-card';
       const btn = document.createElement('button');
       btn.textContent = (c.kind || '') + '：' + (c.message || '');
+      const anc = document.createElement('div');
+      anc.className = 'anchor';
+      anc.textContent = '锚定：' + (c.anchor || '');
       btn.onclick = () => {
         pendingTalk = c.message || '';
         pendingTalkField = r.field || 'intent';
-        $('sidebar').textContent = '选了方向，点「写入此框」写进本场任务。讨论不是历史。';
+        $('write-box').disabled = !pendingTalk;
+        $('sidebar').textContent = '选了方向，点「写入此框」。讨论不是历史。';
       };
-      $('talk-out').appendChild(btn);
+      card.appendChild(btn);
+      card.appendChild(anc);
+      $('talk-out').appendChild(card);
     });
   });
 }
@@ -850,6 +1222,8 @@ $('rail').addEventListener('drop', async e => {
 window.jump = async (i) => { await api('/api/window', { method: 'POST', body: JSON.stringify({ start: i }) }); refresh(); };
 
 function openConfirm(pending) {
+  const dlg = $('confirm-dlg');
+  dlg.dataset.wide = (pending.op === 'delete_canon') ? '1' : '0';
   const ul = $('suggest-list');
   ul.innerHTML = '';
   pendingChoice = pending.suggestions[0] && pending.suggestions[0].id;
@@ -870,7 +1244,7 @@ function openConfirm(pending) {
     li.textContent = t;
     im.appendChild(li);
   });
-  $('confirm-dlg').showModal();
+  dlg.showModal();
 }
 async function previewInvade(colId) {
   await api('/api/structure/preview', { method: 'POST', body: JSON.stringify({ op: 'invade', column_id: colId }) });
@@ -944,6 +1318,9 @@ $('set-telling').onclick = async () => {
   refresh();
 };
 $('talk').onclick = async () => {
+  await runTalk('intent', $('intent').value);
+};
+async function runTalk(field, text) {
   if (!currentDraft) {
     $('sidebar').textContent = '先开一场再讨论';
     return;
@@ -951,19 +1328,20 @@ $('talk').onclick = async () => {
   try {
     const r = await api('/api/talk', { method: 'POST', body: JSON.stringify({
       id: currentDraft,
-      field: 'intent',
-      text: $('intent').value
+      field: field || 'intent',
+      text: text || ''
     }) });
     const opt = (r.concerns || []).find(c => c.kind === 'option');
     pendingTalk = (opt && opt.message) || r.reply || '';
-    pendingTalkField = 'intent';
+    pendingTalkField = field || 'intent';
     $('sidebar').textContent = r.notice || '讨论不是历史';
     setMode('talk');
     await refresh();
   } catch (e) {
     $('sidebar').textContent = String(e.message || e);
+    setMode('talk');
   }
-};
+}
 $('plan-suggest').onclick = async () => {
   const goal = currentDraft || currentCanon;
   if (!goal) {
@@ -1032,6 +1410,7 @@ $('write-box').onclick = async () => {
       say_text: $('say-text').value,
       think_text: $('think-text').value,
       intent: $('intent').value,
+      tracks: pendingTracks,
       apply_fill: true
     }) });
     pendingFill = null;
@@ -1043,6 +1422,14 @@ $('write-box').onclick = async () => {
     if (pendingTalkField === 'intent') {
       $('intent').value = pendingTalk;
       await api('/api/drafts/patch', { method: 'POST', body: JSON.stringify({ id: currentDraft, intent: pendingTalk }) });
+    } else if (pendingTalkField === 'value_shift') {
+      $('value-shift').value = pendingTalk;
+      await api('/api/drafts/patch', { method: 'POST', body: JSON.stringify({ id: currentDraft, value_shift: pendingTalk }) });
+    } else if (pendingTalkField.indexOf('track|') === 0) {
+      const parts = pendingTalkField.split('|');
+      const i = Number(parts[1]);
+      if (pendingTracks[i]) pendingTracks[i][parts[2]] = pendingTalk;
+      await api('/api/drafts/patch', { method: 'POST', body: JSON.stringify({ id: currentDraft, tracks: pendingTracks }) });
     } else {
       $('do-text').value = pendingTalk;
       await api('/api/drafts/patch', { method: 'POST', body: JSON.stringify({ id: currentDraft, do_text: $('do-text').value, intent: $('intent').value }) });
@@ -1062,6 +1449,7 @@ $('commit').onclick = async () => {
   if ($('do-text').value) body.do_text = $('do-text').value;
   if ($('say-text').value) body.say_text = $('say-text').value;
   if ($('think-text').value) body.think_text = $('think-text').value;
+  if (pendingTracks.length) body.tracks = pendingTracks;
   if ($('value-shift') && $('value-shift').value.trim()) body.value_shift = $('value-shift').value.trim();
   if (pendingDeltas.length) body.deltas = pendingDeltas;
   if (pendingKnows.length) body.knowledge_writes = pendingKnows;
@@ -1086,6 +1474,8 @@ async function applyFillResult(r) {
   $('say-text').value = r.say_text || '';
   $('think-text').value = r.think_text || '';
   if ($('value-shift') && r.value_shift) $('value-shift').value = r.value_shift;
+  if (r.tracks) pendingTracks = r.tracks;
+  renderTracks();
   renderInspector();
 }
 $('fill-fake').onclick = async () => {
@@ -1284,7 +1674,7 @@ async function loadCircumstances() {
     const p = await api('/api/circumstances');
     const pkt = p.packet || p;
     const side = [];
-    side.push('本场任务：' + (pkt.intent || ''));
+    side.push('本场任务：' + (pkt.intent || '无'));
     side.push('当场利害：' + ((pkt.stakes || []).join('；') || '无'));
     side.push('知情差：' + ((pkt.knowledge_gaps || []).join('；') || '无'));
     side.push('本场默认谁会看见：' + ((pkt.default_witnesses || []).join('、') || '无'));
@@ -1318,6 +1708,11 @@ $('theme-btn').onclick = () => {
   document.documentElement.setAttribute('data-theme', next);
   try { localStorage.setItem('stripboard-theme', next); } catch (e) {}
 };
+document.addEventListener('click', (e) => {
+  const b = e.target.closest && e.target.closest('.discuss-btn');
+  if (!b || b.id === 'talk') return;
+  if (b.dataset.discuss) startFieldTalk(b.dataset.discuss);
+});
 $('new-entity').addEventListener('click', () => setMode('create'));
 
 async function renderBookList() {

@@ -114,6 +114,61 @@ pub struct Promise {
     pub red_herring: bool,
 }
 
+/// 一场里一个人的动作 / 对白 / 内心。限知按这条轨检查。
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct PersonTrack {
+    pub person_id: String,
+    #[serde(default)]
+    pub do_text: Option<String>,
+    #[serde(default)]
+    pub say_text: Option<String>,
+    #[serde(default)]
+    pub think_text: Option<String>,
+}
+
+pub fn flatten_tracks(tracks: &[PersonTrack]) -> (Option<String>, Option<String>, Option<String>) {
+    let join = |pick: fn(&PersonTrack) -> Option<&str>| {
+        let s = tracks
+            .iter()
+            .filter_map(|t| {
+                let v = pick(t)?.trim();
+                if v.is_empty() {
+                    None
+                } else {
+                    Some(format!("{}：{}", t.person_id, v))
+                }
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+        if s.is_empty() {
+            None
+        } else {
+            Some(s)
+        }
+    };
+    (
+        join(|t| t.do_text.as_deref()),
+        join(|t| t.say_text.as_deref()),
+        join(|t| t.think_text.as_deref()),
+    )
+}
+
+pub fn apply_track_flatten(draft: &mut BeatDraft) {
+    if draft.tracks.is_empty() {
+        return;
+    }
+    let (do_t, say_t, think_t) = flatten_tracks(&draft.tracks);
+    if do_t.is_some() {
+        draft.do_text = do_t;
+    }
+    if say_t.is_some() {
+        draft.say_text = say_t;
+    }
+    if think_t.is_some() {
+        draft.think_text = think_t;
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Beat {
     pub id: String,
@@ -140,6 +195,8 @@ pub struct Beat {
     pub promise_ops: Vec<PromiseOp>,
     #[serde(default)]
     pub presences: Vec<Presence>,
+    #[serde(default)]
+    pub tracks: Vec<PersonTrack>,
 }
 
 /// 写入正史之前的一场，只存在应用内存。不进 Narra。
@@ -167,6 +224,8 @@ pub struct BeatDraft {
     pub promise_ops: Vec<PromiseOp>,
     #[serde(default)]
     pub presences: Vec<Presence>,
+    #[serde(default)]
+    pub tracks: Vec<PersonTrack>,
     /// 注入 RELATE 失败（切片 1.3）。
     #[serde(default)]
     pub fail_relate: bool,

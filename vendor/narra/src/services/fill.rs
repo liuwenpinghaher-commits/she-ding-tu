@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::services::circumstances::ScenePacket;
+use crate::services::world::{flatten_tracks, PersonTrack};
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct FillFields {
@@ -11,6 +12,8 @@ pub struct FillFields {
     pub say_text: Option<String>,
     pub think_text: Option<String>,
     pub value_shift: Option<String>,
+    #[serde(default)]
+    pub tracks: Vec<PersonTrack>,
 }
 
 impl FillFields {
@@ -18,16 +21,16 @@ impl FillFields {
         fn blank(s: &Option<String>) -> bool {
             s.as_deref().map(|t| t.trim().is_empty()).unwrap_or(true)
         }
-        blank(&self.do_text) && blank(&self.say_text) && blank(&self.think_text)
+        blank(&self.do_text) && blank(&self.say_text) && blank(&self.think_text) && self.tracks.is_empty()
     }
 }
 
 pub fn fill_system_prompt() -> &'static str {
     "你在给一场戏填草稿，不是写入历史。\
-只根据本场任务和规定情境写这一场的动作、对白、内心。\
+只根据本场任务和规定情境写这一场。按在场人物分轨：每个人自己的动作、对白、内心。\
 稿子里要发生一件事：价值转折，或知情差被用上，或对伏笔做一件事。不要复述世界清单。\
 不要指定下一场。不要说已经写入正史。\
-只输出一个 JSON 对象，键为 do_text、say_text、think_text、value_shift。不要Markdown围栏外的解释。"
+只输出一个 JSON 对象，键为 tracks（数组，每项 person_id、do_text、say_text、think_text）、value_shift。也可附 do_text/say_text/think_text 整场摘要。不要Markdown围栏外的解释。"
 }
 
 pub fn fill_user_prompt(intent: &str, pkt: &ScenePacket) -> Result<String, String> {
@@ -54,12 +57,46 @@ pub fn parse_fill_content(raw: &str) -> Result<FillFields, String> {
             .map(|s| s.trim().to_string())
             .filter(|s| !s.is_empty())
     };
-    let fields = FillFields {
+    let mut tracks = Vec::new();
+    if let Some(arr) = v.get("tracks").and_then(|x| x.as_array()) {
+        for t in arr {
+            let person_id = t
+                .get("person_id")
+                .or_else(|| t.get("who"))
+                .and_then(|x| x.as_str())
+                .unwrap_or("")
+                .trim()
+                .to_string();
+            if person_id.is_empty() {
+                continue;
+            }
+            let pick_t = |k: &str| {
+                t.get(k)
+                    .and_then(|x| x.as_str())
+                    .map(|s| s.trim().to_string())
+                    .filter(|s| !s.is_empty())
+            };
+            tracks.push(PersonTrack {
+                person_id,
+                do_text: pick_t("do_text").or_else(|| pick_t("do")),
+                say_text: pick_t("say_text").or_else(|| pick_t("say")),
+                think_text: pick_t("think_text").or_else(|| pick_t("think")),
+            });
+        }
+    }
+    let mut fields = FillFields {
         do_text: pick("do_text"),
         say_text: pick("say_text"),
         think_text: pick("think_text"),
         value_shift: pick("value_shift"),
+        tracks,
     };
+    if fields.do_text.is_none() && fields.say_text.is_none() && fields.think_text.is_none() && !fields.tracks.is_empty() {
+        let (d, s, th) = flatten_tracks(&fields.tracks);
+        fields.do_text = d;
+        fields.say_text = s;
+        fields.think_text = th;
+    }
     if fields.is_empty() {
         return Err("模型没写出动作、对白或内心".into());
     }
@@ -231,5 +268,19 @@ mod tests {
         let out = parse_talk_content(raw, &["刀在抽屉".into()]).unwrap();
         assert_eq!(out.concerns.len(), 1);
         assert_eq!(out.concerns[0].anchor, "刀在抽屉");
+    }
+
+    #[test]
+    fn parse_tracks_flattens_scene_text() {
+        let f = parse_fill_content(
+            r#"{"tracks":[{"person_id":"阿福","do_text":"挡住抽屉","say_text":"没有东西","think_text":"别让她看见刀"}],"value_shift":"把柄还在"}"#,
+        )
+        .unwrap();
+        assert_eq!(f.tracks.len(), 1);
+        assert_eq!(f.tracks[0].person_id, "阿福");
+        assert_eq!(f.do_text.as_deref(), Some("阿福：挡住抽屉"));
+        assert_eq!(f.say_text.as_deref(), Some("阿福：没有东西"));
+        assert_eq!(f.value_shift.as_deref(), Some("把柄还在"));
+        assert!(!f.is_empty());
     }
 }

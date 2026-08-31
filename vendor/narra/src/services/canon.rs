@@ -6,8 +6,9 @@ use crate::services::constrain::{constrain, ConstraintReport};
 use crate::services::materialize::{invalidate_interval, world_at_cached};
 use crate::services::narra_bridge;
 use crate::services::world::{
-    knows_at, world_at, Beat, BeatDraft, Canon, Column, Delta, Entity, KnowledgeWrite, Presence,
-    Promise, PromiseOp, World, KIND_RULE, STATUS_COMMITTED, STATUS_SUPERSEDED,
+    apply_track_flatten, knows_at, world_at, Beat, BeatDraft, Canon, Column, Delta, Entity,
+    KnowledgeWrite, Presence, Promise, PromiseOp, World, KIND_RULE, STATUS_COMMITTED,
+    STATUS_SUPERSEDED,
 };
 use crate::NarraError;
 use serde::{Deserialize, Serialize};
@@ -52,6 +53,7 @@ struct BeatRow {
     deltas_json: Option<String>,
     promise_ops_json: Option<String>,
     knowledge_json: Option<String>,
+    tracks_json: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -177,6 +179,7 @@ fn beat_as_draft(b: &Beat) -> BeatDraft {
         knowledge_writes: b.knowledge_writes.clone(),
         promise_ops: b.promise_ops.clone(),
         presences: b.presences.clone(),
+        tracks: b.tracks.clone(),
         ..BeatDraft::default()
     }
 }
@@ -277,6 +280,7 @@ fn beat_from_scene(
         knowledge_writes: know_map.get(&id).cloned().unwrap_or_default(),
         promise_ops: vec![],
         presences: vec![],
+        tracks: vec![],
     };
     overlay_scene(&mut b, sc);
     b
@@ -443,6 +447,11 @@ impl SettingBook {
                         .and_then(|s| serde_json::from_str(s).ok())
                         .unwrap_or_default(),
                     presences: vec![],
+                    tracks: b
+                        .tracks_json
+                        .as_deref()
+                        .and_then(|s| serde_json::from_str(s).ok())
+                        .unwrap_or_default(),
                 }
             })
             .collect();
@@ -526,9 +535,11 @@ impl SettingBook {
     }
 
     pub async fn constrain_draft(&self, draft: &BeatDraft) -> Result<ConstraintReport, NarraError> {
+        let mut draft = draft.clone();
+        apply_track_flatten(&mut draft);
         let canon = self.load_canon().await?;
         let world = world_at(&canon, draft.clock_from, None).map_err(NarraError::Validation)?;
-        Ok(constrain(&world, &canon, draft))
+        Ok(constrain(&world, &canon, &draft))
     }
 
     pub async fn upsert_entity(&self, e: &Entity) -> Result<(), NarraError> {
@@ -587,7 +598,8 @@ impl SettingBook {
     }
 
     /// 写入正史。草稿不进库。挡写入则不分配 seq。
-    pub async fn commit(&self, draft: BeatDraft) -> Result<Beat, NarraError> {
+    pub async fn commit(&self, mut draft: BeatDraft) -> Result<Beat, NarraError> {
+        apply_track_flatten(&mut draft);
         let report = self.constrain_draft(&draft).await?;
         if report.blocks() {
             let msg = report
@@ -613,12 +625,13 @@ impl SettingBook {
         let deltas = serde_json::to_string(&draft.deltas)?;
         let kws = serde_json::to_string(&draft.knowledge_writes)?;
         let pops = serde_json::to_string(&draft.promise_ops)?;
+        let tracks = serde_json::to_string(&draft.tracks)?;
 
         let beat_rid = RecordId::from(("setting_beat", id.as_str()));
         let col_rid = RecordId::from(("setting_column", draft.column_id.as_str()));
         let mut stmts = String::from("BEGIN TRANSACTION;\n");
         stmts.push_str(
-            "CREATE $bid SET kind = $kind, column = $col, status = 'committed', commit_seq = $seq, intent = $intent, value_shift = $vs, do_text = $do, say_text = $say, think_text = $th, clock_from = $cf, clock_to = $ct, place = $place, telling_ord = $tell, cause_beat = $cause, visible_to = $vis, deltas_json = $dj, promise_ops_json = $pj, knowledge_json = $kj;\n",
+            "CREATE $bid SET kind = $kind, column = $col, status = 'committed', commit_seq = $seq, intent = $intent, value_shift = $vs, do_text = $do, say_text = $say, think_text = $th, clock_from = $cf, clock_to = $ct, place = $place, telling_ord = $tell, cause_beat = $cause, visible_to = $vis, deltas_json = $dj, promise_ops_json = $pj, knowledge_json = $kj, tracks_json = $tj;\n",
         );
         if draft.fail_relate {
             stmts.push_str("RELATE $ghost->setting_present_in->$bid SET role = 'present';\n");
@@ -665,6 +678,7 @@ impl SettingBook {
             .bind(("dj", deltas))
             .bind(("pj", pops))
             .bind(("kj", kws))
+            .bind(("tj", tracks))
             .bind((
                 "ghost",
                 RecordId::from(("setting_entity", "___no_such_entity___")),
@@ -790,10 +804,11 @@ impl SettingBook {
         let dj = serde_json::to_string(&next.deltas)?;
         let kws = serde_json::to_string(&next.knowledge_writes)?;
         let pops = serde_json::to_string(&next.promise_ops)?;
+        let tj = serde_json::to_string(&next.tracks)?;
         let mut q = self
             .db
             .query(
-                "UPDATE $bid SET intent = $intent, value_shift = $vs, do_text = $do, say_text = $say, think_text = $th, place = $place, visible_to = $vis, deltas_json = $dj, promise_ops_json = $pj, knowledge_json = $kj WHERE status = 'committed' RETURN AFTER",
+                "UPDATE $bid SET intent = $intent, value_shift = $vs, do_text = $do, say_text = $say, think_text = $th, place = $place, visible_to = $vis, deltas_json = $dj, promise_ops_json = $pj, knowledge_json = $kj, tracks_json = $tj WHERE status = 'committed' RETURN AFTER",
             )
             .bind(("bid", RecordId::from(("setting_beat", beat_id))))
             .bind(("intent", next.intent.clone()))
@@ -811,6 +826,7 @@ impl SettingBook {
             .bind(("dj", dj))
             .bind(("pj", pops))
             .bind(("kj", kws))
+            .bind(("tj", tj))
             .await?;
         let rows: Vec<BeatRow> = q.take(0)?;
         if rows.is_empty() {

@@ -9,6 +9,10 @@ use narra::db::connection::{init_db, DbConfig};
 use narra::db::schema::apply_schema;
 use narra::services::canon::SettingBook;
 use narra::services::circumstances::suggest_promise_op;
+use narra::services::fill::{
+    chat_completions_url, extract_chat_content, fill_system_prompt, fill_user_prompt,
+    parse_fill_content,
+};
 use narra::services::world::{
     BeatDraft, Column, Entity, Presence, Promise, ROLE_PRESENT, STATUS_COMMITTED, World,
 };
@@ -256,6 +260,7 @@ async fn main() {
         .route("/api/drafts/patch", post(patch_draft))
         .route("/api/presence", post(set_presence))
         .route("/api/commit", post(do_commit))
+        .route("/api/constrain", post(do_constrain))
         .route("/api/world", get(get_world))
         .route("/api/write-next", post(write_next))
         .route("/api/write-parallel", post(write_parallel))
@@ -643,6 +648,22 @@ async fn do_commit(
         .position(|d| d.id == body.id)
         .ok_or((StatusCode::BAD_REQUEST, "无此草稿".into()))?;
     let ui = sess.drafts.remove(pos);
+    let report = sess
+        .book
+        .constrain_draft(&ui.draft)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    if report.blocks() {
+        sess.drafts.insert(pos, ui);
+        let msg = report
+            .findings
+            .iter()
+            .filter(|f| f.grade == narra::services::constrain::Grade::Strict)
+            .map(|f| f.message.clone())
+            .collect::<Vec<_>>()
+            .join("; ");
+        return Err((StatusCode::BAD_REQUEST, msg));
+    }
     match sess.book.commit(ui.draft.clone()).await {
         Ok(b) => {
             persist_drafts(&app.data_root, &name, &sess.drafts);
@@ -654,6 +675,8 @@ async fn do_commit(
             "clock_from": b.clock_from,
             "clock_to": b.clock_to,
             "presences": b.presences,
+            "warnings": report.findings,
+            "auto_canon": false,
         })))
         }
         Err(e) => {
@@ -661,6 +684,29 @@ async fn do_commit(
             Err((StatusCode::BAD_REQUEST, e.to_string()))
         }
     }
+}
+
+async fn do_constrain(
+    State(app): State<App>,
+    Json(body): Json<CommitReq>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    let g = app.inner.lock().await;
+    let name = g.current.clone().ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
+    let sess = g.books.get(&name).unwrap();
+    let ui = sess
+        .drafts
+        .iter()
+        .find(|d| d.id == body.id)
+        .ok_or((StatusCode::BAD_REQUEST, "无此草稿".into()))?;
+    let report = sess
+        .book
+        .constrain_draft(&ui.draft)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    Ok(Json(serde_json::json!({
+        "findings": report.findings,
+        "blocks": report.blocks(),
+    })))
 }
 
 async fn get_world(
@@ -906,6 +952,7 @@ async fn fill_fake(
         "think_text": suggested.think_text,
         "intent": suggested.intent,
         "auto_canon": false,
+        "live": false,
         "model_input": pkt_json,
         "model_input_has_suggestion": false,
         "model_input_has_structure": false,
@@ -1343,10 +1390,35 @@ async fn structure_confirm(
         }
         "delete_canon" => {
             if let Some(id) = &pending.target_beat {
+                let canon = sess
+                    .book
+                    .load_canon()
+                    .await
+                    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+                let t = canon
+                    .beats
+                    .iter()
+                    .find(|b| &b.id == id)
+                    .map(|b| b.clock_from)
+                    .unwrap_or(0);
                 sess.book
                     .supersede(id)
                     .await
                     .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+                let w = sess
+                    .book
+                    .world_at(t, None)
+                    .await
+                    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+                sess.pending = None;
+                persist_drafts(&app.data_root, &name, &sess.drafts);
+                return Ok(Json(serde_json::json!({
+                    "ok": true,
+                    "choice": body.choice,
+                    "gone": id,
+                    "playing": w.playing,
+                    "world_t": t,
+                })));
             }
         }
         "remove_presence" => {
@@ -1912,9 +1984,104 @@ async fn fill_live(
     if key.trim().is_empty() {
         return Err((StatusCode::SERVICE_UNAVAILABLE, "缺 SETTING_LLM_API_KEY".into()));
     }
-    let _ = (app, body);
-    Err((
-        StatusCode::NOT_IMPLEMENTED,
-        "真调档未接：有密钥但本切片只断言结构，当前环境未实现 HTTP 出站".into(),
-    ))
+    let base = std::env::var("SETTING_LLM_BASE_URL").unwrap_or_default();
+    if base.trim().is_empty() {
+        return Err((StatusCode::SERVICE_UNAVAILABLE, "缺 SETTING_LLM_BASE_URL".into()));
+    }
+    let model = std::env::var("SETTING_LLM_MODEL").unwrap_or_else(|_| "grok-4".into());
+    let id = body.get("id").and_then(|v| v.as_str()).unwrap_or("");
+    let mut g = app.inner.lock().await;
+    let name = g.current.clone().ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
+    let sess = g.books.get_mut(&name).unwrap();
+    let draft0 = sess
+        .drafts
+        .iter()
+        .find(|x| x.id == id)
+        .ok_or((StatusCode::BAD_REQUEST, "无草稿".into()))?
+        .draft
+        .clone();
+    if draft0.intent.trim().is_empty() {
+        return Err((StatusCode::BAD_REQUEST, "没有本场任务不准填".into()));
+    }
+    let pkt = sess
+        .book
+        .given_circumstances(&draft0)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let user = fill_user_prompt(&draft0.intent, &pkt).map_err(|e| (StatusCode::BAD_REQUEST, e))?;
+    drop(g);
+
+    let url = chat_completions_url(&base);
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(90))
+        .build()
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let sent = serde_json::json!({
+        "model": model,
+        "temperature": 0.4,
+        "messages": [
+            {"role": "system", "content": fill_system_prompt()},
+            {"role": "user", "content": user},
+        ]
+    });
+    let resp = client
+        .post(&url)
+        .bearer_auth(key.trim())
+        .header("Content-Type", "application/json")
+        .json(&sent)
+        .send()
+        .await
+        .map_err(|e| (StatusCode::BAD_GATEWAY, format!("模型请求失败：{e}")))?;
+    let status = resp.status();
+    let body_json: serde_json::Value = resp
+        .json()
+        .await
+        .map_err(|e| (StatusCode::BAD_GATEWAY, format!("模型返回读不了：{e}")))?;
+    if !status.is_success() {
+        return Err((
+            StatusCode::BAD_GATEWAY,
+            format!("模型 HTTP {status}：{body_json}"),
+        ));
+    }
+    let content = extract_chat_content(&body_json)
+        .map_err(|e| (StatusCode::BAD_GATEWAY, e))?;
+    let fields = parse_fill_content(&content).map_err(|e| (StatusCode::BAD_GATEWAY, e))?;
+
+    let mut g = app.inner.lock().await;
+    let name = g.current.clone().ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
+    let sess = g.books.get_mut(&name).unwrap();
+    let mut suggested = sess
+        .drafts
+        .iter()
+        .find(|x| x.id == id)
+        .ok_or((StatusCode::BAD_REQUEST, "无草稿".into()))?
+        .draft
+        .clone();
+    if let Some(t) = fields.do_text {
+        suggested.do_text = Some(t);
+    }
+    if let Some(t) = fields.say_text {
+        suggested.say_text = Some(t);
+    }
+    if let Some(t) = fields.think_text {
+        suggested.think_text = Some(t);
+    }
+    if let Some(t) = fields.value_shift {
+        suggested.value_shift = Some(t);
+    }
+    sess.fill_pending = Some(suggested.clone());
+    persist_drafts(&app.data_root, &name, &sess.drafts);
+    let pkt_json = serde_json::to_value(&pkt).unwrap_or(serde_json::json!({}));
+    Ok(Json(serde_json::json!({
+        "do_text": suggested.do_text,
+        "say_text": suggested.say_text,
+        "think_text": suggested.think_text,
+        "value_shift": suggested.value_shift,
+        "intent": suggested.intent,
+        "auto_canon": false,
+        "live": true,
+        "model_input": pkt_json,
+        "model_input_has_suggestion": false,
+        "model_input_has_structure": false,
+    })))
 }

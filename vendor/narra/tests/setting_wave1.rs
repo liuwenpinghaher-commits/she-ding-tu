@@ -263,6 +263,20 @@ async fn s1_8_supersede_hides_beat_keeps_seq() {
     book.supersede("b_knife").await.unwrap();
     let w = book.world_at(10, None).await.unwrap();
     assert!(!w.playing.contains(&"b_knife".into()));
+    assert!(
+        !w.knows
+            .get(AFU)
+            .map(|k| k.iter().any(|f| f.contains("刀在抽屉")))
+            .unwrap_or(false),
+        "删历史后这一刻不该还看见刀在抽屉：{:?}",
+        w.knows
+    );
+    assert!(
+        !w.states
+            .iter()
+            .any(|s| s.entity_id == KNIFE && s.source_beat == "b_knife"),
+        "删历史后刀的情状窗口应随这场一起没了"
+    );
     let canon = book.load_canon().await.unwrap();
     let s = canon.beats.iter().find(|b| b.id == "b_knife").unwrap();
     assert_eq!(s.status, "superseded");
@@ -595,5 +609,65 @@ async fn s1_20_knows_at_matches_world() {
     let w = book.world_at(10, None).await.unwrap();
     let k = book.knows_at(10, AFU, None).await.unwrap();
     assert_eq!(k, w.knows.get(AFU).cloned().unwrap_or_default());
+}
+
+fn scene(id: &str, col: &str, intent: &str, from: i64, to: i64) -> BeatDraft {
+    BeatDraft {
+        id: Some(id.into()),
+        kind: "scene".into(),
+        column_id: col.into(),
+        intent: intent.into(),
+        value_shift: Some("转".into()),
+        do_text: Some("走一步".into()),
+        clock_from: from,
+        clock_to: to,
+        place_id: Some(FERRY.into()),
+        presences: vec![p(AFU, ROLE_PRESENT)],
+        ..BeatDraft::default()
+    }
+}
+
+#[tokio::test]
+async fn s_promise_illegal_jumps_blocked() {
+    use narra::services::world::{Promise, PromiseOp};
+    let (_h, book) = book().await;
+    book.upsert_promise(&Promise {
+        id: "token_due".into(),
+        name: "铜牌三日".into(),
+        status: "open".into(),
+        related: vec![TOKEN.into()],
+        plant_clock: Some(0),
+        deadline_clock: Some(180),
+        red_herring: false,
+    })
+    .await
+    .unwrap();
+
+    let mut never = scene("pay_none", COL0, "凭空兑现", 0, 60);
+    never.promise_ops = vec![PromiseOp {
+        promise_id: "ghost".into(),
+        op: "payoff".into(),
+    }];
+    let r = book.constrain_draft(&never).await.unwrap();
+    assert!(r.blocks());
+    assert!(r.findings.iter().any(|f| f.code == "promise_payoff"));
+    assert!(book.commit(never).await.is_err());
+
+    let mut pay = scene("pay_ok", COL0, "兑现铜牌", 0, 60);
+    pay.promise_ops = vec![PromiseOp {
+        promise_id: "token_due".into(),
+        op: "payoff".into(),
+    }];
+    book.commit(pay).await.expect("未收可以兑现");
+
+    let mut replant = scene("replant", COL1, "再埋", 60, 120);
+    replant.promise_ops = vec![PromiseOp {
+        promise_id: "token_due".into(),
+        op: "plant".into(),
+    }];
+    let r2 = book.constrain_draft(&replant).await.unwrap();
+    assert!(r2.blocks());
+    assert!(r2.findings.iter().any(|f| f.code == "promise_replant"));
+    assert!(book.commit(replant).await.is_err());
 }
 

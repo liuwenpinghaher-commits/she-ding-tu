@@ -1,3 +1,10 @@
+# 证据已作废复制
+
+COPIED_LOG_REMOVED
+原 log 与 2.1/2.2/3.1/4.8/5.2/5.3/5.5 字节相同（一句 wave2 ALL PASS），不是本项独立运行。
+本项 status=needs-unique-log。6.1 逐步记录可参考，不顶替本项。
+
+----
 # 切片 2.1 实际点击
 
 创建书后 column-0 可见；截图 e2e/evidence/2.1/stripboard.png 1280x720

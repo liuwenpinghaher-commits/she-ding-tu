@@ -15,6 +15,8 @@
     .card { border: 1px solid #888; padding: 8px; margin: 8px 0; }
     .card.canon { background: #e8f5e9; }
     .card.draft { background: #fff8e1; }
+    .card.warn { outline: 2px solid #f9a825; background: #fff3cd; }
+    #warn-list { background: #fff59d; color: #5d4037; padding: 8px; margin: 8px 0; white-space: pre-wrap; min-height: 1em; }
     .chip { display: inline-block; background: #ddd; margin: 2px; padding: 2px 6px; cursor: grab; }
     #side { width: 300px; border-left: 1px solid #ccc; padding: 8px; overflow: auto; }
     .tooth { width: 12px; height: 16px; display: inline-block; margin: 0 2px; cursor: pointer; position: relative; }
@@ -90,7 +92,9 @@
       <textarea id="do-text" data-testid="do-text" placeholder="动作"></textarea>
       <textarea id="say-text" data-testid="say-text" placeholder="对白"></textarea>
       <textarea id="think-text" data-testid="think-text" placeholder="内心"></textarea>
-      <button id="fill-fake" data-testid="fill-fake">模型填下一场</button>
+      <button id="fill-fake" data-testid="fill-fake">假模型填场</button>
+      <button id="fill-live" data-testid="fill-live">模型填下一场</button>
+      <div id="warn-list" class="hidden" data-testid="knowledge-warn"></div>
       <label>当众 <input type="radio" name="vis" id="vis-public" data-testid="vis-public" checked /></label>
       <label>私下 <input type="radio" name="vis" id="vis-private" data-testid="vis-private" /></label>
       <input id="visible-to" data-testid="visible-to" placeholder="私下谁会看见，逗号分隔" />
@@ -161,6 +165,8 @@ let pendingFill = null;
 let pendingPaste = [];
 let ignoreSuggestion = false;
 let pendingDeleteDraft = null;
+let lastFindings = [];
+let persistWarn = '';
 
 async function api(path, opt={}) {
   const r = await fetch(path, Object.assign({ headers: { 'Content-Type': 'application/json' } }, opt));
@@ -181,6 +187,32 @@ async function refresh() {
   pendingPaste = state.paste_suggestions || pendingPaste;
   render();
   if (state.pending) openConfirm(state.pending);
+  refreshConstrain();
+}
+function showFindings(findings, persist) {
+  lastFindings = findings || [];
+  const warns = lastFindings.filter(f => String(f.grade).toLowerCase() === 'warn');
+  const el = $('warn-list');
+  const text = warns.map(f => f.message).join('\n');
+  if (persist) persistWarn = text;
+  el.textContent = text || persistWarn;
+  el.classList.toggle('hidden', !el.textContent);
+}
+async function refreshConstrain() {
+  if (!currentDraft) {
+    const el = $('warn-list');
+    el.textContent = persistWarn;
+    el.classList.toggle('hidden', !persistWarn);
+    lastFindings = [];
+    return;
+  }
+  try {
+    const r = await api('/api/constrain', { method: 'POST', body: JSON.stringify({ id: currentDraft }) });
+    showFindings(r.findings);
+    render();
+  } catch {
+    /* 未开书时忽略 */
+  }
 }
 function currentDraftObj() {
   return (state.drafts || []).find(d => d.id === currentDraft);
@@ -249,8 +281,10 @@ function renderCard(obj, canon) {
   const b = canon ? obj : obj.draft;
   const id = canon ? obj.id : obj.id;
   const card = document.createElement('div');
-  card.className = 'card ' + (canon ? 'canon' : 'draft');
+  const leak = !canon && lastFindings.some(f => f.code === 'knowledge_leak');
+  card.className = 'card ' + (canon ? 'canon' : 'draft') + (leak ? ' warn' : '');
   card.dataset.testid = (canon ? 'card-' : 'draft-') + id;
+  if (leak) card.dataset.knowledgeWarn = '1';
   card.dataset.draftId = canon ? '' : id;
   card.dataset.canonId = canon ? id : '';
   card.draggable = true;
@@ -531,22 +565,50 @@ $('commit').onclick = async () => {
   }
   try {
     await api('/api/drafts/patch', { method: 'POST', body: JSON.stringify(body) });
-    await api('/api/commit', { method: 'POST', body: JSON.stringify({ id }) });
+    const committed = await api('/api/commit', { method: 'POST', body: JSON.stringify({ id }) });
+    showFindings(committed.warnings || [], true);
     currentDraft = null;
     refresh();
   } catch (e) {
     $('sidebar').textContent = String(e.message || e);
+    refreshConstrain();
   }
 };
-$('fill-fake').onclick = async () => {
-  if (!currentDraft) return;
-  const r = await api('/api/fill-fake', { method: 'POST', body: JSON.stringify({ id: currentDraft }) });
+async function applyFillResult(r) {
   pendingFill = r;
   $('do-text').value = r.do_text || '';
   $('say-text').value = r.say_text || '';
   $('think-text').value = r.think_text || '';
   renderInspector();
+}
+$('fill-fake').onclick = async () => {
+  if (!currentDraft) return;
+  const r = await api('/api/fill-fake', { method: 'POST', body: JSON.stringify({ id: currentDraft }) });
+  applyFillResult(r);
 };
+$('fill-live').onclick = async () => {
+  if (!currentDraft) return;
+  try {
+    const r = await api('/api/fill-live', { method: 'POST', body: JSON.stringify({ id: currentDraft }) });
+    applyFillResult(r);
+    $('sidebar').textContent = r.auto_canon ? '不该自动进历史' : '已填草稿，未写入正史';
+  } catch (e) {
+    $('sidebar').textContent = String(e.message || e);
+  }
+};
+$('say-text').addEventListener('change', async () => {
+  if (!currentDraft) return;
+  try {
+    await api('/api/drafts/patch', { method: 'POST', body: JSON.stringify({
+      id: currentDraft,
+      say_text: $('say-text').value,
+      intent: $('intent').value
+    }) });
+    refreshConstrain();
+  } catch (e) {
+    $('sidebar').textContent = String(e.message || e);
+  }
+});
 $('ellipsis').onclick = async () => {
   if (!currentDraft) return;
   await api('/api/ellipsis', { method: 'POST', body: JSON.stringify({ id: currentDraft }) });

@@ -1,24 +1,24 @@
 //! 穿帮检查。只读世界 + 本场草稿。挡 / 标黄按 F12。
 
-use crate::services::world::{
-    Beat, BeatDraft, Canon, Presence, ROLE_PRESENT, World, BEAT_SCENE, ATTR_WHERE,
-};
+use crate::services::world::{BeatDraft, Canon, ROLE_PRESENT, World, BEAT_SCENE};
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum Grade {
     Info,
     Warn,
     Strict,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Finding {
     pub grade: Grade,
     pub code: String,
     pub message: String,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ConstraintReport {
     pub findings: Vec<Finding>,
 }
@@ -26,35 +26,6 @@ pub struct ConstraintReport {
 impl ConstraintReport {
     pub fn blocks(&self) -> bool {
         self.findings.iter().any(|f| f.grade == Grade::Strict)
-    }
-}
-
-fn draft_as_beat(d: &BeatDraft, id: &str) -> Beat {
-    Beat {
-        id: id.to_string(),
-        kind: if d.kind.is_empty() {
-            BEAT_SCENE.to_string()
-        } else {
-            d.kind.clone()
-        },
-        column_id: d.column_id.clone(),
-        status: "draft".into(),
-        commit_seq: i64::MAX,
-        intent: d.intent.clone(),
-        value_shift: d.value_shift.clone(),
-        do_text: d.do_text.clone(),
-        say_text: d.say_text.clone(),
-        think_text: d.think_text.clone(),
-        clock_from: d.clock_from,
-        clock_to: d.clock_to,
-        place_id: d.place_id.clone(),
-        telling_ord: d.telling_ord,
-        cause_beat: d.cause_beat.clone(),
-        visible_to: d.visible_to.clone(),
-        deltas: d.deltas.clone(),
-        knowledge_writes: d.knowledge_writes.clone(),
-        promise_ops: d.promise_ops.clone(),
-        presences: d.presences.clone(),
     }
 }
 
@@ -168,68 +139,110 @@ pub fn constrain(world: &World, canon: &Canon, draft: &BeatDraft) -> ConstraintR
         }
     }
 
-    // 知情穿帮：对白/动作写了别人不可能知道的
+    knowledge_leak_warn(world, draft, &mut r);
+    promise_ops_strict(world, draft, &mut r);
+    r
+}
+
+fn speaker_knows(world: &World, speaker: &str, secret: &str) -> bool {
+    world
+        .knows
+        .get(speaker)
+        .map(|fs| fs.iter().any(|f| f == secret || f.contains(secret)))
+        .unwrap_or(false)
+}
+
+fn knowledge_leak_warn(world: &World, draft: &BeatDraft, r: &mut ConstraintReport) {
     let say = draft.say_text.clone().unwrap_or_default();
-    let r#do = draft.do_text.clone().unwrap_or_default();
-    let think = draft.think_text.clone().unwrap_or_default();
-    let spoken = format!("{say} {do} {think}");
-    for (person, facts) in &world.knows {
-        for fact in facts {
-            let secret = fact.split(':').last().unwrap_or(fact);
-            if secret.chars().count() < 2 {
-                continue;
-            }
-            if spoken.contains(secret) {
-                let speaker_knows = draft
-                    .presences
-                    .iter()
-                    .filter(|p| p.role == ROLE_PRESENT)
-                    .any(|p| {
-                        world
-                            .knows
-                            .get(&p.entity_id)
-                            .map(|fs| fs.iter().any(|f| f.contains(secret)))
-                            .unwrap_or(false)
-                    });
-                // 若说出的内容是某人知道的秘密，而说话者不在知道者之列
-                let _ = (person, speaker_knows);
-            }
-        }
+    if say.trim().is_empty() {
+        return;
     }
-    // 明确：把甲的内心/已知写进乙的对白。规则：若对白含「刀」且说话人（第一个 present）不知道刀。
-    if let Some(speaker) = draft
+    let Some(speaker) = draft
         .presences
         .iter()
         .find(|p| p.role == ROLE_PRESENT)
         .map(|p| p.entity_id.as_str())
-    {
-        for (who, facts) in &world.knows {
-            if who == speaker {
+    else {
+        return;
+    };
+    let mut seen = std::collections::BTreeSet::new();
+    for (who, facts) in &world.knows {
+        if who == speaker {
+            continue;
+        }
+        for fact in facts {
+            let payload = fact.split_once(':').map(|(_, rest)| rest).unwrap_or(fact);
+            if payload.chars().count() < 2 {
                 continue;
             }
-            for fact in facts {
-                let payload = fact.split_once(':').map(|(_, r)| r).unwrap_or(fact);
-                if payload.chars().count() >= 2
-                    && (say.contains(payload) || think.contains(payload) && who != speaker)
-                {
-                    if say.contains(payload) {
-                        r.findings.push(Finding {
-                            grade: Grade::Warn,
-                            code: "knowledge_leak".into(),
-                            message: format!("知情穿帮：对白含 {who} 才知道的「{payload}」"),
-                        });
-                    }
-                }
+            if !say.contains(payload) {
+                continue;
             }
+            if speaker_knows(world, speaker, payload) {
+                continue;
+            }
+            let key = format!("{who}:{payload}");
+            if !seen.insert(key) {
+                continue;
+            }
+            r.findings.push(Finding {
+                grade: Grade::Warn,
+                code: "knowledge_leak".into(),
+                message: format!("知情穿帮：对白含 {who} 才知道的「{payload}」"),
+            });
         }
     }
+}
 
-    let _ = (world, draft_as_beat(draft, "draft"));
-    let _ = ATTR_WHERE;
-    let _ = Presence {
-        entity_id: String::new(),
-        beat_id: String::new(),
-        role: String::new(),
-    };
-    r
+fn promise_ops_strict(world: &World, draft: &BeatDraft, r: &mut ConstraintReport) {
+    let mut st: std::collections::BTreeMap<String, String> = world
+        .promises
+        .iter()
+        .map(|p| (p.id.clone(), p.status.clone()))
+        .collect();
+    for op in &draft.promise_ops {
+        let cur = st.get(&op.promise_id).map(|s| s.as_str());
+        match op.op.as_str() {
+            "plant" => {
+                if matches!(cur, Some("paid") | Some("discarded")) {
+                    r.findings.push(Finding {
+                        grade: Grade::Strict,
+                        code: "promise_replant".into(),
+                        message: format!("伏笔「{}」已经收了，不能再埋", op.promise_id),
+                    });
+                }
+                st.insert(op.promise_id.clone(), "open".into());
+            }
+            "advance" => {
+                if cur != Some("open") {
+                    r.findings.push(Finding {
+                        grade: Grade::Strict,
+                        code: "promise_advance".into(),
+                        message: format!("伏笔「{}」没在收着，不能推进", op.promise_id),
+                    });
+                }
+            }
+            "payoff" => {
+                if cur != Some("open") {
+                    r.findings.push(Finding {
+                        grade: Grade::Strict,
+                        code: "promise_payoff".into(),
+                        message: format!("伏笔「{}」没埋着，不能兑现", op.promise_id),
+                    });
+                }
+                st.insert(op.promise_id.clone(), "paid".into());
+            }
+            "discard" => {
+                if cur != Some("open") {
+                    r.findings.push(Finding {
+                        grade: Grade::Strict,
+                        code: "promise_discard".into(),
+                        message: format!("伏笔「{}」没在收着，不能作废", op.promise_id),
+                    });
+                }
+                st.insert(op.promise_id.clone(), "discarded".into());
+            }
+            _ => {}
+        }
+    }
 }

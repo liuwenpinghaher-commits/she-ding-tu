@@ -400,7 +400,8 @@ pub fn world_at(canon: &Canon, t: i64, as_of: Option<i64>) -> Result<World, Stri
     fold_from(canon, t, as_of, FoldState::default(), None)
 }
 
-/// 从已有折状态接着折（增量）。`from_seq` 之后的场才叠。
+/// 从已有折状态接着折（增量）。未接线，禁止当「已交付的等价路径」。
+#[allow(dead_code)]
 pub(crate) fn fold_incremental(
     canon: &Canon,
     t: i64,
@@ -497,6 +498,7 @@ pub fn knows_at(canon: &Canon, t: i64, person: &str, as_of: Option<i64>) -> Resu
     Ok(w.knows.get(person).cloned().unwrap_or_default())
 }
 
+#[allow(dead_code)]
 pub(crate) fn fold_state_for_materialize(canon: &Canon, as_of: Option<i64>) -> Result<FoldState, String> {
     let mut st = FoldState::default();
     for p in &canon.promises {

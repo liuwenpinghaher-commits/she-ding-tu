@@ -28,7 +28,13 @@
       --warn: #e0b56a;
       --warn-bg: #3a2f18;
       --lib: 220px;
-      --side: 360px;
+      --side: 380px;
+      --cols: 4;
+      --glow: #2a2218;
+      --line-hover: #5a5246;
+      --stripe: #241f19;
+      --col-on: rgba(196, 165, 116, 0.05);
+      --handle-hover: rgba(196, 165, 116, 0.35);
       --focus: 2px solid var(--brass);
       --ent-person: #c45c26;
       --ent-place: #6d6875;
@@ -52,6 +58,11 @@
       --brass-ink: #faf7f0;
       --warn: #9a6a10;
       --warn-bg: #f6e6c4;
+      --glow: #e8dcc8;
+      --line-hover: #b8aa94;
+      --stripe: #e4d8c6;
+      --col-on: rgba(139, 100, 48, 0.08);
+      --handle-hover: rgba(139, 100, 48, 0.28);
     }
     * { box-sizing: border-box; }
     html, body { height: 100%; margin: 0; }
@@ -61,21 +72,28 @@
       font-family: var(--sans);
       font-size: 13.5px;
       line-height: 1.45;
-      display: grid;
-      grid-template-rows: auto auto auto 1fr;
-      position: relative;
     }
     body::before {
       content: "";
       pointer-events: none;
       position: fixed;
       inset: 0;
+      z-index: 40;
       opacity: .07;
-      background-image: radial-gradient(var(--line) 0.6px, transparent 0.7px);
-      background-size: 4px 4px;
-      z-index: 0;
+      background-image: radial-gradient(var(--line) 0.55px, transparent 0.65px);
+      background-size: 5px 5px;
     }
-    body > * { position: relative; z-index: 1; }
+    .app {
+      display: grid;
+      grid-template-columns: var(--lib) 1fr var(--side);
+      grid-template-rows: auto auto auto 1fr;
+      height: 100%;
+      min-width: 1100px;
+      position: relative;
+      z-index: 1;
+    }
+    header { grid-column: 1 / -1; }
+    #filter-banner { grid-column: 1 / -1; }
     .skip { position: absolute; left: -999px; }
     .skip:focus { left: 8px; top: 8px; z-index: 50; background: var(--panel); padding: 6px 10px; }
     header {
@@ -88,8 +106,25 @@
       flex-wrap: wrap;
     }
     .brand { font-family: var(--serif); font-size: 20px; font-weight: 600; }
+    .brand em { font-style: italic; color: var(--brass); font-weight: 500; }
     .spacer { flex: 1; }
     .win { display: flex; align-items: center; gap: 4px; }
+    .col-count {
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--mute);
+      min-width: 9em;
+      text-align: center;
+    }
+    .col-count span { color: var(--cream); }
+    #book-cluster {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    #book-cluster input { width: 7em; }
+    #book-cluster button { padding: 4px 8px; font-size: 12px; }
+    .note { color: var(--mute); font-size: 11px; }
     button {
       font: inherit;
       background: transparent;
@@ -112,47 +147,127 @@
       background: var(--panel);
       border: 1px solid var(--line);
       padding: 8px;
-      min-width: 220px;
+      min-width: 240px;
       display: flex;
       flex-direction: column;
       gap: 4px;
     }
-    #minimap { padding: 6px 14px; background: var(--panel); border-bottom: 1px solid var(--line); }
-    #board { display: flex; flex: 1; min-height: 0; }
-    #rail { width: var(--lib); border-right: 1px solid var(--line); padding: 12px; overflow: auto; background: var(--panel); }
-    #stage { flex: 1; display: flex; flex-direction: column; min-width: 0; position: relative; }
-    #cols { display: flex; flex: 1; overflow: hidden; }
-    .col { flex: 1; border-right: 1px solid var(--line); padding: 8px; min-width: 0; position: relative; }
-    .col-head { font-family: var(--serif); font-size: 28px; margin: 0; cursor: pointer; line-height: 1.1; }
-    .col-clock { font-family: var(--mono); font-size: 12px; color: var(--mute); }
-    .col-dur { font-size: 11px; color: var(--mute); }
-    .col-lens { height: 6px; background: var(--line); margin: 4px 0 6px; }
-    .col-lens i { display: block; height: 100%; background: var(--brass); }
-    .cover-dots { display: flex; gap: 4px; margin: 4px 0 8px; }
-    .cover-dots span { width: 8px; height: 8px; border-radius: 50%; opacity: .2; }
-    .cover-dots span.on { opacity: 1; }
-    .col-handle { position: absolute; right: 0; top: 0; bottom: 0; width: 8px; cursor: ew-resize; background: var(--line); }
-    .empty-col { color: var(--mute); font-size: 12px; padding: 24px 8px; }
-    .card { border: 2px solid var(--line); padding: 8px; margin: 8px 0; background: var(--panel); animation: rise .18s ease; }
-    @keyframes rise { from { transform: translateY(6px); opacity: .4; } to { transform: none; opacity: 1; } }
+    #more-panel .grp {
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: .12em;
+      color: var(--mute);
+      margin: 8px 0 2px;
+    }
+    #more-panel .grp:first-child { margin-top: 0; }
+    #minimap { padding: 6px 14px 8px; position: relative; height: 36px; flex-shrink: 0; background: var(--panel); border-bottom: 1px solid var(--line); overflow: hidden; z-index: 2; }
+    #minimap { grid-column: 1 / -1; }
+    #rail {
+      border-right: 1px solid var(--line);
+      padding: 12px 12px 28px;
+      overflow: auto;
+      background: var(--panel);
+      grid-row: 4;
+    }
+    #stage {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      min-height: 0;
+      grid-row: 4;
+      background: radial-gradient(1200px 400px at 20% -10%, var(--glow) 0%, transparent 55%), var(--night);
+    }
+    #ruler {
+      display: grid;
+      grid-template-columns: repeat(var(--cols), minmax(0, 1fr));
+      width: 100%;
+      border-bottom: 1px solid var(--line);
+      background: var(--panel);
+      flex-shrink: 0;
+    }
+    .board-wrap { position: relative; flex: 1; overflow: auto; min-height: 0; }
+    #cols {
+      display: grid;
+      grid-template-columns: repeat(var(--cols), minmax(0, 1fr));
+      width: 100%;
+      min-height: 100%;
+      align-items: start;
+    }
+    .col {
+      border-right: 1px solid var(--line);
+      padding: 12px 10px 24px;
+      min-height: 100%;
+      min-width: 0;
+      position: relative;
+    }
+    .col.on { background: var(--col-on); }
+    .col-head {
+      border: 0;
+      border-right: 1px solid var(--line);
+      background: transparent;
+      color: var(--cream);
+      padding: 8px 16px 10px 8px;
+      text-align: left;
+      min-height: 88px;
+      position: relative;
+      width: 100%;
+      cursor: pointer;
+    }
+    .col-head.on { box-shadow: inset 0 -2px 0 var(--brass); }
+    .col-head .n { font-family: var(--serif); font-size: 22px; color: var(--brass); display: block; line-height: 1.1; }
+    .col-head .clock { font-family: var(--mono); font-size: 11px; display: block; margin-top: 2px; }
+    .col-head .dur { font-size: 10px; color: var(--brass); display: block; }
+    .col-head .lab { font-size: 10px; color: var(--mute); display: block; }
+    .lens { height: 4px; margin-top: 6px; background: var(--line); overflow: hidden; }
+    .lens > span { display: block; height: 100%; background: var(--brass); opacity: .85; }
+    .cov { display: flex; gap: 3px; margin-top: 6px; }
+    .cov i { width: 6px; height: 6px; border-radius: 50%; background: var(--line); display: block; }
+    .cov i.on { background: var(--brass); }
+    .col-handle, .handle {
+      position: absolute; top: 0; right: -5px; width: 10px; height: 100%;
+      cursor: ew-resize; z-index: 3; background: transparent; border: 0; padding: 0;
+    }
+    .handle:hover { background: var(--handle-hover); }
+    .handle::after {
+      content: ""; position: absolute; top: 10px; bottom: 10px; left: 3px; width: 2px; background: var(--brass);
+    }
+    .empty-col, .card.is-spare { color: var(--mute); font-size: 12px; padding: 16px 8px; border: 1px dashed var(--line); margin-top: 8px; }
+    .card {
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      padding: 9px 10px 8px;
+      margin: 0 0 10px;
+      cursor: pointer;
+      text-align: left;
+      width: 100%;
+      color: inherit;
+      animation: rise .45s cubic-bezier(0.16, 1, 0.3, 1) both;
+    }
+    .card:hover { border-color: var(--line-hover); }
+    .card[aria-selected="true"] { border-color: var(--brass); box-shadow: 0 0 0 1px var(--brass); }
+    @keyframes rise { from { transform: translateY(8px); opacity: .35; } to { transform: none; opacity: 1; } }
     .card.canon { border-style: solid; }
-    .card.draft { border-style: dashed; background: transparent; }
-    .card.ellipsis { background: repeating-linear-gradient(135deg, var(--panel), var(--panel) 6px, var(--panel-2) 6px, var(--panel-2) 12px); }
-    .card.flashback { margin-left: 16px; }
-    .card.off-reader { opacity: .55; }
-    .card.warn { outline: 2px solid var(--warn); background: var(--warn-bg); }
-    .card.pre { }
-    .badge { display: inline-block; font-size: 10px; padding: 1px 6px; border: 1px solid var(--line); margin-left: 4px; }
-    .badge.warn { border-color: var(--warn); color: var(--warn); }
-    .track-block { border: 1px solid var(--line); padding: 6px; margin: 6px 0; background: var(--panel-2); }
-    .track-block .who { font-weight: 600; margin-bottom: 4px; }
+    .card.draft, .card.is-draft { border-style: dashed; background: transparent; }
+    .card.ellipsis, .card.is-ellipsis { background: repeating-linear-gradient(-45deg, var(--panel-2), var(--panel-2) 6px, var(--stripe) 6px, var(--stripe) 7px); }
+    .card.flashback, .card.is-flash { margin-left: 10px; width: calc(100% - 10px); }
+    .card.off-reader, .card.is-off { opacity: .72; }
+    .card.warn { outline: none; border-color: var(--warn); }
+    .kicker { font-family: var(--mono); font-size: 10px; color: var(--mute); display: flex; gap: 6px; align-items: center; }
+    .title { font-family: var(--serif); font-size: 15px; font-weight: 600; margin: 4px 0 2px; }
+    .cols.is-mid .title { font-size: 16px; }
+    .cols.is-roomy .title { font-size: 19px; }
+    .sum { font-size: 11px; color: var(--mute); }
+    .val { font-size: 12px; color: var(--brass); margin: 4px 0 0; }
+    .badge { display: inline-block; font-size: 9px; padding: 0 5px; border: 1px solid var(--line); letter-spacing: .06em; }
+    .badge.warn { border-color: var(--warn); color: var(--warn); background: var(--warn-bg); }
+    .track-block { border: 1px solid var(--line); padding: 8px; margin: 8px 0; background: var(--night); }
+    .track-block .who { font-weight: 700; margin-bottom: 4px; }
     .field-head { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-top: 8px; }
     .discuss-btn { padding: 2px 8px; font-size: 12px; }
     .concern { border: 1px solid var(--line); padding: 6px; margin: 6px 0; }
     .concern .anchor { font-family: var(--mono); font-size: 11px; color: var(--mute); }
     #filter-banner { background: var(--warn-bg); color: var(--warn); padding: 0 14px; max-height: 0; overflow: hidden; }
     #filter-banner.show { display: flex; align-items: center; gap: 8px; max-height: 40px; padding: 6px 14px; }
-    #minimap { padding: 8px 14px 10px; position: relative; min-height: 36px; }
     #tooth-track { position: relative; display: flex; align-items: flex-end; min-height: 24px; }
     .tooth { width: 14px; height: 20px; display: inline-block; margin: 0 2px; cursor: pointer; position: relative; }
     .tooth.ellipsis { background: repeating-linear-gradient(135deg, #555, #555 3px, #777 3px, #777 6px); }
@@ -160,31 +275,119 @@
     dialog { max-width: 520px; background: var(--panel); color: var(--cream); border: 1px solid var(--brass); box-shadow: 0 12px 40px #0008; }
     dialog[data-wide="1"] { max-width: 92vw; width: 720px; max-height: 80vh; overflow: auto; }
     .lib-group { margin: 10px 0 4px; font-size: 11px; color: var(--mute); letter-spacing: .08em; }
-    .rail-act { margin-left: auto; font-size: 11px; padding: 1px 6px; }
+    .lib-actions { margin: 0 0 8px; }
+    .rail-act {
+      flex-shrink: 0;
+      border: 0;
+      padding: 4px 6px;
+      font-size: 10px;
+      color: var(--mute);
+      margin-left: auto;
+    }
+    .rail-act:hover { color: var(--brass); }
+    .rail-act[aria-pressed="true"] { background: var(--cream); color: var(--night); }
+    .lib-item .off { margin-left: auto; font-size: 9px; color: var(--mute); }
+    .why { font-size: 12px; color: var(--mute); line-height: 1.45; }
+    .ro {
+      border: 1px solid var(--line);
+      background: var(--night);
+      padding: 8px;
+      font-size: 12px;
+      color: var(--mute);
+      margin: 0 0 8px;
+    }
+    .debt {
+      border-left: 2px solid var(--brass);
+      padding: 6px 8px;
+      margin: 6px 0;
+      font-size: 12px;
+    }
+    .scene-tools { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 16px; }
+    .scene-tools button { font-size: 12px; }
+    .track-block b {
+      font-family: var(--mono);
+      font-size: 10px;
+      font-weight: 500;
+      color: var(--brass);
+      margin-right: 6px;
+    }
+    .track-block p { margin: 3px 0 0; }
+    .card-tr {
+      font-size: 12px;
+      color: var(--cream);
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px solid var(--line);
+      line-height: 1.45;
+    }
+    .card-tr b { color: var(--brass); font-weight: 600; margin-right: 4px; }
+    .card-tr span { display: block; color: var(--mute); }
+    #side h2 {
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+      color: var(--mute);
+      margin: 0 0 8px;
+      font-weight: 500;
+    }
+    #rail h2 {
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+      color: var(--mute);
+      margin: 0 0 8px;
+      font-weight: 500;
+    }
+    #ent-search { width: 100%; margin-bottom: 8px; }
     #now-human { white-space: pre-wrap; }
     #world { font-size: 11px; color: var(--mute); max-height: 8em; overflow: auto; }
     #warn-list { background: var(--warn-bg); color: var(--warn); padding: 8px; margin: 8px 0; white-space: pre-wrap; min-height: 1em; }
-    .chip { display: inline-flex; align-items: center; gap: 4px; background: var(--panel-2); margin: 2px; padding: 2px 6px; cursor: grab; }
-    .chip .dot { width: 8px; height: 8px; border-radius: 50%; }
-    #side { width: var(--side); border-left: 1px solid var(--line); padding: 12px; overflow: auto; background: var(--panel); }
+    .chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+    .chip {
+      display: inline-flex; align-items: center; gap: 4px;
+      border: 1px solid var(--line); background: var(--night); color: var(--cream);
+      padding: 2px 6px 2px 4px; font-size: 11px; cursor: grab; border-radius: 99px;
+    }
+    .chip .dot { width: 7px; height: 7px; border-radius: 50%; }
+    .chip .role { font-size: 9px; color: var(--mute); }
+    .chip:hover, .chip[aria-pressed="true"] { border-color: var(--brass); }
+    #side {
+      border-left: 1px solid var(--line);
+      padding: 12px 12px 28px;
+      overflow: auto;
+      background: var(--panel);
+      grid-row: 4;
+    }
+    #wires { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+    .muted { color: var(--mute); font-size: 12px; }
+    #side h3 { font-size: 13px; margin: 14px 0 6px; font-family: var(--serif); }
     .tooth.canon { background: #2e7d32; }
     .tooth.draft { background: var(--warn); }
     .tooth.empty { background: #555; }
     .tooth.telling-diff::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: #1565c0; }
     .hidden { display: none !important; }
-    #book-label { min-width: 4em; min-height: 1em; display: inline-block; }
+    #book-label {
+      position: absolute;
+      width: 1px; height: 1px;
+      overflow: hidden;
+      clip: rect(0 0 0 0);
+    }
+    .lib-actions { display: flex; gap: 6px; align-items: center; }
     /* dialog skin above */
     #ent-list li, .lib-item { cursor: grab; padding: 4px; list-style: none; display: flex; align-items: center; gap: 6px; }
     #ent-list { padding: 0; margin: 0; }
     textarea, input, select { width: 100%; font: inherit; background: var(--night); color: var(--cream); border: 1px solid var(--line); padding: 6px; }
     header input, header select { width: auto; }
     #inspector section { border: 1px solid var(--line); margin: 4px 0; padding: 4px; }
+    details { margin: 12px 0; }
+    details summary { cursor: pointer; color: var(--mute); font-size: 12px; }
     #source-groups { margin-top: 8px; }
     .impact { color: #e07070; font-size: 12px; }
     #empty-book { margin: auto; text-align: center; padding: 48px 16px; color: var(--mute); }
     #empty-book p { color: var(--cream); font-family: var(--serif); font-size: 18px; }
     .mode-panel { display: block; }
-    #side h2 { font-family: var(--mono); font-size: 11px; letter-spacing: .12em; color: var(--mute); }
     .lib-meta { font-size: 11px; color: var(--mute); }
     .kind-person { background: var(--ent-person); }
     .kind-place { background: var(--ent-place); }
@@ -199,35 +402,40 @@
 </head>
 <body>
   <a class="skip" href="#cols">跳到分场条</a>
+  <div class="app">
   <header>
-    <strong class="brand">分场条</strong>
-    <select id="book-list" data-testid="book-list" aria-label="切换书"></select>
-    <input id="book-name" data-testid="book-name" placeholder="书名" value="渡口" />
-    <button id="create-book" data-testid="create-book">创建书</button>
-    <button id="open-book" data-testid="open-book">打开书</button>
-    <button type="button" id="open-craft" data-testid="open-craft" disabled>书页</button>
-    <span id="book-label" data-testid="book-label"></span>
+    <strong class="brand">设定图 <em>一场一块</em></strong>
+    <span id="book-cluster">
+      <select id="book-list" data-testid="book-list" aria-label="切换书"></select>
+      <input id="book-name" data-testid="book-name" placeholder="书名" value="渡口" />
+      <button id="create-book" data-testid="create-book">创建书</button>
+      <button id="open-book" data-testid="open-book">打开书</button>
+      <span id="book-label" data-testid="book-label"></span>
+    </span>
     <span class="spacer"></span>
-    <span class="win">
-      <button id="prev" data-testid="prev">‹</button>
-      <button id="minus" data-testid="minus">−</button>
-      <span id="col-count" data-testid="col-count">1</span>
-      <button id="plus" data-testid="plus">+</button>
-      <button id="next" data-testid="next">›</button>
+    <span class="win" role="group" aria-label="本页显示几列">
+      <button id="prev" data-testid="prev" aria-label="窗口往左一列">‹</button>
+      <button id="minus" data-testid="minus" aria-label="本页少显示一列">−</button>
+      <span class="col-count">本页 <span id="col-count" data-testid="col-count">1</span> / <span id="col-total">1</span> 列</span>
+      <button id="plus" data-testid="plus" aria-label="本页多显示一列">+</button>
+      <button id="next" data-testid="next" aria-label="窗口往右一列">›</button>
       <button id="sparse" data-testid="density-sparse">疏</button>
       <button id="mid" data-testid="density-mid">中</button>
       <button id="dense" data-testid="density-dense">密</button>
     </span>
     <button id="write-next" data-testid="write-next" class="primary">写下一场</button>
+    <button type="button" id="open-craft" data-testid="open-craft" disabled>书页</button>
     <details id="more-menu">
       <summary>更多</summary>
       <div id="more-panel">
+        <div class="grp">结构</div>
         <button id="add-column" data-testid="add-column">中间➕加列</button>
         <button id="remove-column" data-testid="remove-column">减列</button>
         <button id="merge-columns" data-testid="merge-columns">合并列</button>
         <button id="swap-columns" data-testid="swap-columns">换列位置</button>
         <button id="add-parallel" data-testid="add-parallel">在本列再写一场</button>
         <button id="ellipsis" data-testid="ellipsis">省略场</button>
+        <div class="grp">看法</div>
         <button id="occupancy" data-testid="occupancy">出场</button>
         <label>人物透镜
           <select id="person-lens" data-testid="person-lens" aria-label="只看谁">
@@ -235,47 +443,87 @@
           </select>
         </label>
         <button id="relations" data-testid="relations">关系</button>
+        <button id="reading-order" data-testid="reading-order">按读序排</button>
+        <div class="grp">进出</div>
         <button id="export" data-testid="export">导出</button>
         <button id="paste" data-testid="paste">丢一段草稿</button>
         <button id="plant-promise" data-testid="plant-promise">埋伏笔</button>
-        <button id="reading-order" data-testid="reading-order">按读序排</button>
-        <button id="theme-btn" type="button">主题</button>
       </div>
     </details>
+    <button id="theme-btn" type="button" aria-label="切换亮色或暗色">主题</button>
   </header>
   <div id="filter-banner" data-testid="filter-banner"></div>
   <div id="minimap" data-testid="minimap"></div>
-  <div id="board">
     <aside id="rail" data-testid="left-rail">
-      <h2>设定</h2>
-      <input id="ent-search" data-testid="ent-search" placeholder="搜全书" />
-      <button id="do-search" data-testid="do-search">搜</button>
+      <h2 id="lib-title">设定 · 当前这几列</h2>
+      <p class="lib-meta" id="lib-meta"></p>
+      <input id="ent-search" data-testid="ent-search" type="search" placeholder="搜全书人物、地点、规则…" autocomplete="off" aria-label="搜全书" />
+      <div class="lib-actions">
+        <button id="rail-create" type="button">新建</button>
+        <button id="do-search" data-testid="do-search">搜</button>
+      </div>
       <ul id="search-hits" data-testid="search-hits"></ul>
-      <p id="lib-meta" class="lib-meta"></p>
       <ul id="ent-list" data-testid="ent-list"></ul>
-      <button id="rail-create" type="button">新建</button>
     </aside>
     <div id="stage">
+      <div id="ruler" data-testid="ruler"></div>
       <div id="empty-book" class="hidden">
         <p>还没有一场戏。可以先只写人物、地点、规则。</p>
         <button id="empty-create" type="button">去设定里新建</button>
         <button id="empty-write" type="button">写下一场</button>
       </div>
-      <div id="cols" data-testid="stripboard"></div>
+      <div class="board-wrap">
+        <svg id="wires" aria-hidden="true"></svg>
+        <div id="cols" data-testid="stripboard"></div>
+      </div>
     </div>
     <aside id="side">
       <h2 id="side-mode-title">本场</h2>
-      <div id="sidebar" data-testid="sidebar"></div>
+      <div id="sidebar" data-testid="sidebar" class="muted"></div>
       <div id="mode-scene" class="mode-panel" data-mode-name="本场">
-        <input id="place-id" data-testid="place-id" placeholder="本场地点" />
-        <input id="telling-ord" data-testid="telling-ord" placeholder="读序" style="width:4em" />
-        <button id="set-telling" data-testid="set-telling">标读序</button>
+        <p class="muted">点卡看这场。点标记看这场里的它。左栏拖进拖出改在场。</p>
+        <p id="scene-kicker" class="muted"></p>
+        <h3>在场</h3>
+        <div id="scene-chips" class="chips"></div>
+        <p class="muted">点标记看这场里的它。地点不能拿空，把另一个地点拖进卡即替换。</p>
         <div class="field-head"><span>价值转折</span><button type="button" class="discuss-btn" data-discuss="value_shift" data-testid="talk-shift">讨论</button></div>
         <input id="value-shift" data-testid="value-shift" placeholder="价值转折，例如 无知→把柄" />
+        <h3>动作 / 对白 / 内心</h3>
         <div id="tracks" data-testid="tracks"></div>
         <textarea id="do-text" data-testid="do-text" class="hidden" placeholder="动作"></textarea>
         <textarea id="say-text" data-testid="say-text" class="hidden" placeholder="对白"></textarea>
         <textarea id="think-text" data-testid="think-text" class="hidden" placeholder="内心"></textarea>
+        <h3>相关未收伏笔</h3>
+        <div id="scene-debts"></div>
+        <div id="warn-list" class="hidden" data-testid="knowledge-warn"></div>
+        <p><button id="commit" data-testid="commit" class="primary">写入正史</button></p>
+        <p class="muted">人点了才进历史。规定情境在「写下一场」。讨论贴在字段旁。</p>
+        <div class="scene-tools">
+          <button id="fill-live" data-testid="fill-live">模型填下一场</button>
+          <button id="fill-fake" data-testid="fill-fake">假模型填场</button>
+          <button id="delete-draft" data-testid="delete-draft">删草稿场</button>
+          <button id="delete-canon" data-testid="delete-canon">删已正史</button>
+        </div>
+        <div id="light-delete-error" data-testid="light-delete-error"></div>
+        <div id="promise-suggest" data-testid="promise-suggest"></div>
+        <button id="ignore-suggest" data-testid="ignore-suggest">忽略建议</button>
+        <div id="paste-suggest" data-testid="paste-suggest"></div>
+        <details id="inspector" data-testid="inspector">
+          <summary>本场按来源分组</summary>
+          <div id="filter-entity" data-testid="filter-entity"></div>
+          <div id="source-groups" data-testid="source-groups">
+            <section data-testid="group-intent"><h5>本场任务</h5><div id="g-intent"></div></section>
+            <section data-testid="group-do"><h5>动作</h5><div id="g-do"></div></section>
+            <section data-testid="group-say"><h5>对白</h5><div id="g-say"></div></section>
+            <section data-testid="group-think"><h5>内心</h5><div id="g-think"></div></section>
+            <section data-testid="group-presence"><h5>在场来源</h5><div id="g-presence"></div></section>
+          </div>
+        </details>
+        <details>
+          <summary>地点、读序、本场变化、知情</summary>
+        <input id="place-id" data-testid="place-id" placeholder="本场地点" />
+        <input id="telling-ord" data-testid="telling-ord" placeholder="读序" style="width:4em" />
+        <button id="set-telling" data-testid="set-telling">标读序</button>
         <div class="row">
           <input id="delta-ent" data-testid="delta-ent" placeholder="实体" />
           <input id="delta-attr" data-testid="delta-attr" placeholder="属性" />
@@ -304,37 +552,31 @@
           <button type="button" id="add-know" data-testid="add-know">加入知情</button>
         </div>
         <div id="know-write-list" data-testid="know-write-list"></div>
-        <button id="fill-fake" data-testid="fill-fake">假模型填场</button>
-        <button id="fill-live" data-testid="fill-live">模型填下一场</button>
-        <div id="warn-list" class="hidden" data-testid="knowledge-warn"></div>
         <label>当众 <input type="radio" name="vis" id="vis-public" data-testid="vis-public" checked /></label>
         <label>私下 <input type="radio" name="vis" id="vis-private" data-testid="vis-private" /></label>
         <input id="visible-to" data-testid="visible-to" placeholder="私下谁会看见，逗号分隔" />
-        <button id="commit" data-testid="commit">写入正史</button>
-        <button id="delete-draft" data-testid="delete-draft">删草稿场</button>
-        <button id="delete-canon" data-testid="delete-canon">删已正史</button>
-        <div id="light-delete-error" data-testid="light-delete-error"></div>
-        <div id="inspector" data-testid="inspector">
-          <h4>本场按来源分组</h4>
-          <div id="filter-entity" data-testid="filter-entity"></div>
-          <div id="source-groups" data-testid="source-groups">
-            <section data-testid="group-intent"><h5>本场任务</h5><div id="g-intent"></div></section>
-            <section data-testid="group-do"><h5>动作</h5><div id="g-do"></div></section>
-            <section data-testid="group-say"><h5>对白</h5><div id="g-say"></div></section>
-            <section data-testid="group-think"><h5>内心</h5><div id="g-think"></div></section>
-            <section data-testid="group-presence"><h5>在场来源</h5><div id="g-presence"></div></section>
-          </div>
-        </div>
-        <div id="promise-suggest" data-testid="promise-suggest"></div>
-        <button id="ignore-suggest" data-testid="ignore-suggest">忽略建议</button>
-        <div id="paste-suggest" data-testid="paste-suggest"></div>
+        </details>
       </div>
       <div id="mode-about" class="mode-panel hidden" data-mode-name="这场·它">
-        <p id="about-why"></p>
+        <p id="about-who"></p>
+        <p id="about-why" class="why"></p>
+        <h3>基本设定</h3>
+        <p class="muted">只读。改基本设定去档案，不在这场改。</p>
+        <div id="about-setup" class="ro"></div>
+        <p><button type="button" id="about-open-dossier">打开档案</button></p>
+        <h3>当场情状</h3>
+        <p class="muted">此刻它什么样。点标记看这一刻，不是另开台账。</p>
         <div id="about-state" data-testid="about-state"></div>
+        <h3>本场变化</h3>
+        <p class="muted">相对上场：开窗、换手、换地。空 = 这场没改它，只是占用。</p>
+        <div id="about-delta"></div>
+        <h3>他知道什么</h3>
         <div id="knows-list" data-testid="knows-list"></div>
-        <button type="button" id="about-prev" data-testid="about-prev">上一场</button>
-        <button type="button" id="about-next" data-testid="about-next">下一场</button>
+        <p id="about-remove-row"></p>
+        <h3>它还出现在哪</h3>
+        <p id="about-nav-meta" class="muted"></p>
+        <p><button type="button" id="about-prev" data-testid="about-prev">上一场</button></p>
+        <p><button type="button" id="about-next" data-testid="about-next">下一场</button></p>
       </div>
       <div id="mode-dossier" class="mode-panel hidden" data-mode-name="档案">
         <p id="dossier-inline"></p>
@@ -350,6 +592,7 @@
           <button id="talk" data-testid="talk" class="discuss-btn" data-discuss="intent">讨论</button>
         </div>
         <p>先写本场任务，再点顶上的「写下一场」。没有本场任务不准写下一场。</p>
+        <div id="write-circ" class="muted"></div>
         <button id="plan-suggest" data-testid="plan-suggest">铺场建议</button>
         <button id="plan-apply" data-testid="plan-apply">落为预场</button>
         <pre id="plan-out" data-testid="plan-out"></pre>
@@ -477,17 +720,12 @@ function setMode(key) {
 }
 function parkSharedFields() {
   const row = $('intent-row');
-  if (row) {
-    const host = (uiMode === 'scene') ? $('mode-scene') : $('mode-write');
-    if (host && row.parentElement !== host) host.insertBefore(row, host.firstChild);
+  if (row && $('mode-write') && row.parentElement !== $('mode-write')) {
+    $('mode-write').insertBefore(row, $('mode-write').firstChild);
   }
   const box = $('write-box');
-  if (box) {
-    if (uiMode === 'talk') {
-      $('mode-talk').appendChild(box);
-    } else if (uiMode === 'scene' && $('fill-live')) {
-      $('mode-scene').insertBefore(box, $('fill-fake') || $('commit'));
-    }
+  if (box && $('mode-talk') && box.parentElement !== $('mode-talk')) {
+    $('mode-talk').appendChild(box);
   }
 }
 function renderSide() {
@@ -511,7 +749,11 @@ function renderSide() {
     const col = (state.columns || []).find(c => c.id === (state.selected_col)) || (state.columns || [])[state.window_start || 0];
     renderNow(col);
   }
-  if (uiMode === 'scene') renderTracks();
+  if (uiMode === 'scene') {
+    renderTracks();
+    renderSceneChips();
+  }
+  if (uiMode === 'about') renderAbout();
 }
 function renderNow(col) {
   const now = $('now-copy');
@@ -529,11 +771,11 @@ function renderNow(col) {
   beats.forEach(b => lines.push('正史 · ' + (b.intent || b.id)));
   drafts.forEach(d => lines.push('草稿 · ' + (d.draft.intent || d.id)));
   const w = state.world || {};
-  const playing = w.playing || [];
+  const playing = (w.playing || []).map(id => entityOf(id).name || id);
   const where = w.where || {};
   if (playing.length) lines.push('此刻在场：' + playing.join('、') + '。');
   const places = Object.keys(where);
-  if (places.length) lines.push('此刻所在：' + places.map(p => p + '在' + where[p]).join('；') + '。');
+  if (places.length) lines.push('此刻所在：' + places.map(p => (entityOf(p).name || p) + '在' + (entityOf(where[p]).name || where[p])).join('；') + '。');
   if (!beats.length && !drafts.length) lines.push('这段故事时间没有戏。空场次 ≠ 省略场。');
   if (human) human.textContent = lines.join('\n');
   if ($('world')) {
@@ -609,11 +851,17 @@ async function api(path, opt={}) {
   return r.text();
 }
 async function refresh() {
-  try { state = await api('/api/state'); } catch { return; }
+  try { state = await api('/api/state'); } catch {
+    renderBookList();
+    return;
+  }
   $('book-label').textContent = state.book || '';
-  $('col-count').textContent = String(state.n);
-  $('minus').disabled = state.n <= 1;
-  $('plus').disabled = state.n >= 6;
+  const totalCols = (state.columns || []).length || 1;
+  const n = state.n || 1;
+  $('col-count').textContent = String(n);
+  if ($('col-total')) $('col-total').textContent = String(totalCols);
+  $('minus').disabled = n <= 1;
+  $('plus').disabled = n >= 6;
   if ($('open-craft')) $('open-craft').disabled = !state.book;
   if (state.selected) currentDraft = state.selected;
   if (state.selected_canon) currentCanon = state.selected_canon;
@@ -663,65 +911,277 @@ function currentBeat() {
   }
   return (state.committed || []).find(b => b.id === currentCanon) || null;
 }
+function defaultSelect() {
+  if (currentDraft || currentCanon) return;
+  const cols = state.columns || [];
+  const start = state.window_start || 0;
+  const firstCol = cols[start] || cols[0];
+  if (!firstCol) return;
+  const c = (state.committed || []).find(b => b.column_id === firstCol.id);
+  const d = (state.drafts || []).find(x => x.draft.column_id === firstCol.id);
+  if (c) currentCanon = c.id;
+  else if (d) currentDraft = d.id;
+}
+function sceneTitleOf(obj, canon) {
+  const b = canon ? obj : (obj.draft || obj);
+  const id = obj.id;
+  if (obj.title && obj.title !== id && obj.title !== '下一场' && obj.title !== '并列') return obj.title;
+  return (b && b.intent) || '未名场';
+}
+function beatMarks(b) {
+  const marks = [];
+  if (!b) return marks;
+  if (b.place_id) marks.push({ id: b.place_id, role: '地' });
+  (b.presences || []).forEach(p => {
+    const ent = entityOf(p.entity_id);
+    if (ent.kind === 'place' && b.place_id && (ent.id === b.place_id || ent.name === b.place_id)) return;
+    marks.push({ id: p.entity_id, role: kindLabel(ent.kind) });
+  });
+  return marks;
+}
+function whyChip(b, mark) {
+  const ent = entityOf(mark.id);
+  const nm = ent.name || mark.id;
+  if (mark.role === '地') return '「' + nm + '」在这张卡上，因为这场发生在这儿。地点不能删空，只能换成别的地点。';
+  if (mark.role === '人') return '「' + nm + '」在这张卡上，因为出场人物里有他。可以拖回左栏拿掉。';
+  if (mark.role === '物') return '「' + nm + '」在这张卡上，因为这场动到了这件道具。';
+  if (mark.role === '组织') return '「' + nm + '」在这张卡上，因为这场动到了这个组织。';
+  if (mark.role === '伏笔') return '「' + nm + '」在这张卡上，因为这场动了这条伏笔。';
+  return '「' + nm + '」在这张卡上，因为这场在场里有它。';
+}
+function allPlayable() {
+  const out = [];
+  (state.committed || []).forEach(b => out.push({ id: b.id, canon: true, beat: b, title: sceneTitleOf(b, true), col: b.column_id, clock: b.clock_from || 0 }));
+  (state.drafts || []).forEach(d => out.push({ id: d.id, canon: false, beat: d.draft, title: sceneTitleOf(d, false), col: d.draft.column_id, clock: d.draft.clock_from || 0 }));
+  const colOrd = {};
+  (state.columns || []).forEach((c, i) => { colOrd[c.id] = i; });
+  out.sort((a, b) => (colOrd[a.col] || 0) - (colOrd[b.col] || 0) || a.clock - b.clock);
+  return out;
+}
+function appearancesOf(eid) {
+  return allPlayable().filter(x => {
+    const marks = beatMarks(x.beat);
+    return marks.some(m => m.id === eid || entityOf(m.id).id === eid || entityOf(m.id).name === entityOf(eid).name);
+  });
+}
+function makeChipEl(b, mark, beatId, canon) {
+  const ent = entityOf(mark.id);
+  const ch = document.createElement('span');
+  ch.className = 'chip';
+  ch.draggable = true;
+  ch.setAttribute('aria-pressed', inspectFilter === mark.id ? 'true' : 'false');
+  const dot = document.createElement('span');
+  dot.className = 'dot';
+  dot.style.background = kindColor(ent.kind);
+  const role = document.createElement('span');
+  role.className = 'role';
+  role.textContent = mark.role;
+  ch.appendChild(dot);
+  ch.appendChild(role);
+  ch.appendChild(document.createTextNode(ent.name || mark.id));
+  ch.dataset.testid = 'chip-' + mark.id;
+  ch.dataset.name = ent.name || mark.id;
+  ch.ondragstart = ev => {
+    ev.stopPropagation();
+    ev.dataTransfer.setData('text/plain', JSON.stringify({
+      type: 'chip',
+      id: mark.id,
+      draft: canon ? null : beatId,
+      canon: canon ? beatId : null
+    }));
+  };
+  ch.onclick = async (ev) => {
+    ev.stopPropagation();
+    inspectFilter = mark.id;
+    await selectBeat(beatId, canon);
+    setMode('about');
+    render();
+  };
+  return ch;
+}
+function renderSceneChips() {
+  const host = $('scene-chips');
+  const kick = $('scene-kicker');
+  if (!host) return;
+  host.innerHTML = '';
+  const b = currentBeat();
+  if (!b) {
+    if (kick) kick.textContent = '还没点一场。点中间的卡。';
+    return;
+  }
+  const canon = !!currentCanon;
+  const id = currentCanon || currentDraft;
+  const status = b.kind === 'ellipsis' ? '省略场' : (canon ? '正史' : '草稿');
+  if (kick) kick.textContent = status + ' · ' + (b.intent || '未写本场任务');
+  const marks = beatMarks(b);
+  if (!marks.length) {
+    host.innerHTML = '<span class="muted">还没有。从左栏拖进来。</span>';
+    return;
+  }
+  marks.forEach(m => host.appendChild(makeChipEl(b, m, id, canon)));
+}
+function renderAbout() {
+  const eid = inspectFilter;
+  const b = currentBeat() || {};
+  const ent = eid ? entityOf(eid) : { id: '', name: '', kind: 'person' };
+  const mark = beatMarks(b).find(m => m.id === eid || entityOf(m.id).id === eid) || { id: eid, role: kindLabel(ent.kind) };
+  const who = $('about-who');
+  if (who) {
+    who.innerHTML = '<span class="dot" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:' +
+      kindColor(ent.kind) + ';margin-right:6px"></span><strong>' + (ent.name || eid || '') + '</strong>';
+  }
+  if ($('side-mode-title')) $('side-mode-title').textContent = '这场 · ' + kindLabel(ent.kind);
+  if ($('about-why')) $('about-why').textContent = eid ? whyChip(b, mark) : '点卡上的标记，看这场里的它。';
+  const setup = [];
+  if (ent.kind) setup.push(kindLabel(ent.kind));
+  if (ent.profile && ent.profile.desire) setup.push(ent.profile.desire);
+  if (ent.profile && ent.profile.aliases) setup.push('别名 ' + ent.profile.aliases);
+  if ($('about-setup')) $('about-setup').textContent = setup.filter(Boolean).join(' · ') || '（空）';
+  const w = state.world || {};
+  const where = w.where || {};
+  const keys = [ent.id, ent.name, eid];
+  const loc = keys.map(k => where[k]).find(Boolean);
+  const playing = w.playing || [];
+  const inPlay = keys.some(k => playing.indexOf(k) >= 0);
+  const stateBits = [];
+  if (loc) stateBits.push('所在：' + loc);
+  if (inPlay) stateBits.push('此刻在场。');
+  if (mark.role === '地' && b.place_id) stateBits.push('这场发生在这儿。');
+  if ($('about-state')) $('about-state').textContent = stateBits.join(' ') || '这场占用它，没有另写情状。';
+  const deltas = (b.deltas || []).filter(d => keys.indexOf(d.entity_id) >= 0);
+  if ($('about-delta')) {
+    $('about-delta').textContent = deltas.length
+      ? deltas.map(d => d.attr + ' → ' + d.value).join('；')
+      : '这场没改它，只是占用。';
+  }
+  const row = $('about-remove-row');
+  if (row) {
+    row.innerHTML = '';
+    const people = presentPeople(b);
+    const isPlace = mark.role === '地' || ent.kind === 'place';
+    const lastPerson = mark.role === '人' && people.length <= 1;
+    if (isPlace) {
+      row.innerHTML = '<span class="muted">地点不能拖空。把另一个地点拖进卡，即替换地点。</span>';
+    } else if (lastPerson) {
+      row.innerHTML = '<span class="muted">场面至少留一个人物。</span>';
+    } else if (eid) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.textContent = '从这场拿掉';
+      btn.onclick = async () => {
+        const payload = { entity_id: eid, action: 'remove' };
+        if (currentDraft) payload.draft_id = currentDraft;
+        else if (currentCanon) payload.canon_id = currentCanon;
+        else return;
+        try {
+          await api('/api/presence', { method: 'POST', body: JSON.stringify(payload) });
+          inspectFilter = '';
+          setMode('scene');
+          refresh();
+        } catch (e) {
+          $('sidebar').textContent = String(e.message || e);
+        }
+      };
+      row.appendChild(btn);
+    }
+  }
+  const apps = eid ? appearancesOf(eid) : [];
+  const curId = currentCanon || currentDraft;
+  const idx = apps.findIndex(x => x.id === curId);
+  if ($('about-nav-meta')) {
+    $('about-nav-meta').textContent = apps.length
+      ? ((idx >= 0 ? (idx + 1) : 0) + ' / ' + apps.length + ' · 连线只导航，不当算出这一刻。')
+      : '这本书里还没有它的场。';
+  }
+  const prev = idx > 0 ? apps[idx - 1] : null;
+  const next = idx >= 0 && idx < apps.length - 1 ? apps[idx + 1] : null;
+  const pb = $('about-prev');
+  const nb = $('about-next');
+  if (pb) {
+    pb.disabled = !prev;
+    pb.textContent = prev ? ('上一场 · ' + prev.title) : '没有上一场';
+    pb.onclick = async () => {
+      if (!prev) return;
+      inspectFilter = eid;
+      await selectBeat(prev.id, prev.canon);
+      setMode('about');
+      render();
+    };
+  }
+  if (nb) {
+    nb.disabled = !next;
+    nb.textContent = next ? ('下一场 · ' + next.title) : '没有下一场';
+    nb.onclick = async () => {
+      if (!next) return;
+      inspectFilter = eid;
+      await selectBeat(next.id, next.canon);
+      setMode('about');
+      render();
+    };
+  }
+  const od = $('about-open-dossier');
+  if (od) od.onclick = () => { if (eid) { setMode('dossier'); openDossier(eid); } };
+  if (eid) drawWires(ent.name || eid);
+}
 function render() {
+  defaultSelect();
   const cols = state.columns || [];
   const start = state.window_start || 0;
   const n = state.n || 1;
   const view = cols.slice(start, start + n);
   const emptyBoard = !(state.committed || []).length && !(state.drafts || []).length;
   $('empty-book').classList.toggle('hidden', !emptyBoard);
+  document.documentElement.style.setProperty('--cols', String(n));
+  const densCls = n <= 2 ? 'is-roomy' : n <= 4 ? 'is-mid' : '';
+  $('cols').className = 'cols ' + densCls;
   $('cols').innerHTML = '';
+  if ($('ruler')) $('ruler').innerHTML = '';
   const maxDur = Math.max(1, ...cols.map(c => Math.max(0, c.clock_to - c.clock_from)));
+  const selectedCol = state.selected_col;
   view.forEach((c, i) => {
     const abs = start + i;
+    const kinds = colKinds(c.id);
+    const on = selectedCol === c.id;
+    if ($('ruler')) {
+      const head = document.createElement('button');
+      head.type = 'button';
+      head.className = 'col-head' + (on ? ' on' : '');
+      head.dataset.colId = c.id;
+      const dur = Math.max(0, c.clock_to - c.clock_from);
+      const w = Math.max(8, Math.round(100 * dur / maxDur));
+      const dots = ['place','person','thing','faction','promise'].map(k =>
+        '<i class="' + (kinds[k] ? 'on' : '') + '" title="' + kindLabel(k) + '"></i>'
+      ).join('');
+      head.innerHTML = '<span class="n">' + (abs + 1) + '</span>' +
+        '<span class="clock">' + c.clock_from + '–' + c.clock_to + '</span>' +
+        '<span class="dur">' + clockLabel(c.clock_from, c.clock_to) + '</span>' +
+        '<div class="lens"><span style="width:' + w + '%"></span></div>' +
+        '<span class="cov">' + dots + '</span>';
+      const handle = document.createElement('button');
+      handle.type = 'button';
+      handle.className = 'handle';
+      handle.dataset.testid = 'col-handle-' + i;
+      handle.setAttribute('aria-label', '拖这一列结束的故事时间');
+      handle.onmousedown = (ev) => { ev.stopPropagation(); previewInvade(c.id); };
+      head.appendChild(handle);
+      head.onclick = (ev) => {
+        if (ev.target.closest('.handle')) return;
+        api('/api/select', { method: 'POST', body: JSON.stringify({ column_id: c.id }) });
+        state.selected_col = c.id;
+        setMode('now');
+        renderNow(c);
+      };
+      $('ruler').appendChild(head);
+    }
     const div = document.createElement('div');
-    div.className = 'col';
+    div.className = 'col' + (on ? ' on' : '');
     div.dataset.testid = 'column-' + i;
     div.dataset.colId = c.id;
-    const head = document.createElement('h4');
-    head.className = 'col-head';
-    head.textContent = String(abs + 1);
-    head.onclick = () => {
-      api('/api/select', { method: 'POST', body: JSON.stringify({ column_id: c.id }) });
-      setMode('now');
-      renderNow(c);
-    };
-    const clock = document.createElement('div');
-    clock.className = 'col-clock';
-    clock.textContent = c.clock_from + '–' + c.clock_to;
-    const dur = document.createElement('div');
-    dur.className = 'col-dur';
-    dur.textContent = clockLabel(c.clock_from, c.clock_to);
-    const lens = document.createElement('div');
-    lens.className = 'col-lens';
-    const bar = document.createElement('i');
-    bar.style.width = Math.max(8, Math.round(100 * Math.max(0, c.clock_to - c.clock_from) / maxDur)) + '%';
-    lens.appendChild(bar);
-    const dots = document.createElement('div');
-    dots.className = 'cover-dots';
-    const kinds = colKinds(c.id);
-    ['place','person','thing','faction','promise'].forEach(k => {
-      const s = document.createElement('span');
-      s.className = 'kind-' + k + (kinds[k] ? ' on' : '');
-      s.title = kindLabel(k);
-      dots.appendChild(s);
-    });
-    div.appendChild(head);
-    div.appendChild(clock);
-    div.appendChild(dur);
-    div.appendChild(lens);
-    div.appendChild(dots);
-    const handle = document.createElement('div');
-    handle.className = 'col-handle';
-    handle.dataset.testid = 'col-handle-' + i;
-    handle.title = '拖列右缘';
-    handle.onmousedown = () => previewInvade(c.id);
-    div.appendChild(handle);
     const committed = (state.committed || []).filter(b => b.column_id === c.id);
     const drafts = (state.drafts || []).filter(d => d.draft.column_id === c.id);
     if (!committed.length && !drafts.length) {
-      const empty = document.createElement('p');
-      empty.className = 'empty-col';
+      const empty = document.createElement('div');
+      empty.className = 'card is-spare';
       empty.dataset.testid = 'empty-col-' + i;
       empty.textContent = '这段故事时间没有戏。空场次 ≠ 省略场。';
       div.appendChild(empty);
@@ -735,6 +1195,9 @@ function render() {
   renderRail();
   renderMinimap();
   const beat = currentBeat() || {};
+  if (beat && $('value-shift') && document.activeElement !== $('value-shift')) {
+    $('value-shift').value = beat.value_shift || '';
+  }
   const intentVal = ($('intent').value || beat.intent || '').trim();
   if ($('talk')) $('talk').disabled = !currentDraft || !intentVal;
   if ($('plan-suggest')) $('plan-suggest').disabled = !(currentDraft || currentCanon) || !intentVal;
@@ -747,6 +1210,36 @@ function render() {
   loadKnows();
   renderSide();
   renderFilterBanner();
+  drawWires(inspectFilter ? (entityOf(inspectFilter).name || inspectFilter) : '');
+}
+function drawWires(focus) {
+  const svg = $('wires');
+  if (!svg) return;
+  svg.innerHTML = '';
+  if (!focus) return;
+  const wrap = document.querySelector('.board-wrap');
+  if (!wrap) return;
+  const wr = wrap.getBoundingClientRect();
+  const nodes = [...wrap.querySelectorAll('.chip')].filter(el => el.dataset.name === focus);
+  if (nodes.length < 2) return;
+  svg.setAttribute('viewBox', '0 0 ' + wrap.scrollWidth + ' ' + Math.max(wrap.scrollHeight, wrap.clientHeight));
+  svg.style.width = wrap.scrollWidth + 'px';
+  svg.style.height = Math.max(wrap.scrollHeight, wrap.clientHeight) + 'px';
+  const pts = nodes.map(el => {
+    const r = el.getBoundingClientRect();
+    return { x: r.left - wr.left + wrap.scrollLeft + r.width / 2, y: r.top - wr.top + wrap.scrollTop + r.height / 2 };
+  });
+  for (let i = 0; i < pts.length - 1; i++) {
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    const a = pts[i], b = pts[i + 1];
+    const mx = (a.x + b.x) / 2;
+    line.setAttribute('d', 'M' + a.x + ' ' + a.y + ' C ' + mx + ' ' + a.y + ', ' + mx + ' ' + b.y + ', ' + b.x + ' ' + b.y);
+    line.setAttribute('fill', 'none');
+    line.setAttribute('stroke', 'var(--brass)');
+    line.setAttribute('stroke-width', '1.4');
+    line.setAttribute('opacity', '0.85');
+    svg.appendChild(line);
+  }
 }
 function renderMinimap() {
   const cols = state.columns || [];
@@ -833,6 +1326,7 @@ function renderRail() {
       filt.className = 'rail-act';
       filt.dataset.testid = 'rail-filter-' + e.id;
       filt.textContent = '场';
+      filt.setAttribute('aria-pressed', railFilterEntity === e.id ? 'true' : 'false');
       filt.onclick = ev => {
         ev.stopPropagation();
         railFilterEntity = railFilterEntity === e.id ? '' : e.id;
@@ -852,6 +1346,7 @@ function renderRail() {
   const total = (state.entities || []).length;
   const pageN = Object.values(groups).reduce((n, a) => n + a.length, 0);
   $('lib-meta').textContent = '本页 ' + pageN + ' 项 · 设定共 ' + total + ' 项';
+  if ($('lib-title')) $('lib-title').textContent = searching ? '设定 · 搜全书' : '设定 · 当前这几列';
 }
 function renderFilterBanner() {
   const bar = $('filter-banner');
@@ -880,11 +1375,19 @@ function renderCard(obj, canon) {
   const card = document.createElement('div');
   const leak = !canon && lastFindings.some(f => f.code === 'knowledge_leak');
   const n = state.n || 1;
-  card.className = 'card ' + (canon ? 'canon' : 'draft') + (leak ? ' warn' : '');
-  if (b.kind === 'ellipsis') card.classList.add('ellipsis');
-  if (b.kind === 'flashback' || b.flashback) card.classList.add('flashback');
-  if (b.visible_to && b.visible_to.length) card.classList.add('off-reader');
-  if (!canon && (obj.title === '预场' || (id || '').indexOf('pre') === 0)) card.classList.add('pre');
+  const isPre = !canon && (obj.title === '预场' || String(id).indexOf('pre') === 0);
+  const off = !!(b.visible_to && b.visible_to.length && $('vis-private') && $('vis-private').checked);
+  card.className = 'card';
+  if (canon) card.classList.add('canon');
+  else card.classList.add('draft', 'is-draft');
+  if (b.kind === 'ellipsis') card.classList.add('is-ellipsis', 'ellipsis');
+  if (b.kind === 'flashback' || b.flashback) card.classList.add('is-flash');
+  if (off) card.classList.add('is-off');
+  if (leak) card.classList.add('warn');
+  const selected = (!canon && currentDraft === id) || (canon && currentCanon === id);
+  card.setAttribute('aria-selected', selected ? 'true' : 'false');
+  card.tabIndex = 0;
+  card.setAttribute('role', 'button');
   card.dataset.testid = (canon ? 'card-' : 'draft-') + id;
   if (leak) card.dataset.knowledgeWarn = '1';
   card.dataset.draftId = canon ? '' : id;
@@ -895,39 +1398,31 @@ function renderCard(obj, canon) {
   };
   const dense = n >= 5;
   const mid = n >= 3 && n <= 4;
-  const title = document.createElement('b');
-  title.textContent = (obj.title || id) + (b.telling_ord != null ? ' 读序' + b.telling_ord : '');
+  let status = canon ? '正史' : '草稿';
+  if (b.kind === 'ellipsis') status = '省略场';
+  if (isPre) status = '预场';
+  if (off) status = '不在读者眼前';
+  if (leak) status = '知情穿帮';
+  const kicker = document.createElement('div');
+  kicker.className = 'kicker';
+  const badge = document.createElement('span');
+  badge.className = 'badge' + (leak ? ' warn' : '');
+  badge.textContent = status;
+  if (isPre) badge.dataset.testid = 'pre-badge-' + id;
+  kicker.appendChild(badge);
+  card.appendChild(kicker);
+  const title = document.createElement('div');
+  title.className = 'title';
+  const sceneTitle = (obj.title && obj.title !== id && obj.title !== '下一场' && obj.title !== '并列')
+    ? obj.title
+    : (b.intent || '未名场');
+  title.textContent = sceneTitle;
   card.appendChild(title);
-  if (!canon && (obj.title === '预场' || (id || '').indexOf('pre') === 0)) {
-    const pre = document.createElement('span');
-    pre.className = 'badge';
-    pre.textContent = '预';
-    pre.dataset.testid = 'pre-badge-' + id;
-    card.appendChild(pre);
-  }
-  if (b.kind === 'ellipsis') {
-    const badge = document.createElement('span');
-    badge.className = 'badge';
-    badge.textContent = '省略场';
-    card.appendChild(badge);
-  }
-  if (b.kind === 'flashback' || b.flashback) {
-    const badge = document.createElement('span');
-    badge.className = 'badge';
-    badge.textContent = '闪回';
-    card.appendChild(badge);
-  }
-  if (b.visible_to && b.visible_to.length) {
-    const badge = document.createElement('span');
-    badge.className = 'badge';
-    badge.textContent = '不在读者眼前';
-    card.appendChild(badge);
-  }
-  if (leak || (b.strict)) {
-    const badge = document.createElement('span');
-    badge.className = 'badge warn';
-    badge.textContent = leak ? '知情穿帮' : String(b.strict);
-    card.appendChild(badge);
+  if (b.intent && sceneTitle !== b.intent && !dense) {
+    const sum = document.createElement('div');
+    sum.className = 'sum';
+    sum.textContent = b.intent;
+    card.appendChild(sum);
   }
   if (!canon && obj.stale_world) {
     card.classList.add('warn');
@@ -952,70 +1447,41 @@ function renderCard(obj, canon) {
     card.appendChild(regen);
   }
   if (!dense && !mid) {
-    const intent = document.createElement('div');
-    intent.textContent = b.intent || '';
-    card.appendChild(intent);
     tracksOf(b).forEach(tr => {
       const blk = document.createElement('div');
-      blk.className = 'track-block';
+      blk.className = 'card-tr';
       blk.dataset.testid = 'card-track-' + tr.person_id;
-      blk.innerHTML = '<div class="who">' + (entityOf(tr.person_id).name || tr.person_id) + '</div>' +
-        (tr.do_text ? '<p>动作 ' + tr.do_text + '</p>' : '') +
-        (tr.say_text ? '<p>对白 ' + tr.say_text + '</p>' : '') +
-        (tr.think_text ? '<p>内心 ' + tr.think_text + '</p>' : '');
+      const who = document.createElement('b');
+      who.textContent = entityOf(tr.person_id).name || tr.person_id;
+      blk.appendChild(who);
+      if (tr.do_text) { const s = document.createElement('span'); s.textContent = '动作 ' + tr.do_text; blk.appendChild(s); }
+      if (tr.say_text) { const s = document.createElement('span'); s.textContent = '对白 ' + tr.say_text; blk.appendChild(s); }
+      if (tr.think_text) { const s = document.createElement('span'); s.textContent = '内心 ' + tr.think_text; blk.appendChild(s); }
       card.appendChild(blk);
     });
   } else if (mid) {
-    const intent = document.createElement('div');
-    intent.textContent = b.intent || '';
-    card.appendChild(intent);
     const vs = document.createElement('div');
-    vs.textContent = '价值转折：' + (b.value_shift || '无');
-    card.appendChild(vs);
+    vs.className = 'val';
+    vs.textContent = b.value_shift ? ('价值转折 · ' + b.value_shift) : '';
+    if (vs.textContent) card.appendChild(vs);
   }
   const chips = document.createElement('div');
-  (b.presences || []).forEach(p => {
-    const ch = document.createElement('span');
-    ch.className = 'chip';
-    ch.draggable = true;
-    const ent = (state.entities || []).find(e => e.id === p.entity_id || e.name === p.entity_id) || {};
-    const dot = document.createElement('span');
-    dot.className = 'dot kind-' + (ent.kind || 'person');
-    dot.style.background = kindColor(ent.kind);
-    ch.appendChild(dot);
-    ch.appendChild(document.createTextNode(kindLabel(ent.kind) + ' ' + (ent.name || p.entity_id)));
-    ch.dataset.testid = 'chip-' + p.entity_id;
-    ch.ondragstart = ev => {
-      ev.stopPropagation();
-      ev.dataTransfer.setData('text/plain', JSON.stringify({
-        type: 'chip',
-        id: p.entity_id,
-        draft: canon ? null : id,
-        canon: canon ? id : null
-      }));
-    };
-    ch.onclick = ev => {
-      ev.stopPropagation();
-      inspectFilter = p.entity_id;
-      selectBeat(id, canon);
-      $('about-why').textContent = '「' + p.entity_id + '」在这张卡上，因为这场在场里有它。';
-      setMode('about');
-      renderInspector();
-    };
-    chips.appendChild(ch);
-  });
+  chips.className = 'chips';
+  beatMarks(b).forEach(m => chips.appendChild(makeChipEl(b, m, id, canon)));
   card.appendChild(chips);
-  card.onclick = () => {
+  card.onclick = async () => {
     inspectFilter = '';
-    selectBeat(id, canon);
     if (!canon) {
       $('intent').value = b.intent || '';
       $('do-text').value = b.do_text || '';
       $('say-text').value = b.say_text || '';
       $('think-text').value = b.think_text || '';
     }
+    if ($('value-shift')) $('value-shift').value = b.value_shift || '';
+    if ($('place-id') && b.place_id) $('place-id').value = b.place_id;
+    await selectBeat(id, canon);
     setMode('scene');
-    renderInspector();
+    render();
   };
   card.addEventListener('dragover', e => e.preventDefault());
   card.addEventListener('drop', e => onDropCard(e, b.column_id, canon ? null : id));
@@ -1067,11 +1533,11 @@ function renderTracks() {
     blk.dataset.testid = 'track-' + tr.person_id;
     const who = entityOf(tr.person_id).name || tr.person_id;
     blk.innerHTML = '<div class="who">' + who + '</div>' +
-      '<div class="field-head"><span>动作</span><button type="button" class="discuss-btn" data-discuss="track|' + idx + '|do_text">讨论</button></div>' +
+      '<div class="field-head"><span><b>动作</b></span><button type="button" class="discuss-btn" data-discuss="track|' + idx + '|do_text">讨论</button></div>' +
       '<textarea data-track="' + idx + '" data-f="do_text" rows="2">' + (tr.do_text || '') + '</textarea>' +
-      '<div class="field-head"><span>对白</span><button type="button" class="discuss-btn" data-discuss="track|' + idx + '|say_text">讨论</button></div>' +
+      '<div class="field-head"><span><b>对白</b></span><button type="button" class="discuss-btn" data-discuss="track|' + idx + '|say_text">讨论</button></div>' +
       '<textarea data-track="' + idx + '" data-f="say_text" rows="2">' + (tr.say_text || '') + '</textarea>' +
-      '<div class="field-head"><span>内心</span><button type="button" class="discuss-btn" data-discuss="track|' + idx + '|think_text">讨论</button></div>' +
+      '<div class="field-head"><span><b>内心</b></span><button type="button" class="discuss-btn" data-discuss="track|' + idx + '|think_text">讨论</button></div>' +
       '<textarea data-track="' + idx + '" data-f="think_text" rows="2">' + (tr.think_text || '') + '</textarea>';
     host.appendChild(blk);
   });
@@ -1680,7 +2146,17 @@ async function loadCircumstances() {
     side.push('本场默认谁会看见：' + ((pkt.default_witnesses || []).join('、') || '无'));
     side.push('上场价值转折：' + (pkt.last_value_shift || '无'));
     side.push('未收伏笔：' + ((pkt.open_promises || []).map(x => x.name || x.id).join('、') || '无'));
-    $('sidebar').textContent = side.join('\n');
+    if ($('write-circ')) $('write-circ').textContent = side.join('\n');
+    const debts = $('scene-debts');
+    if (debts) {
+      const open = pkt.open_promises || [];
+      debts.innerHTML = open.length
+        ? open.slice(0, 5).map(x => '<div class="debt">' + (x.name || x.id) + ' · 未收</div>').join('')
+        : '<p class="muted">这场没动伏笔。</p>';
+    }
+    if (uiMode !== 'scene' && uiMode !== 'about') {
+      $('sidebar').textContent = '';
+    }
     if (p.suggestion && !ignoreSuggestion) {
       $('promise-suggest').textContent = '建议：' + p.suggestion.op + ' ' + p.suggestion.promise_id;
       $('ignore-suggest').classList.remove('hidden');
@@ -1693,7 +2169,20 @@ async function loadCircumstances() {
 async function loadKnows() {
   try {
     const k = await api('/api/knows');
-    const lines = Object.entries(k.knows || {}).map(([p, fs]) => p + '：' + (fs || []).join('、'));
+    const all = k.knows || {};
+    let lines;
+    if (uiMode === 'about' && inspectFilter) {
+      const ent = entityOf(inspectFilter);
+      if (ent.kind && ent.kind !== 'person') {
+        $('knows-list').textContent = '知情只挂在人物上。';
+        return;
+      }
+      const keys = [ent.id, ent.name, inspectFilter];
+      const facts = keys.map(x => all[x]).find(Boolean) || [];
+      lines = facts.length ? [(ent.name || inspectFilter) + '：' + facts.join('、')] : [(ent.name || inspectFilter) + '：无'];
+    } else {
+      lines = Object.entries(all).map(([p, fs]) => p + '：' + (fs || []).join('、'));
+    }
     $('knows-list').textContent = lines.join('\n') || '他知道什么：无';
   } catch {
     $('knows-list').textContent = '';

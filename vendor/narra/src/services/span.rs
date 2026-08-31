@@ -197,4 +197,19 @@ mod tests {
     fn reject_empty_bones() {
         assert!(parse_plan_content("{\"summary\":\"刀\",\"bones\":[]}", &["刀在抽屉".into()]).is_err());
     }
+
+    #[test]
+    fn keep_bone_with_necessity() {
+        let raw = r#"{"summary":"刀在抽屉还没被看见","bones":[{"serial":true,"intent":"阿莲路过灶边","presence":["阿莲"],"necessity":"这场没有，揭穿会变成她凭空知道刀在哪"}]}"#;
+        let (summary, bones) = parse_plan_content(raw, &["刀在抽屉".into()]).unwrap();
+        assert!(summary.contains("刀"));
+        assert_eq!(bones.len(), 1);
+        assert!(bones[0].necessity.contains("凭空知道"));
+    }
+
+    #[test]
+    fn drop_parallel_without_meet() {
+        let raw = r#"{"summary":"刀在抽屉","bones":[{"serial":false,"intent":"阿福走开","presence":["阿福"],"necessity":"没有这场目标会塌"}]}"#;
+        assert!(parse_plan_content(raw, &["刀在抽屉".into()]).is_err());
+    }
 }

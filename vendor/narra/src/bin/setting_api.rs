@@ -17,7 +17,7 @@ use narra::services::span::{
     parse_plan_content, plan_system_prompt, span_circumstances, PlanBone,
 };
 use narra::services::world::{
-    BeatDraft, Column, Entity, Presence, Promise, ROLE_PRESENT, STATUS_COMMITTED, World,
+    BeatDraft, Canon, Column, Entity, Presence, Promise, ROLE_PRESENT, STATUS_COMMITTED, World,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -55,6 +55,24 @@ struct UiDraft {
     id: String,
     title: String,
     draft: BeatDraft,
+    /// 细稿是按写入历史之前的世界生成的，须标出来并能重生成。
+    #[serde(default)]
+    stale_world: bool,
+    /// 已经把模型填场写进草稿格子（不是占位句）。
+    #[serde(default)]
+    filled: bool,
+}
+
+impl UiDraft {
+    fn new(id: String, title: impl Into<String>, draft: BeatDraft) -> Self {
+        Self {
+            id,
+            title: title.into(),
+            draft,
+            stale_world: false,
+            filled: false,
+        }
+    }
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -143,6 +161,11 @@ struct WorldQ {
 }
 
 #[derive(Deserialize)]
+struct TalkGetQ {
+    id: Option<String>,
+}
+
+#[derive(Deserialize)]
 struct StructPreview {
     op: String,
     column_id: Option<String>,
@@ -172,6 +195,7 @@ struct UiState {
     selected_canon: Option<String>,
     paste_suggestions: Vec<PasteSuggest>,
     fill_pending: Option<BeatDraft>,
+    talk_log: Vec<serde_json::Value>,
 }
 
 fn html() -> &'static str {
@@ -263,6 +287,16 @@ fn talk_file(root: &std::path::Path, book: &str, draft_id: &str) -> PathBuf {
     root.join(book).join("talk").join(format!("{draft_id}.jsonl"))
 }
 
+fn read_talk_lines(root: &std::path::Path, book: &str, draft_id: &str) -> Vec<serde_json::Value> {
+    let Ok(s) = std::fs::read_to_string(talk_file(root, book, draft_id)) else {
+        return vec![];
+    };
+    s.lines()
+        .filter(|l| !l.trim().is_empty())
+        .filter_map(|l| serde_json::from_str(l).ok())
+        .collect()
+}
+
 fn append_talk_line(root: &std::path::Path, book: &str, draft_id: &str, line: &serde_json::Value) {
     let path = talk_file(root, book, draft_id);
     let _ = std::fs::create_dir_all(path.parent().unwrap());
@@ -273,6 +307,41 @@ fn append_talk_line(root: &std::path::Path, book: &str, draft_id: &str, line: &s
         .open(&path)
     {
         let _ = writeln!(f, "{line}");
+    }
+}
+
+fn mark_later_filled_stale(drafts: &mut [UiDraft], after_clock_from: i64) {
+    for d in drafts.iter_mut() {
+        if d.filled && d.draft.clock_from > after_clock_from {
+            d.stale_world = true;
+        }
+    }
+}
+
+fn plan_window(canon: &Canon, goal: &BeatDraft) -> Result<(i64, i64), String> {
+    let mut cols = canon.columns.clone();
+    cols.sort_by_key(|c| c.display_ord);
+    let Some(goal_col) = cols.iter().find(|c| c.id == goal.column_id) else {
+        return Err("目标场没有列".into());
+    };
+    let last = canon
+        .beats
+        .iter()
+        .filter(|b| b.status == STATUS_COMMITTED)
+        .max_by_key(|b| b.clock_to);
+    let from = last.map(|b| b.clock_to).unwrap_or(0);
+    let last_ord = last
+        .and_then(|b| cols.iter().find(|c| c.id == b.column_id))
+        .map(|c| c.display_ord)
+        .unwrap_or(-1);
+    let mut to = goal.clock_from;
+    if to <= from && goal_col.display_ord > last_ord {
+        to = goal.clock_to;
+    }
+    if to <= from {
+        Err("两列之间没有故事时间可铺，先确认后移或借时间".into())
+    } else {
+        Ok((from, to))
     }
 }
 
@@ -368,7 +437,7 @@ async fn main() {
         .route("/api/knows", get(knows_list))
         .route("/api/telling", post(set_telling))
         .route("/api/fill-live", post(fill_live))
-        .route("/api/talk", post(do_talk))
+        .route("/api/talk", get(get_talk).post(do_talk))
         .route("/api/plan-suggest", post(plan_suggest))
         .route("/api/plan-apply", post(plan_apply))
         .route("/api/paste/apply", post(paste_apply))
@@ -451,7 +520,7 @@ async fn open_book(
     }))
 }
 
-async fn snapshot(sess: &BookSess, name: &str) -> Result<UiState, String> {
+async fn snapshot(sess: &BookSess, name: &str, data_root: &std::path::Path) -> Result<UiState, String> {
     let canon = sess.book.load_canon().await.map_err(|e| e.to_string())?;
     let t = sess
         .drafts
@@ -478,6 +547,16 @@ async fn snapshot(sess: &BookSess, name: &str) -> Result<UiState, String> {
     } else {
         columns.sort_by_key(|c| c.display_ord);
     }
+    let talk_id = sess
+        .selected
+        .clone()
+        .or_else(|| sess.selected_canon.clone())
+        .unwrap_or_default();
+    let talk_log = if talk_id.is_empty() {
+        vec![]
+    } else {
+        read_talk_lines(data_root, name, &talk_id)
+    };
     Ok(UiState {
         book: Some(name.into()),
         n: sess.n,
@@ -493,6 +572,7 @@ async fn snapshot(sess: &BookSess, name: &str) -> Result<UiState, String> {
         selected_canon: sess.selected_canon.clone(),
         paste_suggestions: sess.paste_suggestions.clone(),
         fill_pending: sess.fill_pending.clone(),
+        talk_log,
     })
 }
 
@@ -503,7 +583,7 @@ async fn state(State(app): State<App>) -> Result<Json<UiState>, (StatusCode, Str
         .clone()
         .ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
     let sess = g.books.get(&name).unwrap();
-    let st = snapshot(sess, &name)
+    let st = snapshot(sess, &name, &app.data_root)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
     Ok(Json(st))
@@ -621,6 +701,8 @@ async fn patch_draft(
             if f.think_text.is_some() {
                 d.draft.think_text = f.think_text;
             }
+            d.filled = true;
+            d.stale_world = false;
             sess.fill_pending = None;
         }
     }
@@ -756,7 +838,14 @@ async fn do_commit(
     }
     match sess.book.commit(ui.draft.clone()).await {
         Ok(b) => {
+            mark_later_filled_stale(&mut sess.drafts, b.clock_from);
             persist_drafts(&app.data_root, &name, &sess.drafts);
+            let stale_ids: Vec<String> = sess
+                .drafts
+                .iter()
+                .filter(|d| d.stale_world)
+                .map(|d| d.id.clone())
+                .collect();
             Ok(Json(serde_json::json!({
             "ok": true,
             "id": b.id,
@@ -767,6 +856,8 @@ async fn do_commit(
             "presences": b.presences,
             "warnings": report.findings,
             "auto_canon": false,
+            "stale_ids": stale_ids,
+            "stale_notice": if stale_ids.is_empty() { serde_json::Value::Null } else { serde_json::json!("按旧世界生成") },
         })))
         }
         Err(e) => {
@@ -851,10 +942,10 @@ async fn write_next(
             .map(|d| d.as_millis())
             .unwrap_or(0)
     );
-    sess.drafts.push(UiDraft {
-        id: id.clone(),
-        title: "下一场".into(),
-        draft: BeatDraft {
+    sess.drafts.push(UiDraft::new(
+        id.clone(),
+        "下一场",
+        BeatDraft {
             id: Some(id.clone()),
             kind: "scene".into(),
             column_id: last.id.clone(),
@@ -871,7 +962,7 @@ async fn write_next(
             presences: vec![],
             ..BeatDraft::default()
         },
-    });
+    ));
     sess.selected = Some(id.clone());
     persist_drafts(&app.data_root, &name, &sess.drafts);
     Ok(Json(serde_json::json!({"id": id, "appended_last": true, "column_id": last.id})))
@@ -919,10 +1010,10 @@ async fn write_parallel(
             .map(|d| d.as_millis())
             .unwrap_or(0)
     );
-    sess.drafts.push(UiDraft {
-        id: id.clone(),
-        title: "并列".into(),
-        draft: BeatDraft {
+    sess.drafts.push(UiDraft::new(
+        id.clone(),
+        "并列",
+        BeatDraft {
             id: Some(id.clone()),
             kind: "scene".into(),
             column_id: c.id.clone(),
@@ -934,7 +1025,7 @@ async fn write_parallel(
             place_id,
             ..BeatDraft::default()
         },
-    });
+    ));
     sess.selected = Some(id.clone());
     persist_drafts(&app.data_root, &name, &sess.drafts);
     Ok(Json(serde_json::json!({"id": id, "column_id": c.id, "clock_from": c.clock_from, "clock_to": c.clock_to})))
@@ -1380,10 +1471,10 @@ async fn structure_confirm(
                         .map(|d| d.as_millis())
                         .unwrap_or(0)
                 );
-                sess.drafts.push(UiDraft {
-                    id: eid.clone(),
-                    title: "空场".into(),
-                    draft: BeatDraft {
+                sess.drafts.push(UiDraft::new(
+                    eid.clone(),
+                    "空场",
+                    BeatDraft {
                         id: Some(eid),
                         kind: "scene".into(),
                         column_id: new_id,
@@ -1392,7 +1483,7 @@ async fn structure_confirm(
                         clock_to: new_to,
                         ..BeatDraft::default()
                     },
-                });
+                ));
                 persist_drafts(&app.data_root, &name, &sess.drafts);
             }
         }
@@ -1453,10 +1544,10 @@ async fn structure_confirm(
                             .map(|d| d.as_millis())
                             .unwrap_or(0)
                     );
-                    sess.drafts.push(UiDraft {
-                        id: eid.clone(),
-                        title: "省略场".into(),
-                        draft: BeatDraft {
+                    sess.drafts.push(UiDraft::new(
+                        eid.clone(),
+                        "省略场",
+                        BeatDraft {
                             id: Some(eid),
                             kind: "ellipsis".into(),
                             column_id: cols[j].id.clone(),
@@ -1465,7 +1556,7 @@ async fn structure_confirm(
                             clock_to: cols[j].clock_to,
                             ..BeatDraft::default()
                         },
-                    });
+                    ));
                     persist_drafts(&app.data_root, &name, &sess.drafts);
                 }
                 _ => {
@@ -2133,6 +2224,31 @@ async fn fill_live(
     })))
 }
 
+async fn get_talk(
+    State(app): State<App>,
+    Query(q): Query<TalkGetQ>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    let g = app.inner.lock().await;
+    let name = g.current.clone().ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
+    let sess = g.books.get(&name).unwrap();
+    let id = q
+        .id
+        .filter(|s| !s.is_empty())
+        .or_else(|| sess.selected.clone())
+        .or_else(|| sess.selected_canon.clone())
+        .unwrap_or_default();
+    if id.is_empty() {
+        return Err((StatusCode::BAD_REQUEST, "没有场".into()));
+    }
+    let lines = read_talk_lines(&app.data_root, &name, &id);
+    Ok(Json(serde_json::json!({
+        "id": id,
+        "lines": lines,
+        "notice": "讨论不是历史",
+        "auto_canon": false,
+    })))
+}
+
 async fn do_talk(
     State(app): State<App>,
     Json(body): Json<serde_json::Value>,
@@ -2222,24 +2338,16 @@ async fn plan_suggest(
     if goal_draft.intent.trim().is_empty() {
         return Err((StatusCode::BAD_REQUEST, "目标场没有本场任务，不能给铺场建议".into()));
     }
-    let mut cols = canon.columns.clone();
-    cols.sort_by_key(|c| c.display_ord);
-    let Some(goal_col) = cols.iter().find(|c| c.id == goal_draft.column_id) else {
-        return Err((StatusCode::BAD_REQUEST, "目标场没有列".into()));
+    let (from, to) = match plan_window(&canon, &goal_draft) {
+        Ok(w) => w,
+        Err(notice) => {
+            return Ok(Json(serde_json::json!({
+                "need_structure": true,
+                "options": ["后移", "借时间"],
+                "notice": notice,
+            })));
+        }
     };
-    let prev = cols
-        .iter()
-        .filter(|c| c.display_ord < goal_col.display_ord)
-        .max_by_key(|c| c.display_ord);
-    let from = prev.map(|c| c.clock_to).unwrap_or(0);
-    let to = goal_col.clock_from;
-    if to <= from {
-        return Ok(Json(serde_json::json!({
-            "need_structure": true,
-            "options": ["后移", "借时间"],
-            "notice": "两列之间没有故事时间可铺，先确认变更",
-        })));
-    }
     let world = sess
         .book
         .world_at(from.saturating_sub(1).max(0), None)
@@ -2254,9 +2362,16 @@ async fn plan_suggest(
         facts.push(p.name.clone());
     }
     facts.push(goal_draft.intent.clone());
+    let fact_list = facts
+        .iter()
+        .filter(|f| !f.trim().is_empty())
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
     let user = format!(
-        "目标场任务：{}\n区间规定情境：\n{}\n",
+        "目标场任务：{}\n这一截已经为真、正在起作用的事（总述必须说到其中一件正在起作用的事，用这件事本身说，不要空喊加强冲突）：\n{}\n区间规定情境：\n{}\n",
         goal_draft.intent,
+        fact_list,
         serde_json::to_string_pretty(&span).unwrap_or_else(|_| "{}".into())
     );
     let content = call_chat(plan_system_prompt(), &user).await?;
@@ -2267,6 +2382,7 @@ async fn plan_suggest(
         "bones": bones,
         "span": span,
         "persisted": false,
+        "need_mid": true,
         "notice": "建议不进历史，刷新即消失，除非你点落为预场",
     })))
 }
@@ -2298,12 +2414,104 @@ async fn plan_apply(
         .load_canon()
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-    let last = canon
-        .columns
-        .iter()
-        .max_by_key(|c| c.display_ord)
-        .cloned()
-        .ok_or((StatusCode::BAD_REQUEST, "没有列".into()))?;
+    let (place_col, clock_from, clock_to) = if mode == "mid" {
+        let goal_id = body.get("goal_id").and_then(|v| v.as_str()).unwrap_or("");
+        let goal_draft = if let Some(d) = sess.drafts.iter().find(|d| d.id == goal_id) {
+            d.draft.clone()
+        } else if let Some(b) = canon.beats.iter().find(|b| b.id == goal_id) {
+            BeatDraft {
+                id: Some(b.id.clone()),
+                kind: b.kind.clone(),
+                column_id: b.column_id.clone(),
+                intent: b.intent.clone(),
+                clock_from: b.clock_from,
+                clock_to: b.clock_to,
+                place_id: b.place_id.clone(),
+                presences: b.presences.clone(),
+                ..BeatDraft::default()
+            }
+        } else {
+            return Err((StatusCode::BAD_REQUEST, "没有目标场".into()));
+        };
+        let mut cols = canon.columns.clone();
+        cols.sort_by_key(|c| c.display_ord);
+        let gi = cols
+            .iter()
+            .position(|c| c.id == goal_draft.column_id)
+            .ok_or((StatusCode::BAD_REQUEST, "目标场没有列".into()))?;
+        let last = canon
+            .beats
+            .iter()
+            .filter(|b| b.status == STATUS_COMMITTED)
+            .max_by_key(|b| b.clock_to);
+        let last_ord = last
+            .and_then(|b| cols.iter().find(|c| c.id == b.column_id))
+            .map(|c| c.display_ord)
+            .unwrap_or(-1);
+        if let Some(c) = cols
+            .iter()
+            .find(|c| c.display_ord > last_ord && c.display_ord < cols[gi].display_ord)
+            .cloned()
+        {
+            (c.id, c.clock_from, c.clock_to)
+        } else {
+            let dur = 60_i64;
+            let insert_from = if gi == 0 {
+                cols[0].clock_from
+            } else {
+                cols[gi - 1].clock_to
+            };
+            for c in cols.iter_mut().skip(gi) {
+                c.clock_from += dur;
+                c.clock_to += dur;
+            }
+            let next = cols.iter().map(|c| c.display_ord).max().unwrap_or(-1) + 1;
+            let new_id = format!("col{next}");
+            cols.insert(
+                gi,
+                Column {
+                    id: new_id.clone(),
+                    clock_from: insert_from,
+                    clock_to: insert_from + dur,
+                    display_ord: next,
+                },
+            );
+            for (i, c) in cols.iter_mut().enumerate() {
+                c.display_ord = i as i64;
+            }
+            SettingBook::preview_columns(&cols)
+                .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+            sess.book
+                .confirm_columns(cols.clone())
+                .await
+                .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+            for d in sess.drafts.iter_mut() {
+                if let Some(c) = cols.iter().find(|c| c.id == d.draft.column_id) {
+                    let orig = canon.columns.iter().find(|x| x.id == c.id);
+                    if orig.map(|o| o.clock_from != c.clock_from).unwrap_or(false) {
+                        d.draft.clock_from = c.clock_from;
+                        d.draft.clock_to = c.clock_to;
+                    }
+                }
+            }
+            (new_id, insert_from, insert_from + dur)
+        }
+    } else {
+        let last = canon
+            .columns
+            .iter()
+            .max_by_key(|c| c.display_ord)
+            .cloned()
+            .ok_or((StatusCode::BAD_REQUEST, "没有列".into()))?;
+        (last.id, last.clock_from, last.clock_to)
+    };
+    if mode == "mid" {
+        for d in sess.drafts.iter_mut() {
+            if d.filled && d.draft.clock_from >= clock_to {
+                d.stale_world = true;
+            }
+        }
+    }
     let mut ids = vec![];
     for (i, bone) in bones.iter().enumerate() {
         let id = format!(
@@ -2314,17 +2522,17 @@ async fn plan_apply(
                 .unwrap_or(0),
             i
         );
-        sess.drafts.push(UiDraft {
-            id: id.clone(),
-            title: "预场".into(),
-            draft: BeatDraft {
+        sess.drafts.push(UiDraft::new(
+            id.clone(),
+            "预场",
+            BeatDraft {
                 id: Some(id.clone()),
                 kind: "scene".into(),
-                column_id: last.id.clone(),
+                column_id: place_col.clone(),
                 intent: bone.intent.clone(),
                 value_shift: Some(bone.necessity.clone()),
-                clock_from: last.clock_from,
-                clock_to: last.clock_to,
+                clock_from,
+                clock_to,
                 presences: bone
                     .presence
                     .iter()
@@ -2336,7 +2544,7 @@ async fn plan_apply(
                     .collect(),
                 ..BeatDraft::default()
             },
-        });
+        ));
         ids.push(id);
     }
     persist_drafts(&app.data_root, &name, &sess.drafts);
@@ -2345,6 +2553,7 @@ async fn plan_apply(
         "ids": ids,
         "draft_only": true,
         "auto_canon": false,
+        "column_id": place_col,
         "notice": "预场只到任务和在场，不是历史",
     })))
 }

@@ -161,6 +161,10 @@
 const $ = (id) => document.getElementById(id);
 let state = { n: 1, window_start: 0, drafts: [], committed: [], columns: [], entities: [], pending: null };
 let pendingTalk = '';
+let pendingTalkField = 'intent';
+let lastBones = [];
+let lastNeedMid = false;
+let lastGoalId = '';
 let currentDraft = null;
 let currentCanon = null;
 let pendingChoice = null;
@@ -191,6 +195,7 @@ async function refresh() {
   pendingFill = state.fill_pending || pendingFill;
   pendingPaste = state.paste_suggestions || pendingPaste;
   render();
+  renderTalk(state.talk_log);
   if (state.pending) openConfirm(state.pending);
   refreshConstrain();
 }
@@ -277,6 +282,11 @@ function render() {
     return `<span class="tooth ${cls}${tellingDiff ? ' telling-diff' : ''}" data-testid="tooth-${i}" onclick="jump(${i})"></span>`;
   }).join('');
   $('world').textContent = state.world ? JSON.stringify({playing: state.world.playing, where: state.world.where}, null, 0) : '';
+  const beat = currentBeat() || {};
+  const intentVal = ($('intent').value || beat.intent || '').trim();
+  $('talk').disabled = !currentDraft || !intentVal;
+  $('plan-suggest').disabled = !(currentDraft || currentCanon) || !intentVal;
+  $('plan-apply').disabled = !lastBones.length;
   renderInspector();
   renderPaste();
   loadCircumstances();
@@ -300,6 +310,28 @@ function renderCard(obj, canon) {
   const title = document.createElement('b');
   title.textContent = id + (b.telling_ord != null ? ' 读序' + b.telling_ord : '');
   card.appendChild(title);
+  if (!canon && obj.stale_world) {
+    card.classList.add('warn');
+    const tag = document.createElement('div');
+    tag.textContent = '按旧世界生成';
+    tag.dataset.testid = 'stale-' + id;
+    card.appendChild(tag);
+    const regen = document.createElement('button');
+    regen.textContent = '按新世界重生成';
+    regen.dataset.testid = 'regen-' + id;
+    regen.onclick = async (e) => {
+      e.stopPropagation();
+      currentDraft = id;
+      try {
+        const r = await api('/api/fill-live', { method: 'POST', body: JSON.stringify({ id }) });
+        applyFillResult(r);
+        $('sidebar').textContent = '已按现在的世界重填，仍是草稿';
+      } catch (err) {
+        $('sidebar').textContent = String(err.message || err);
+      }
+    };
+    card.appendChild(regen);
+  }
   if (!dense) {
     const intent = document.createElement('div');
     intent.textContent = b.intent || '';
@@ -367,6 +399,27 @@ function renderInspector() {
   $('g-think').textContent = b.think_text || '';
   $('g-presence').textContent = (b.presences || []).map(p => p.entity_id).join('、');
   $('filter-entity').textContent = inspectFilter ? ('本场来源分组（点了 ' + inspectFilter + '，不是人物泳道）') : '本场来源分组';
+}
+function renderTalk(log) {
+  const lines = log || [];
+  if (!lines.length) return;
+  $('talk-notice').classList.remove('hidden');
+  $('talk-out').innerHTML = '';
+  lines.forEach(r => {
+    const block = document.createElement('div');
+    block.textContent = (r.notice || '讨论不是历史') + '\n' + (r.reply || '');
+    $('talk-out').appendChild(block);
+    (r.concerns || []).forEach(c => {
+      const btn = document.createElement('button');
+      btn.textContent = (c.kind || '') + '：' + (c.message || '');
+      btn.onclick = () => {
+        pendingTalk = c.message || '';
+        pendingTalkField = r.field || 'intent';
+        $('sidebar').textContent = '选了方向，点「写入此框」写进本场任务。讨论不是历史。';
+      };
+      $('talk-out').appendChild(btn);
+    });
+  });
 }
 function renderPaste() {
   const box = $('paste-suggest');
@@ -527,7 +580,6 @@ $('set-telling').onclick = async () => {
   await api('/api/telling', { method: 'POST', body: JSON.stringify({ beat_id: id, telling_ord: ord }) });
   refresh();
 };
-let lastBones = [];
 $('talk').onclick = async () => {
   if (!currentDraft) {
     $('sidebar').textContent = '先开一场再讨论';
@@ -539,10 +591,11 @@ $('talk').onclick = async () => {
       field: 'intent',
       text: $('intent').value
     }) });
-    $('talk-notice').classList.remove('hidden');
-    $('talk-out').textContent = (r.notice || '讨论不是历史') + '\n' + (r.reply || '') + '\n' +
-      (r.concerns || []).map(c => '· ' + c.kind + '：' + c.message + '（' + c.anchor + '）').join('\n');
+    const opt = (r.concerns || []).find(c => c.kind === 'option');
+    pendingTalk = (opt && opt.message) || r.reply || '';
+    pendingTalkField = 'intent';
     $('sidebar').textContent = r.notice || '讨论不是历史';
+    await refresh();
   } catch (e) {
     $('sidebar').textContent = String(e.message || e);
   }
@@ -555,9 +608,29 @@ $('plan-suggest').onclick = async () => {
   }
   try {
     const r = await api('/api/plan-suggest', { method: 'POST', body: JSON.stringify({ goal_id: goal }) });
-    lastBones = r.bones || [];
-    $('plan-out').textContent = JSON.stringify(r, null, 2);
+    lastGoalId = goal;
+    lastBones = r.need_structure ? [] : (r.bones || []);
+    lastNeedMid = !r.need_structure;
+    $('plan-out').textContent = '';
+    if (r.need_structure) {
+      const p = document.createElement('div');
+      p.textContent = r.notice || '两列之间没有故事时间可铺，先确认变更';
+      $('plan-out').appendChild(p);
+      (r.options || []).forEach(opt => {
+        const b = document.createElement('button');
+        b.textContent = opt;
+        b.onclick = async () => {
+          const col = (state.columns && state.columns[0] && state.columns[0].id) || null;
+          await api('/api/structure/preview', { method: 'POST', body: JSON.stringify({ op: 'add_column', column_id: col }) });
+          refresh();
+        };
+        $('plan-out').appendChild(b);
+      });
+    } else {
+      $('plan-out').textContent = JSON.stringify(r, null, 2);
+    }
     $('sidebar').textContent = r.need_structure ? (r.notice || '先解决结构') : (r.notice || '建议不进历史');
+    render();
   } catch (e) {
     $('sidebar').textContent = String(e.message || e);
   }
@@ -567,9 +640,18 @@ $('plan-apply').onclick = async () => {
     $('sidebar').textContent = '没有要落下的骨架';
     return;
   }
+  if (lastNeedMid) {
+    pendingChoice = 'plan_mid';
+    openConfirm({
+      suggestions: [{ id: 'plan_mid', label: '确认插入中间预场（结构层，场仍是草稿）' }],
+      impacts: ['后面已有场的细稿会标「按旧世界生成」', '预场不是历史']
+    });
+    return;
+  }
   try {
     const r = await api('/api/plan-apply', { method: 'POST', body: JSON.stringify({ mode: 'tail', bones: lastBones }) });
     $('sidebar').textContent = r.notice || '预场已落下，仍是草稿';
+    lastBones = [];
     refresh();
   } catch (e) {
     $('sidebar').textContent = String(e.message || e);
@@ -594,9 +676,14 @@ $('write-box').onclick = async () => {
     return;
   }
   if (pendingTalk && currentDraft) {
-    $('do-text').value = pendingTalk;
+    if (pendingTalkField === 'intent') {
+      $('intent').value = pendingTalk;
+      await api('/api/drafts/patch', { method: 'POST', body: JSON.stringify({ id: currentDraft, intent: pendingTalk }) });
+    } else {
+      $('do-text').value = pendingTalk;
+      await api('/api/drafts/patch', { method: 'POST', body: JSON.stringify({ id: currentDraft, do_text: $('do-text').value, intent: $('intent').value }) });
+    }
     pendingTalk = '';
-    await api('/api/drafts/patch', { method: 'POST', body: JSON.stringify({ id: currentDraft, do_text: $('do-text').value, intent: $('intent').value }) });
     refresh();
   }
 };
@@ -718,6 +805,24 @@ $('swap-columns').onclick = async () => {
   refresh();
 };
 $('confirm-ok').onclick = async () => {
+  if (pendingChoice === 'plan_mid') {
+    try {
+      const r = await api('/api/plan-apply', { method: 'POST', body: JSON.stringify({
+        mode: 'mid',
+        structure_confirmed: true,
+        bones: lastBones,
+        goal_id: lastGoalId || currentDraft || currentCanon
+      }) });
+      $('sidebar').textContent = r.notice || '预场已落下，仍是草稿';
+      lastBones = [];
+      lastNeedMid = false;
+    } catch (e) {
+      $('sidebar').textContent = String(e.message || e);
+    }
+    $('confirm-dlg').close();
+    refresh();
+    return;
+  }
   await api('/api/structure/confirm', { method: 'POST', body: JSON.stringify({ choice: pendingChoice || 'empty_col' }) });
   $('confirm-dlg').close();
   refresh();

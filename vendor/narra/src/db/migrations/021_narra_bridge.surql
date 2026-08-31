@@ -1,4 +1,4 @@
--- 设定图正史双写进官方 Narra 表。world_at 仍以 setting_* 为真源，直到第 3 期切读。
+-- 设定图正史双写进官方 Narra 表。load_canon 场骨架读带 setting_beat 的 scene；无该指针的官方 scene 不当正史。
 
 DEFINE FIELD IF NOT EXISTS clock_from ON event TYPE option<int>;
 DEFINE FIELD IF NOT EXISTS clock_to ON event TYPE option<int>;

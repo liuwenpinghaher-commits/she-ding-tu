@@ -787,6 +787,8 @@
         <input id="telling-ord" data-testid="telling-ord" placeholder="读序" />
         <button type="button" id="set-telling" data-testid="set-telling">标读序</button>
       </div>
+      <label>因果指向</label>
+      <input id="cause-beat" data-testid="cause-beat" placeholder="上一场的场，可空。删那场时会列出缺口" />
       <div class="field-row">
         <button type="button" class="primary" id="commit" data-testid="commit">写入正史</button>
         <button type="button" class="primary hidden" id="revise" data-testid="revise">改已写入正史的场</button>
@@ -1170,6 +1172,7 @@ function fillFormFromBeat(obj, canon) {
   $("think-text").value = b.think_text || "";
   $("place-id").value = b.place_id || "";
   $("value-shift").value = b.value_shift || "";
+  if ($("cause-beat")) $("cause-beat").value = b.cause_beat || "";
   pendingDeltas = (b.deltas || []).slice();
   pendingKnows = (b.knowledge_writes || []).slice();
   renderDeltas();
@@ -2050,15 +2053,19 @@ $("commit").onclick = async () => {
   if ($("value-shift").value.trim()) body.value_shift = $("value-shift").value.trim();
   if (pendingDeltas.length) body.deltas = pendingDeltas;
   if (pendingKnows.length) body.knowledge_writes = pendingKnows;
+  if ($("cause-beat") && $("cause-beat").value.trim()) body.cause_beat = $("cause-beat").value.trim();
   if ($("vis-private").checked && $("visible-to").value.trim()) {
     body.visible_to = $("visible-to").value.split(/[,，]/).map(s => s.trim()).filter(Boolean);
   }
   try {
     await api("/api/drafts/patch", { method: "POST", body: JSON.stringify(body) });
-    await api("/api/commit", { method: "POST", body: JSON.stringify({ id }) });
+    const r = await api("/api/commit", { method: "POST", body: JSON.stringify({ id }) });
     currentDraft = null;
     pendingDeltas = [];
     pendingKnows = [];
+    if (r && r.warnings && r.warnings.length) {
+      $("sidebar").textContent = r.warnings.join("；");
+    }
     refresh();
   } catch (e) {
     $("sidebar").textContent = String(e.message || e);

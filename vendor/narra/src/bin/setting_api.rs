@@ -9,6 +9,7 @@ use narra::db::connection::{init_db, DbConfig};
 use narra::db::schema::apply_schema;
 use narra::services::canon::{BeatPatch, SettingBook};
 use narra::services::circumstances::{apply_person_lens, suggest_promise_op};
+use narra::services::constrain;
 use narra::services::craft::{self, BookCraft, ExportBeat};
 use narra::services::relations;
 use narra::services::world::{
@@ -133,6 +134,7 @@ struct PatchDraft {
     deltas: Option<Vec<Delta>>,
     knowledge_writes: Option<Vec<KnowledgeWrite>>,
     promise_ops: Option<Vec<PromiseOp>>,
+    cause_beat: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -388,7 +390,7 @@ async fn main() {
         .route("/api/relations", get(relations_get).post(relations_write_refuse))
         .route("/api/circumstances", get(circumstances))
         .route("/api/search", get(search_entities))
-        .route("/api/bridge", get(official_bridge))
+        .route("/api/bridge", get(official_bridge).post(official_bridge_write_refuse))
         .route("/api/knows", get(knows_list))
         .route("/api/telling", post(set_telling))
         .route("/api/fill-live", post(fill_live))
@@ -632,9 +634,22 @@ fn delete_canon_impacts(canon: &Canon, beat: &Beat) -> Vec<String> {
     } else {
         format!("在场连续性：{}", pres.join("、"))
     };
+    let deps = constrain::causal_dependents(canon, &beat.id);
+    let cause = if deps.is_empty() {
+        "因果缺口：无".into()
+    } else {
+        format!(
+            "因果缺口：{} 指向这场",
+            deps.iter()
+                .map(|b| b.intent.as_str())
+                .collect::<Vec<_>>()
+                .join("、")
+        )
+    };
     vec![
         hole,
         later_s,
+        cause,
         know,
         promises,
         presence,
@@ -1173,6 +1188,13 @@ async fn patch_draft(
     if let Some(v) = body.promise_ops {
         d.draft.promise_ops = v;
     }
+    if let Some(v) = body.cause_beat {
+        d.draft.cause_beat = if v.trim().is_empty() {
+            None
+        } else {
+            Some(v)
+        };
+    }
     sess.selected = Some(body.id.clone());
     let out = d.draft.clone();
     persist_drafts(&app.data_root, &name, &sess.drafts);
@@ -1291,6 +1313,30 @@ async fn do_commit(
         .position(|d| d.id == body.id)
         .ok_or((StatusCode::BAD_REQUEST, "无此草稿".into()))?;
     let ui = sess.drafts.remove(pos);
+    let report = match sess.book.constrain_draft(&ui.draft).await {
+        Ok(r) => r,
+        Err(e) => {
+            sess.drafts.insert(pos, ui);
+            return Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string()));
+        }
+    };
+    if report.blocks() {
+        sess.drafts.insert(pos, ui);
+        let msg = report
+            .findings
+            .iter()
+            .filter(|f| f.grade == constrain::Grade::Strict)
+            .map(|f| f.message.clone())
+            .collect::<Vec<_>>()
+            .join("；");
+        return Err((StatusCode::BAD_REQUEST, msg));
+    }
+    let warnings: Vec<String> = report
+        .findings
+        .iter()
+        .filter(|f| f.grade != constrain::Grade::Strict)
+        .map(|f| f.message.clone())
+        .collect();
     match sess.book.commit(ui.draft.clone()).await {
         Ok(b) => {
             persist_drafts(&app.data_root, &name, &sess.drafts);
@@ -1302,6 +1348,7 @@ async fn do_commit(
             "clock_from": b.clock_from,
             "clock_to": b.clock_to,
             "presences": b.presences,
+            "warnings": warnings,
         })))
         }
         Err(e) => {
@@ -1537,6 +1584,13 @@ async fn occupancy_write_refuse() -> (StatusCode, String) {
     (
         StatusCode::BAD_REQUEST,
         "出场飞出层只读，改在场须拖标记".into(),
+    )
+}
+
+async fn official_bridge_write_refuse() -> (StatusCode, String) {
+    (
+        StatusCode::BAD_REQUEST,
+        "官方表不能冒充写入正史，请回分场条点写入正史".into(),
     )
 }
 
@@ -3170,7 +3224,7 @@ async fn official_bridge(
     let windows: Vec<CountRow> = q.take(3).unwrap_or_default();
     Ok(Json(serde_json::json!({
         "book": name,
-        "world_at_source": "setting_window+knows",
+        "world_at_source": "scene+knows+setting_window",
         "scenes": scenes,
         "characters": characters,
         "knows": knows.first().and_then(|r| r.n).unwrap_or(0),

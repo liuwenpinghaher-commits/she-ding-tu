@@ -2,6 +2,7 @@
 
 use crate::services::world::{
     Beat, BeatDraft, Canon, Presence, ROLE_PRESENT, World, BEAT_SCENE, ATTR_WHERE, KIND_RULE,
+    STATUS_COMMITTED,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -27,6 +28,19 @@ impl ConstraintReport {
     pub fn blocks(&self) -> bool {
         self.findings.iter().any(|f| f.grade == Grade::Strict)
     }
+}
+
+/// 已正史场里，因果指向这场的后续场。删正史前列给确认变更。
+pub fn causal_dependents<'a>(canon: &'a Canon, beat_id: &str) -> Vec<&'a Beat> {
+    canon
+        .beats
+        .iter()
+        .filter(|b| {
+            b.id != beat_id
+                && b.status == STATUS_COMMITTED
+                && b.cause_beat.as_deref() == Some(beat_id)
+        })
+        .collect()
 }
 
 fn draft_as_beat(d: &BeatDraft, id: &str) -> Beat {
@@ -123,16 +137,19 @@ pub fn constrain(world: &World, canon: &Canon, draft: &BeatDraft) -> ConstraintR
     }
 
     if let Some(cause) = &draft.cause_beat {
-        let ok = canon
-            .beats
-            .iter()
-            .any(|b| &b.id == cause && b.status == "committed");
-        if !ok {
-            r.findings.push(Finding {
+        let target = canon.beats.iter().find(|b| &b.id == cause);
+        match target {
+            Some(b) if b.status == STATUS_COMMITTED => {}
+            Some(_) => r.findings.push(Finding {
+                grade: Grade::Strict,
+                code: "cause_superseded".into(),
+                message: "因果指向已作废场".into(),
+            }),
+            None => r.findings.push(Finding {
                 grade: Grade::Strict,
                 code: "cause_draft".into(),
                 message: "因果指向还不是正史的场".into(),
-            });
+            }),
         }
     }
 
@@ -223,7 +240,8 @@ pub fn constrain(world: &World, canon: &Canon, draft: &BeatDraft) -> ConstraintR
             }
         }
         recall_truth_block(&mut r, world, draft, speaker);
-        lie_visible(&mut r, world, draft, speaker);
+        let liar = lie_speaker(draft).unwrap_or(speaker);
+        lie_visible(&mut r, world, draft, liar);
     }
 
     rule_enforcement(&mut r, canon, draft);
@@ -236,6 +254,16 @@ pub fn constrain(world: &World, canon: &Canon, draft: &BeatDraft) -> ConstraintR
         role: String::new(),
     };
     r
+}
+
+fn lie_speaker(draft: &BeatDraft) -> Option<&str> {
+    let say = draft.say_text.as_deref().unwrap_or("");
+    draft
+        .presences
+        .iter()
+        .filter(|p| p.role == ROLE_PRESENT)
+        .map(|p| p.entity_id.as_str())
+        .find(|id| say.contains(&format!("{id}：")) || say.contains(&format!("{id}:")))
 }
 
 fn lie_visible(r: &mut ConstraintReport, world: &World, draft: &BeatDraft, speaker: &str) {

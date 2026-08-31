@@ -7,7 +7,7 @@ use crate::services::materialize::{invalidate_interval, world_at_cached};
 use crate::services::narra_bridge;
 use crate::services::world::{
     knows_at, world_at, Beat, BeatDraft, Canon, Column, Delta, Entity, KnowledgeWrite, Presence,
-    Promise, PromiseOp, World, STATUS_COMMITTED, STATUS_SUPERSEDED,
+    Promise, PromiseOp, World, KIND_RULE, STATUS_COMMITTED, STATUS_SUPERSEDED,
 };
 use crate::NarraError;
 use serde::{Deserialize, Serialize};
@@ -94,6 +94,35 @@ struct RelRow {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+struct SceneRow {
+    id: RecordId,
+    status: Option<String>,
+    commit_seq: Option<i64>,
+    kind: Option<String>,
+    intent: Option<String>,
+    value_shift: Option<String>,
+    do_text: Option<String>,
+    say_text: Option<String>,
+    think_text: Option<String>,
+    telling_ord: Option<i64>,
+    visible_to: Option<Vec<String>>,
+    event: Option<RecordId>,
+    primary_location: Option<RecordId>,
+    setting_beat: Option<RecordId>,
+    clock_from: Option<i64>,
+    clock_to: Option<i64>,
+    cause_beat: Option<RecordId>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct FactRow {
+    id: RecordId,
+    title: Option<String>,
+    description: Option<String>,
+    enforcement_level: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 struct PromiseRow {
     id: RecordId,
     name: String,
@@ -159,6 +188,108 @@ fn rec_key(id: &RecordId) -> String {
         .to_string()
 }
 
+fn nonempty(s: &Option<String>) -> Option<String> {
+    s.as_ref()
+        .map(|x| x.trim().to_string())
+        .filter(|x| !x.is_empty())
+}
+
+fn overlay_scene_content(b: &mut Beat, sc: &SceneRow) {
+    if let Some(k) = nonempty(&sc.kind) {
+        b.kind = k;
+    }
+    if let Some(i) = nonempty(&sc.intent) {
+        b.intent = i;
+    }
+    if sc.value_shift.is_some() {
+        b.value_shift = nonempty(&sc.value_shift);
+    }
+    if sc.do_text.is_some() {
+        b.do_text = nonempty(&sc.do_text);
+    }
+    if sc.say_text.is_some() {
+        b.say_text = nonempty(&sc.say_text);
+    }
+    if sc.think_text.is_some() {
+        b.think_text = nonempty(&sc.think_text);
+    }
+    if sc.telling_ord.is_some() {
+        b.telling_ord = sc.telling_ord;
+    }
+    if sc.visible_to.is_some() {
+        b.visible_to = sc.visible_to.clone();
+    }
+    if let Some(ev) = &sc.event {
+        b.column_id = rec_key(ev);
+    }
+    if sc.primary_location.is_some() {
+        b.place_id = sc.primary_location.as_ref().map(rec_key);
+    }
+    if let Some(t) = sc.clock_from {
+        b.clock_from = t;
+    }
+    if let Some(t) = sc.clock_to {
+        b.clock_to = t;
+    }
+    if sc.cause_beat.is_some() {
+        b.cause_beat = sc.cause_beat.as_ref().map(rec_key);
+    }
+}
+
+fn overlay_scene(b: &mut Beat, sc: &SceneRow) {
+    overlay_scene_content(b, sc);
+    if let Some(s) = nonempty(&sc.status) {
+        b.status = s;
+    }
+    if let Some(n) = sc.commit_seq {
+        b.commit_seq = n;
+    }
+}
+
+fn beat_from_scene(
+    sc: &SceneRow,
+    win_map: &std::collections::HashMap<String, Vec<Delta>>,
+    know_map: &std::collections::HashMap<String, Vec<KnowledgeWrite>>,
+) -> Beat {
+    let id = sc
+        .setting_beat
+        .as_ref()
+        .map(rec_key)
+        .unwrap_or_else(|| rec_key(&sc.id));
+    let mut b = Beat {
+        id: id.clone(),
+        kind: nonempty(&sc.kind).unwrap_or_else(|| "scene".into()),
+        column_id: sc.event.as_ref().map(rec_key).unwrap_or_default(),
+        status: nonempty(&sc.status).unwrap_or_else(|| STATUS_COMMITTED.into()),
+        commit_seq: sc.commit_seq.unwrap_or(0),
+        intent: nonempty(&sc.intent).unwrap_or_default(),
+        value_shift: nonempty(&sc.value_shift),
+        do_text: nonempty(&sc.do_text),
+        say_text: nonempty(&sc.say_text),
+        think_text: nonempty(&sc.think_text),
+        clock_from: sc.clock_from.unwrap_or(0),
+        clock_to: sc.clock_to.unwrap_or(0),
+        place_id: sc.primary_location.as_ref().map(rec_key),
+        telling_ord: sc.telling_ord,
+        cause_beat: sc.cause_beat.as_ref().map(rec_key),
+        visible_to: sc.visible_to.clone(),
+        deltas: win_map.get(&id).cloned().unwrap_or_default(),
+        knowledge_writes: know_map.get(&id).cloned().unwrap_or_default(),
+        promise_ops: vec![],
+        presences: vec![],
+    };
+    overlay_scene(&mut b, sc);
+    b
+}
+
+fn fact_enforcement_label(level: &str) -> &'static str {
+    match level.trim().to_ascii_lowercase().as_str() {
+        "strict" | "hard" | "挡" => "挡",
+        "warning" | "warn" | "标黄" => "标黄",
+        _ => "无",
+    }
+}
+
 pub struct SettingBook {
     db: Arc<NarraDb>,
 }
@@ -171,7 +302,7 @@ impl SettingBook {
     pub async fn load_canon(&self) -> Result<Canon, NarraError> {
         let mut q = self
             .db
-            .query("SELECT * FROM setting_entity; SELECT * FROM setting_column; SELECT * FROM setting_beat; SELECT * FROM setting_present_in; SELECT * FROM setting_promise; SELECT entity, attr, value, clock_from, clock_to, commit_seq, source_beat FROM setting_window; SELECT * FROM knows; SELECT id, fact FROM knowledge;")
+            .query("SELECT * FROM setting_entity; SELECT * FROM setting_column; SELECT * FROM setting_beat; SELECT * FROM setting_present_in; SELECT * FROM setting_promise; SELECT entity, attr, value, clock_from, clock_to, commit_seq, source_beat FROM setting_window; SELECT * FROM knows; SELECT id, fact FROM knowledge; SELECT id, status, commit_seq, kind, intent, value_shift, do_text, say_text, think_text, telling_ord, visible_to, event, primary_location, setting_beat, clock_from, clock_to, cause_beat FROM scene; SELECT id, title, description, enforcement_level FROM universe_fact;")
             .await?;
         let entities: Vec<EntityRow> = q.take(0)?;
         let columns: Vec<ColumnRow> = q.take(1)?;
@@ -181,8 +312,10 @@ impl SettingBook {
         let windows: Vec<WindowRow> = q.take(5).unwrap_or_default();
         let know_edges: Vec<KnowsEdgeRow> = q.take(6).unwrap_or_default();
         let knowledge_rows: Vec<KnowledgeRow> = q.take(7).unwrap_or_default();
+        let scenes: Vec<SceneRow> = q.take(8).unwrap_or_default();
+        let facts: Vec<FactRow> = q.take(9).unwrap_or_default();
 
-        let entities: Vec<Entity> = entities
+        let mut entities: Vec<Entity> = entities
             .into_iter()
             .map(|e| Entity {
                 id: rec_key(&e.id),
@@ -194,6 +327,37 @@ impl SettingBook {
                     .unwrap_or_default(),
             })
             .collect();
+        for f in &facts {
+            let id = rec_key(&f.id);
+            let enf = f
+                .enforcement_level
+                .as_deref()
+                .map(fact_enforcement_label)
+                .unwrap_or("无");
+            if let Some(e) = entities
+                .iter_mut()
+                .find(|e| e.id == id && e.kind == KIND_RULE)
+            {
+                if e.profile
+                    .get("enforcement")
+                    .map(|s| s.trim().is_empty())
+                    .unwrap_or(true)
+                {
+                    e.profile.insert("enforcement".into(), enf.into());
+                }
+                if e.profile
+                    .get("scope")
+                    .map(|s| s.trim().is_empty())
+                    .unwrap_or(true)
+                {
+                    if let Some(desc) = f.description.as_deref() {
+                        if let Some((_, rest)) = desc.split_once("范围：") {
+                            e.profile.insert("scope".into(), rest.trim().into());
+                        }
+                    }
+                }
+            }
+        }
         let columns: Vec<Column> = columns
             .into_iter()
             .map(|c| Column {
@@ -282,6 +446,28 @@ impl SettingBook {
                 }
             })
             .collect();
+        for sc in scenes.iter().filter(|s| s.setting_beat.is_some()) {
+            let id = sc
+                .setting_beat
+                .as_ref()
+                .map(rec_key)
+                .unwrap_or_else(|| rec_key(&sc.id));
+            if let Some(b) = beat_map.iter_mut().find(|b| b.id == id) {
+                overlay_scene_content(b, sc);
+                if b.deltas.is_empty() {
+                    if let Some(d) = win_map.get(&id) {
+                        b.deltas = d.clone();
+                    }
+                }
+                if b.knowledge_writes.is_empty() {
+                    if let Some(k) = know_map.get(&id).or_else(|| know_map.get(&rec_key(&sc.id))) {
+                        b.knowledge_writes = k.clone();
+                    }
+                }
+            } else {
+                beat_map.push(beat_from_scene(sc, &win_map, &know_map));
+            }
+        }
         for rel in rels {
             let beat_id = rec_key(&rel.out);
             let p = Presence {

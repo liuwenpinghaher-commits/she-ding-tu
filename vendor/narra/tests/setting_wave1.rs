@@ -6,6 +6,7 @@ use narra::services::canon::SettingBook;
 use narra::services::circumstances::{apply_person_lens, given_circumstances};
 use narra::services::relations::relations_for;
 use narra::services::ferry::{self, AFU, AHE, CITY, COL0, COL1, COL2, FERRY, GANG, KNIFE, LIAN, TOKEN, NIGHT_RULE};
+use narra::services::constrain;
 use narra::services::craft::{self, BookCraft, CraftChapter, ExportBeat};
 use narra::services::world::{
     BeatDraft, Column, Delta, Entity, KnowledgeWrite, Presence, ROLE_MENTIONED, ROLE_PRESENT,
@@ -1100,6 +1101,118 @@ async fn s6_official_cli_scene_is_not_canon() {
     assert!(
         !rows.is_empty(),
         "官方表可以有这场，只是产品不当正史 {rows:?}"
+    );
+}
+
+fn put_knife_in_drawer() -> BeatDraft {
+    BeatDraft {
+        id: Some("b_put".into()),
+        kind: "scene".into(),
+        column_id: COL0.into(),
+        intent: "有人把刀放进抽屉".into(),
+        value_shift: Some("刀入屉".into()),
+        do_text: Some("把刀推进抽屉".into()),
+        clock_from: 0,
+        clock_to: 60,
+        place_id: Some(FERRY.into()),
+        presences: vec![p(AFU, ROLE_PRESENT)],
+        deltas: vec![Delta {
+            entity_id: KNIFE.into(),
+            attr: "place".into(),
+            value: "抽屉".into(),
+            clock_from: 0,
+            clock_to: None,
+        }],
+        ..BeatDraft::default()
+    }
+}
+
+#[tokio::test]
+async fn s6_delete_lists_causal_gap() {
+    let (_h, book) = book().await;
+    book.commit(put_knife_in_drawer()).await.unwrap();
+    let mut found = afu_sees_knife();
+    found.cause_beat = Some("b_put".into());
+    book.commit(found).await.unwrap();
+    let canon = book.load_canon().await.unwrap();
+    let deps = constrain::causal_dependents(&canon, "b_put");
+    assert!(
+        deps.iter().any(|b| b.intent.contains("阿福发现刀")),
+        "删刀入屉应列出阿福发现刀的因果缺口 {:?}",
+        deps.iter().map(|b| &b.intent).collect::<Vec<_>>()
+    );
+    book.supersede("b_put").await.unwrap();
+    let later = BeatDraft {
+        id: Some("b_after".into()),
+        kind: "scene".into(),
+        column_id: COL1.into(),
+        intent: "再指向已删场".into(),
+        value_shift: Some("空".into()),
+        do_text: Some("回头看屉".into()),
+        clock_from: 60,
+        clock_to: 120,
+        place_id: Some(FERRY.into()),
+        presences: vec![p(AFU, ROLE_PRESENT)],
+        cause_beat: Some("b_put".into()),
+        ..BeatDraft::default()
+    };
+    let report = book.constrain_draft(&later).await.unwrap();
+    assert!(
+        report
+            .findings
+            .iter()
+            .any(|f| f.code == "cause_superseded" && f.grade == constrain::Grade::Strict),
+        "指向已作废场应挡 {:?}",
+        report.findings
+    );
+}
+
+#[tokio::test]
+async fn s7_load_canon_prefers_scene_over_setting_bag() {
+    let (_h, book) = book().await;
+    book.commit(afu_sees_knife()).await.unwrap();
+    book.db()
+        .query("UPDATE setting_beat:b_knife SET intent = '袋里被改'")
+        .await
+        .expect("tamper bag");
+    let canon = book.load_canon().await.unwrap();
+    let b = canon
+        .beats
+        .iter()
+        .find(|b| b.id == "b_knife")
+        .expect("beat");
+    assert_eq!(b.intent, "阿福发现刀", "场骨架应以 scene 为准 {:?}", b.intent);
+}
+
+#[tokio::test]
+async fn s7_rule_universe_fact_fills_empty_profile() {
+    let (_h, book) = book().await;
+    let mut profile = std::collections::BTreeMap::new();
+    profile.insert("enforcement".into(), "挡".into());
+    profile.insert("scope".into(), "渡口 夜".into());
+    book.upsert_entity(&Entity {
+        id: NIGHT_RULE.into(),
+        kind: KIND_RULE.into(),
+        name: "渡口夜间不得开船".into(),
+        profile,
+    })
+    .await
+    .unwrap();
+    book.db()
+        .query("UPDATE setting_entity:night_rule SET profile = '{}'")
+        .await
+        .expect("empty profile");
+    let canon = book.load_canon().await.unwrap();
+    let e = canon
+        .entities
+        .iter()
+        .find(|e| e.id == NIGHT_RULE)
+        .expect("rule");
+    assert_eq!(
+        e.profile.get("enforcement").map(String::as_str),
+        Some("挡"),
+        "空档案应从 universe_fact 补回 {:?}",
+        e.profile
     );
 }
 

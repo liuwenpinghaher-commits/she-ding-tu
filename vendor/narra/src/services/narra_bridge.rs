@@ -1,4 +1,4 @@
-//! 把设定图正史双写进官方 Narra 表。第 2 期：setting_* 仍是 world_at 真源。
+//! 把设定图正史双写进官方 Narra 表。load_canon 场骨架以带 setting_beat 的 scene 为准。
 
 use crate::db::connection::NarraDb;
 use crate::services::world::{
@@ -79,6 +79,31 @@ pub async fn mirror_entity(db: &NarraDb, e: &Entity) -> Result<(), NarraError> {
                 .await
                 .map_err(|err| NarraError::Database(err.to_string()))?;
             check_ctx(resp, &format!("mirror location {}", e.id))?;
+        }
+        "rule" => {
+            let enf = match e.profile.get("enforcement").map(|s| s.trim()) {
+                Some("挡") => "strict",
+                Some("标黄") => "warning",
+                _ => "informational",
+            };
+            let setup = e.profile.get("setup").cloned().unwrap_or_default();
+            let scope = e.profile.get("scope").cloned().unwrap_or_default();
+            let description = if scope.trim().is_empty() {
+                setup
+            } else {
+                format!("{setup}\n范围：{scope}")
+            };
+            let resp = db
+                .query(
+                    "UPSERT $rid SET title = $title, description = $desc, categories = ['physical'], enforcement_level = $enf, updated_at = time::now()",
+                )
+                .bind(("rid", rec("universe_fact", e.id.as_str())))
+                .bind(("title", e.name.clone()))
+                .bind(("desc", description))
+                .bind(("enf", enf.to_string()))
+                .await
+                .map_err(|err| NarraError::Database(err.to_string()))?;
+            check_ctx(resp, &format!("mirror universe_fact {}", e.id))?;
         }
         _ => {}
     }

@@ -119,8 +119,9 @@ out["4.3-live"] = liveKey.trim()
   : { status: "blocked", reason: "SETTING_LLM_API_KEY 未设置" };
 
 // 4.7 paste（当前草稿还在）
-await page.getByTestId("do-text").fill("阿福打开抽屉。\n阿莲：东西呢。");
 await page.getByTestId("paste").click();
+await page.getByTestId("paste-text").fill("阿福打开抽屉。\n阿莲：东西呢。");
+await page.getByTestId("paste-run").click();
 await page.waitForTimeout(300);
 const pasteUi = await page.getByTestId("paste-suggest").innerText();
 if (!pasteUi.includes("写入此框")) throw new Error("粘贴未见建议 " + pasteUi);
@@ -361,7 +362,7 @@ await page.getByTestId("confirm-cancel").click();
 await page.waitForTimeout(200);
 if ((await state()).committed.length !== countBeforeDel) throw new Error("取消仍删了正史");
 await page.getByTestId("delete-canon").click();
-await page.getByTestId("suggest-fill").click();
+await page.getByTestId("suggest-shift").click();
 await page.getByTestId("confirm-ok").click();
 await page.waitForTimeout(500);
 const afterDelCanon = await state();
@@ -421,8 +422,8 @@ out["5.4"] = { bookB, hitsB, backBook: back.book, backDrafts: back.drafts.map((d
 // 5.6 档案场
 await page.locator('[data-testid="ent-阿福"]').click();
 await page.getByTestId("dossier").waitFor();
-const db = await page.getByTestId("dossier-beats").innerText();
-const ro = await page.getByTestId("dossier-windows-ro").inputValue();
+const db = await page.getByTestId("dossier-appearances").innerText();
+const ro = await page.getByTestId("dossier-windows-table").innerText();
 out["5.6"] = { db, ro };
 
 await page.getByTestId("dossier-close").click();

@@ -1,7 +1,7 @@
 //! 穿帮检查。只读世界 + 本场草稿。挡 / 标黄按 F12。
 
 use crate::services::world::{
-    Beat, BeatDraft, Canon, Presence, ROLE_PRESENT, World, BEAT_SCENE, ATTR_WHERE,
+    Beat, BeatDraft, Canon, Presence, ROLE_PRESENT, World, BEAT_SCENE, ATTR_WHERE, KIND_RULE,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -222,7 +222,11 @@ pub fn constrain(world: &World, canon: &Canon, draft: &BeatDraft) -> ConstraintR
                 }
             }
         }
+        recall_truth_block(&mut r, world, draft, speaker);
+        lie_visible(&mut r, world, draft, speaker);
     }
+
+    rule_enforcement(&mut r, canon, draft);
 
     let _ = (world, draft_as_beat(draft, "draft"));
     let _ = ATTR_WHERE;
@@ -232,4 +236,142 @@ pub fn constrain(world: &World, canon: &Canon, draft: &BeatDraft) -> ConstraintR
         role: String::new(),
     };
     r
+}
+
+fn lie_visible(r: &mut ConstraintReport, world: &World, draft: &BeatDraft, speaker: &str) {
+    let say = draft.say_text.clone().unwrap_or_default();
+    let deny = say.contains("没看见")
+        || say.contains("没有")
+        || say.contains("不在")
+        || say.contains("不知道")
+        || say.contains("没看到");
+    if !deny {
+        return;
+    }
+    let hidden = world
+        .knows
+        .get(speaker)
+        .map(|fs| {
+            fs.iter().any(|f| {
+                !f.starts_with("看见:") && !f.starts_with("听见:") && !f.starts_with("心想:")
+            })
+        })
+        .unwrap_or(false);
+    if hidden {
+        r.findings.push(Finding {
+            grade: Grade::Warn,
+            code: "lie_visible".into(),
+            message: format!("撒谎可见：{speaker} 对白像否认，但他知道别的"),
+        });
+    }
+}
+
+fn recall_truth_block(r: &mut ConstraintReport, world: &World, draft: &BeatDraft, speaker: &str) {
+    let think = draft.think_text.clone().unwrap_or_default();
+    if !(think.contains("想起") || think.contains("记起") || think.contains("原来是")) {
+        return;
+    }
+    let speaker_knows = world.knows.get(speaker).cloned().unwrap_or_default();
+    let mut payloads = Vec::new();
+    for facts in world.knows.values() {
+        for fact in facts {
+            let payload = fact.split_once(':').map(|(_, rest)| rest).unwrap_or(fact);
+            if payload.chars().count() >= 2 {
+                payloads.push(payload.to_string());
+            }
+        }
+    }
+    for st in &world.states {
+        payloads.push(format!("{}.{}={}", st.entity_id, st.attr, st.value));
+        payloads.push(st.value.clone());
+    }
+    payloads.sort();
+    payloads.dedup();
+    for payload in payloads {
+        if !think.contains(&payload) {
+            continue;
+        }
+        let known = speaker_knows.iter().any(|f| f.contains(&payload));
+        if !known {
+            r.findings.push(Finding {
+                grade: Grade::Strict,
+                code: "recall_truth".into(),
+                message: format!("限知破了：{speaker} 想起实际真值「{payload}」"),
+            });
+            return;
+        }
+    }
+    for b in world.beliefs.iter().filter(|b| b.person_id == speaker && b.is_wrong()) {
+        if let Some(truth) = &b.truth_value {
+            if !truth.is_empty() && think.contains(truth.as_str()) {
+                r.findings.push(Finding {
+                    grade: Grade::Strict,
+                    code: "recall_truth".into(),
+                    message: format!("限知破了：{speaker} 信错却想起实际「{truth}」"),
+                });
+                return;
+            }
+        }
+    }
+}
+
+fn rule_enforcement(r: &mut ConstraintReport, canon: &Canon, draft: &BeatDraft) {
+    let text = format!(
+        "{} {} {} {}",
+        draft.intent,
+        draft.do_text.as_deref().unwrap_or(""),
+        draft.say_text.as_deref().unwrap_or(""),
+        draft.think_text.as_deref().unwrap_or("")
+    );
+    let sails = text.contains("开船") || text.contains("解缆") || text.contains("开航");
+    if !sails {
+        return;
+    }
+    let place_name = draft
+        .place_id
+        .as_ref()
+        .and_then(|id| canon.entity(id).map(|e| e.name.clone()).or_else(|| Some(id.clone())));
+    for e in canon.entities.iter().filter(|e| e.kind == KIND_RULE) {
+        let enf = e.profile.get("enforcement").map(|s| s.trim()).unwrap_or("");
+        if enf.is_empty() || enf == "无" {
+            continue;
+        }
+        let scope = e.profile.get("scope").cloned().unwrap_or_default();
+        let place_hit = match &place_name {
+            Some(pn) => {
+                scope.contains(pn)
+                    || draft
+                        .place_id
+                        .as_ref()
+                        .map(|id| scope.contains(id.as_str()) || pn == id)
+                        .unwrap_or(false)
+                    || e.name.contains(pn)
+            }
+            None => scope.is_empty(),
+        };
+        if !place_hit {
+            continue;
+        }
+        let night_needed = scope.contains('夜') || e.name.contains('夜');
+        let night_hit = !night_needed
+            || text.contains('夜')
+            || text.contains("夜间")
+            || text.contains("夜里");
+        if !night_hit {
+            continue;
+        }
+        if enf == "挡" {
+            r.findings.push(Finding {
+                grade: Grade::Strict,
+                code: "rule_block".into(),
+                message: format!("规则挡：{}（{}）", e.name, scope),
+            });
+        } else {
+            r.findings.push(Finding {
+                grade: Grade::Warn,
+                code: "rule_warn".into(),
+                message: format!("规则标黄：{}（{}）", e.name, scope),
+            });
+        }
+    }
 }

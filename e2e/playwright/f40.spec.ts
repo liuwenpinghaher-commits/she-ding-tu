@@ -1,24 +1,27 @@
 /**
- * F40 作家总闭环：纯点击。实现见 f40.click.mjs（本文件给 Playwright test runner）。
+ * F40 作家总闭环 26 步。实现见 f40.click.mjs。
  * 禁止 page.request 写入正史。
  */
 import { test, expect } from "@playwright/test";
+import { spawnSync } from "node:child_process";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
-test("F40 点击闭环", async ({ page }) => {
-  const book = "f40-" + Date.now();
-  await page.goto("/");
-  await page.getByTestId("book-name").fill(book);
-  await page.getByTestId("create-book").click();
-  await expect(page.getByTestId("book-label")).toHaveText(book);
-  await expect(page.getByTestId("column-0")).toBeVisible();
-  await page.getByTestId("ent-name").fill("阿福");
-  await page.getByTestId("new-entity").click();
-  await page.getByTestId("intent").fill("阿福发现刀");
-  await page.getByTestId("write-next").click();
-  await expect(page.locator(".card.draft").first()).toBeVisible();
-  await page.getByTestId("talk").click();
-  await page.getByTestId("write-box").click();
-  await page.locator('[data-testid="ent-阿福"]').dragTo(page.locator(".card.draft").first());
-  await page.getByTestId("commit").click();
-  await expect(page.locator(".card.canon").first()).toBeVisible({ timeout: 15000 });
+test("F40 26 步作家总闭环", async ({}, testInfo) => {
+  test.setTimeout(180000);
+  const dir = path.dirname(fileURLToPath(import.meta.url));
+  const root = path.resolve(dir, "../..");
+  const r = spawnSync(process.execPath, [path.join(dir, "f40.click.mjs")], {
+    cwd: root,
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      SETTING_URL: String(testInfo.project.use.baseURL || process.env.SETTING_URL || "http://127.0.0.1:8787"),
+      EVIDENCE_DIR: path.join(root, "e2e/evidence/6.1"),
+    },
+  });
+  if (r.stdout) console.log(r.stdout);
+  if (r.stderr) console.log(r.stderr);
+  expect(r.status, r.stdout + r.stderr).toBe(0);
+  expect(r.stdout || "").toContain("F40_CLICK_PASS");
 });

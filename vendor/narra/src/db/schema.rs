@@ -61,6 +61,12 @@ const SCHEMA_019: &str = include_str!("migrations/019_annotations.surql");
 /// 设定图正史：三时钟、在场边、情状窗口、知情挂场
 const SCHEMA_020: &str = include_str!("migrations/020_setting_canon.surql");
 
+/// 官方 event/scene/knows 加设定图栏，供双写
+const SCHEMA_021: &str = include_str!("migrations/021_narra_bridge.surql");
+
+/// scene 本场钟；load_canon 以行/边为准
+const SCHEMA_022: &str = include_str!("migrations/022_canon_rows.surql");
+
 /// Apply the database schema to an initialized database connection.
 ///
 /// This executes all DEFINE statements in the schema files, creating tables,
@@ -129,5 +135,7 @@ pub async fn apply_schema(db: &NarraDb) -> Result<(), NarraError> {
     db.query(SCHEMA_018).await?;
     db.query(SCHEMA_019).await?;
     db.query(SCHEMA_020).await?;
+    db.query(SCHEMA_021).await?;
+    db.query(SCHEMA_022).await?;
     Ok(())
 }

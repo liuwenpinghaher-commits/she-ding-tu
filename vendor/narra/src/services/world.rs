@@ -24,6 +24,12 @@ pub const ATTR_WHERE: &str = "where";
 pub const ATTR_HOLDS: &str = "holds";
 pub const ATTR_MEMBER: &str = "member";
 
+pub const CERT_KNOWS: &str = "knows";
+pub const CERT_WRONG: &str = "wrong";
+pub const CERT_SUSPECT: &str = "suspects";
+pub const CERT_DENY: &str = "denies";
+pub const CERT_FORGOT: &str = "forgot";
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Entity {
     pub id: String,
@@ -59,10 +65,34 @@ pub struct Delta {
     pub clock_to: Option<i64>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub struct KnowledgeWrite {
     pub person_id: String,
     pub fact: String,
+    /// knows / suspects / wrong / denies / forgot。空 = knows。
+    #[serde(default)]
+    pub certainty: String,
+    /// 信错时：实际是什么（来自情状，不是第二份真源字符串）。
+    #[serde(default)]
+    pub truth_value: Option<String>,
+    #[serde(default)]
+    pub method: Option<String>,
+    #[serde(default)]
+    pub source_person: Option<String>,
+}
+
+impl KnowledgeWrite {
+    pub fn certainty_or_knows(&self) -> &str {
+        if self.certainty.is_empty() {
+            CERT_KNOWS
+        } else {
+            self.certainty.as_str()
+        }
+    }
+
+    pub fn is_wrong(&self) -> bool {
+        self.certainty_or_knows() == CERT_WRONG
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -160,6 +190,30 @@ pub struct KnowledgeFact {
     pub scene_id: String,
     pub clock_from: i64,
     pub commit_seq: i64,
+    #[serde(default)]
+    pub certainty: String,
+    #[serde(default)]
+    pub truth_value: Option<String>,
+    #[serde(default)]
+    pub method: Option<String>,
+}
+
+impl KnowledgeFact {
+    pub fn certainty_or_knows(&self) -> &str {
+        if self.certainty.is_empty() {
+            CERT_KNOWS
+        } else {
+            self.certainty.as_str()
+        }
+    }
+
+    pub fn is_known_true(&self) -> bool {
+        self.certainty_or_knows() == CERT_KNOWS
+    }
+
+    pub fn is_wrong(&self) -> bool {
+        self.certainty_or_knows() == CERT_WRONG
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
@@ -171,6 +225,9 @@ pub struct World {
     pub r#where: BTreeMap<String, String>,
     pub covering: Vec<String>,
     pub knows: BTreeMap<String, Vec<String>>,
+    /// 含信错/怀疑。knows 只收「知道」。
+    #[serde(default)]
+    pub beliefs: Vec<KnowledgeFact>,
     pub promises: Vec<Promise>,
     pub edges: Vec<Presence>,
     /// 同列正在演的场（含省略场）。
@@ -215,21 +272,25 @@ fn close_overlapping(
     entity_id: &str,
     attr: &str,
     new_from: i64,
+    new_value: &str,
     source: &str,
-) -> Result<(), String> {
+) -> Result<bool, String> {
     for w in windows.iter_mut() {
         if w.entity_id == entity_id && w.attr == attr && w.clock_to.is_none() {
             if w.clock_from < new_from {
                 w.clock_to = Some(new_from);
             } else if w.clock_from == new_from {
+                if w.value == new_value {
+                    return Ok(false);
+                }
+                if w.source_beat == source {
+                    w.value = new_value.to_string();
+                    return Ok(false);
+                }
                 return Err(format!(
-                    "禁止静默并存：{entity_id}.{attr} 已有开窗与新窗同起点（来自 {}）",
-                    source
+                    "禁止静默并存：{entity_id}.{attr} 已有开窗与新窗同起点（来自 {source}）"
                 ));
-            } else if w.clock_from < new_from {
-                // already handled
             } else {
-                // existing window starts after new — still overlap if open
                 return Err(format!(
                     "禁止静默并存：{entity_id}.{attr} 开窗与新窗重叠"
                 ));
@@ -243,7 +304,7 @@ fn close_overlapping(
             ));
         }
     }
-    Ok(())
+    Ok(true)
 }
 
 /// 把一场已正史场算进世界。顺序固定。
@@ -265,37 +326,47 @@ pub(crate) fn apply_scene(mut st: FoldState, beat: &Beat) -> Result<FoldState, S
     // 2. 所在地惯性
     if let Some(place) = &beat.place_id {
         for p in beat.presences.iter().filter(|p| p.role == ROLE_PRESENT) {
-            close_overlapping(
+            if close_overlapping(
                 &mut st.windows,
                 &p.entity_id,
                 ATTR_WHERE,
                 beat.clock_from,
+                place,
                 &beat.id,
-            )?;
-            st.windows.push(StateWindow {
-                entity_id: p.entity_id.clone(),
-                attr: ATTR_WHERE.to_string(),
-                value: place.clone(),
-                clock_from: beat.clock_from,
-                clock_to: None,
-                commit_seq: beat.commit_seq,
-                source_beat: beat.id.clone(),
-            });
+            )? {
+                st.windows.push(StateWindow {
+                    entity_id: p.entity_id.clone(),
+                    attr: ATTR_WHERE.to_string(),
+                    value: place.clone(),
+                    clock_from: beat.clock_from,
+                    clock_to: None,
+                    commit_seq: beat.commit_seq,
+                    source_beat: beat.id.clone(),
+                });
+            }
         }
     }
 
     // 3. 本场变化 → 情状
     for d in &beat.deltas {
-        close_overlapping(&mut st.windows, &d.entity_id, &d.attr, d.clock_from, &beat.id)?;
-        st.windows.push(StateWindow {
-            entity_id: d.entity_id.clone(),
-            attr: d.attr.clone(),
-            value: d.value.clone(),
-            clock_from: d.clock_from,
-            clock_to: d.clock_to,
-            commit_seq: beat.commit_seq,
-            source_beat: beat.id.clone(),
-        });
+        if close_overlapping(
+            &mut st.windows,
+            &d.entity_id,
+            &d.attr,
+            d.clock_from,
+            &d.value,
+            &beat.id,
+        )? {
+            st.windows.push(StateWindow {
+                entity_id: d.entity_id.clone(),
+                attr: d.attr.clone(),
+                value: d.value.clone(),
+                clock_from: d.clock_from,
+                clock_to: d.clock_to,
+                commit_seq: beat.commit_seq,
+                source_beat: beat.id.clone(),
+            });
+        }
     }
 
     // 4. 知情
@@ -306,6 +377,9 @@ pub(crate) fn apply_scene(mut st: FoldState, beat: &Beat) -> Result<FoldState, S
             scene_id: beat.id.clone(),
             clock_from: beat.clock_from,
             commit_seq: beat.commit_seq,
+            certainty: k.certainty_or_knows().to_string(),
+            truth_value: k.truth_value.clone(),
+            method: k.method.clone(),
         });
     }
     if beat.kind != BEAT_ELLIPSIS {
@@ -327,6 +401,9 @@ pub(crate) fn apply_scene(mut st: FoldState, beat: &Beat) -> Result<FoldState, S
                     scene_id: beat.id.clone(),
                     clock_from: beat.clock_from,
                     commit_seq: beat.commit_seq,
+                    certainty: CERT_KNOWS.into(),
+                    truth_value: None,
+                    method: Some("saw".into()),
                 });
             }
         }
@@ -339,6 +416,9 @@ pub(crate) fn apply_scene(mut st: FoldState, beat: &Beat) -> Result<FoldState, S
                     scene_id: beat.id.clone(),
                     clock_from: beat.clock_from,
                     commit_seq: beat.commit_seq,
+                    certainty: CERT_KNOWS.into(),
+                    truth_value: None,
+                    method: Some("heard".into()),
                 });
             }
         }
@@ -357,6 +437,9 @@ pub(crate) fn apply_scene(mut st: FoldState, beat: &Beat) -> Result<FoldState, S
                     scene_id: beat.id.clone(),
                     clock_from: beat.clock_from,
                     commit_seq: beat.commit_seq,
+                    certainty: CERT_KNOWS.into(),
+                    truth_value: None,
+                    method: Some("thought".into()),
                 });
             }
         }
@@ -466,9 +549,13 @@ fn fold_from(
     covering.dedup();
 
     let mut knows: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    let mut beliefs = Vec::new();
     for k in &st.knows {
         if k.clock_from <= t {
-            knows.entry(k.person_id.clone()).or_default().push(k.fact.clone());
+            beliefs.push(k.clone());
+            if k.is_known_true() {
+                knows.entry(k.person_id.clone()).or_default().push(k.fact.clone());
+            }
         }
     }
     for v in knows.values_mut() {
@@ -486,6 +573,7 @@ fn fold_from(
         r#where: where_map,
         covering,
         knows,
+        beliefs,
         promises,
         edges,
         playing,
@@ -534,6 +622,20 @@ pub fn worlds_equivalent(a: &World, b: &World) -> bool {
     bb.covering.sort();
     aa.promises.sort_by(|x, y| x.id.cmp(&y.id));
     bb.promises.sort_by(|x, y| x.id.cmp(&y.id));
+    aa.beliefs.sort_by(|x, y| {
+        (x.person_id.clone(), x.fact.clone(), x.clock_from).cmp(&(
+            y.person_id.clone(),
+            y.fact.clone(),
+            y.clock_from,
+        ))
+    });
+    bb.beliefs.sort_by(|x, y| {
+        (x.person_id.clone(), x.fact.clone(), x.clock_from).cmp(&(
+            y.person_id.clone(),
+            y.fact.clone(),
+            y.clock_from,
+        ))
+    });
     aa == bb
 }
 

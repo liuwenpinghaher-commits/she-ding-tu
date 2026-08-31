@@ -3,9 +3,13 @@
 mod common;
 
 use narra::services::canon::SettingBook;
-use narra::services::ferry::{self, AFU, AHE, CITY, COL0, COL1, COL2, FERRY, GANG, KNIFE, LIAN, TOKEN};
+use narra::services::circumstances::{apply_person_lens, given_circumstances};
+use narra::services::relations::relations_for;
+use narra::services::ferry::{self, AFU, AHE, CITY, COL0, COL1, COL2, FERRY, GANG, KNIFE, LIAN, TOKEN, NIGHT_RULE};
+use narra::services::craft::{self, BookCraft, CraftChapter, ExportBeat};
 use narra::services::world::{
-    BeatDraft, Delta, KnowledgeWrite, Presence, ROLE_MENTIONED, ROLE_PRESENT, ATTR_HOLDS,
+    BeatDraft, Column, Delta, Entity, KnowledgeWrite, Presence, ROLE_MENTIONED, ROLE_PRESENT,
+    ATTR_HOLDS, CERT_WRONG, KIND_RULE,
 };
 use std::sync::Arc;
 
@@ -34,6 +38,7 @@ fn afu_sees_knife() -> BeatDraft {
         knowledge_writes: vec![KnowledgeWrite {
             person_id: AFU.into(),
             fact: "刀在抽屉".into(),
+            ..Default::default()
         }],
         deltas: vec![Delta {
             entity_id: KNIFE.into(),
@@ -307,10 +312,21 @@ async fn s1_9_circumstances_omit_suggestion_and_rank_deadline() {
         presences: vec![p(LIAN, ROLE_PRESENT)],
         ..BeatDraft::default()
     };
+    book.commit(afu_sees_knife()).await.unwrap();
     let pkt = book.given_circumstances(&draft).await.unwrap();
     assert_eq!(pkt.intent, "阿莲来找东西");
     assert!(pkt.open_promises.len() <= 5);
     assert_eq!(pkt.open_promises[0].id, "token_due");
+    assert!(
+        pkt.reader_knows.iter().any(|f| f.contains("刀在抽屉") || f.contains("holder")),
+        "读者账应含刀 {0:?}",
+        pkt.reader_knows
+    );
+    assert!(
+        pkt.reader_irony.iter().any(|f| f.contains(LIAN) && f.contains("不知道")),
+        "读者账应含阿莲不知道 {0:?}",
+        pkt.reader_irony
+    );
     let json = serde_json::to_string(&pkt).unwrap();
     assert!(!json.contains("建议一件"));
     assert!(!json.contains("promise_suggestion"));
@@ -595,5 +611,495 @@ async fn s1_20_knows_at_matches_world() {
     let w = book.world_at(10, None).await.unwrap();
     let k = book.knows_at(10, AFU, None).await.unwrap();
     assert_eq!(k, w.knows.get(AFU).cloned().unwrap_or_default());
+}
+
+#[tokio::test]
+async fn s2_dual_write_official_scene_and_alias_search() {
+    let (_h, book) = book().await;
+    book.commit(afu_sees_knife()).await.unwrap();
+    book.sync_official().await.expect("sync official");
+    book.sync_official().await.expect("sync 二次须幂等");
+
+    #[derive(Debug, serde::Deserialize)]
+    struct SceneRow {
+        intent: Option<String>,
+        title: Option<String>,
+    }
+    #[derive(Debug, serde::Deserialize)]
+    struct CountRow {
+        n: Option<i64>,
+    }
+
+    let mut q = book
+        .db()
+        .query("SELECT intent, title FROM scene")
+        .await
+        .expect("select scene");
+    let rows: Vec<SceneRow> = q.take(0).unwrap_or_default();
+    assert_eq!(rows.len(), 1, "二次回填不得复制 scene {rows:?}");
+    assert!(
+        rows.iter().any(|r| r
+            .intent
+            .as_deref()
+            .or(r.title.as_deref())
+            .map(|s| s.contains("刀"))
+            .unwrap_or(false)),
+        "官方 scene 应有发现刀 {rows:?}"
+    );
+
+    let world = book.world_at(10, None).await.expect("world_at 仍走 setting_*");
+    assert!(
+        world
+            .states
+            .iter()
+            .any(|s| s.entity_id == KNIFE && s.attr == "holder" && s.value == AFU),
+        "双写后算出这一刻仍须看见刀.holder=阿福 {:?}",
+        world.states
+    );
+    assert!(
+        world
+            .knows
+            .get(AFU)
+            .map(|k| k.iter().any(|f| f.contains("刀在抽屉")))
+            .unwrap_or(false),
+        "双写后阿福知情不得丢 {:?}",
+        world.knows
+    );
+
+    let mut kq = book
+        .db()
+        .query("SELECT count() AS n FROM knows GROUP ALL")
+        .await
+        .expect("count knows");
+    let kn: Vec<CountRow> = kq.take(0).unwrap_or_default();
+    assert!(
+        kn.first().and_then(|r| r.n).unwrap_or(0) >= 1,
+        "官方 knows 边应有阿福发现刀 {kn:?}"
+    );
+
+    let mut wq = book
+        .db()
+        .query("SELECT count() AS n FROM setting_window GROUP ALL")
+        .await
+        .expect("count window");
+    let wn: Vec<CountRow> = wq.take(0).unwrap_or_default();
+    assert!(
+        wn.first().and_then(|r| r.n).unwrap_or(0) >= 1,
+        "情状行应展开 {wn:?}"
+    );
+
+    let mut lian = book
+        .load_canon()
+        .await
+        .unwrap()
+        .entities
+        .into_iter()
+        .find(|e| e.id == LIAN)
+        .expect("lian");
+    lian.profile.insert("aliases".into(), "莲子".into());
+    book.upsert_entity(&lian).await.unwrap();
+    let hits = book.search_entities("莲子").await.unwrap();
+    assert!(
+        hits.iter().any(|e| e.id == LIAN),
+        "别名应搜到阿莲 {hits:?}"
+    );
+}
+
+#[tokio::test]
+async fn s3_windows_and_knows_not_json_are_source() {
+    let (_h, book) = book().await;
+    book.commit(afu_sees_knife()).await.unwrap();
+    book.db()
+        .query("UPDATE setting_beat SET deltas_json = '[]', knowledge_json = '[]'")
+        .await
+        .expect("wipe json");
+    let world = book.world_at(10, None).await.expect("world_at");
+    assert!(
+        world
+            .states
+            .iter()
+            .any(|s| s.entity_id == KNIFE && s.attr == "holder" && s.value == AFU),
+        "抹掉 JSON 袋后仍须从情状行折出刀.holder {:?}",
+        world.states
+    );
+    assert!(
+        world
+            .knows
+            .get(AFU)
+            .map(|k| k.iter().any(|f| f.contains("刀在抽屉")))
+            .unwrap_or(false),
+        "抹掉 JSON 袋后阿福知情仍须从 knows 边来 {:?}",
+        world.knows
+    );
+}
+
+#[tokio::test]
+async fn s3_wrong_belief_listed_and_recall_blocked() {
+    let (_h, book) = book().await;
+    book.commit(afu_sees_knife()).await.unwrap();
+    let wrong = BeatDraft {
+        id: Some("b_wrong".into()),
+        kind: "scene".into(),
+        column_id: COL1.into(),
+        intent: "阿莲以为铜牌在柜面".into(),
+        value_shift: Some("寻找→落空".into()),
+        do_text: Some("翻柜面".into()),
+        say_text: Some("阿莲：铜牌在柜面".into()),
+        clock_from: 60,
+        clock_to: 120,
+        place_id: Some(FERRY.into()),
+        presences: vec![p(LIAN, ROLE_PRESENT)],
+        knowledge_writes: vec![KnowledgeWrite {
+            person_id: LIAN.into(),
+            fact: "铜牌在柜面".into(),
+            certainty: CERT_WRONG.into(),
+            truth_value: Some("铜牌下落不明".into()),
+            ..Default::default()
+        }],
+        ..BeatDraft::default()
+    };
+    book.commit(wrong).await.unwrap();
+    let draft = BeatDraft {
+        intent: "阿莲再找".into(),
+        column_id: COL1.into(),
+        clock_from: 60,
+        clock_to: 120,
+        place_id: Some(FERRY.into()),
+        presences: vec![p(LIAN, ROLE_PRESENT)],
+        do_text: Some("再翻".into()),
+        ..BeatDraft::default()
+    };
+    let pkt = book.given_circumstances(&draft).await.unwrap();
+    assert!(
+        pkt.wrong_beliefs
+            .iter()
+            .any(|s| s.contains("信错") && s.contains("铜牌在柜面")),
+        "规定情境应列出信错 {:?}",
+        pkt.wrong_beliefs
+    );
+
+    let recall = BeatDraft {
+        id: Some("b_recall".into()),
+        kind: "scene".into(),
+        column_id: COL1.into(),
+        intent: "阿莲想起刀".into(),
+        value_shift: Some("发现".into()),
+        think_text: Some("想起刀在抽屉".into()),
+        do_text: Some("愣住".into()),
+        clock_from: 60,
+        clock_to: 120,
+        place_id: Some(FERRY.into()),
+        presences: vec![p(LIAN, ROLE_PRESENT)],
+        ..BeatDraft::default()
+    };
+    let report = book.constrain_draft(&recall).await.unwrap();
+    assert!(
+        report.findings.iter().any(|f| f.code == "recall_truth" && f.grade == narra::services::constrain::Grade::Strict),
+        "想起实际真值应挡 {:?}",
+        report.findings
+    );
+    assert!(book.commit(recall).await.is_err());
+}
+
+#[tokio::test]
+async fn s3_night_sail_blocked_when_rule_strict() {
+    let (_h, book) = book().await;
+    let mut rule = book
+        .load_canon()
+        .await
+        .unwrap()
+        .entities
+        .into_iter()
+        .find(|e| e.id == NIGHT_RULE)
+        .unwrap_or_else(|| Entity {
+            id: NIGHT_RULE.into(),
+            kind: KIND_RULE.into(),
+            name: "渡口夜间不得开船".into(),
+            profile: Default::default(),
+        });
+    rule.profile.insert("enforcement".into(), "挡".into());
+    rule.profile.insert("scope".into(), "渡口、入夜之后".into());
+    book.upsert_entity(&rule).await.unwrap();
+    let sail = BeatDraft {
+        id: Some("b_sail".into()),
+        kind: "scene".into(),
+        column_id: COL0.into(),
+        intent: "夜间开船".into(),
+        value_shift: Some("违戒".into()),
+        do_text: Some("解缆开船".into()),
+        clock_from: 0,
+        clock_to: 60,
+        place_id: Some(FERRY.into()),
+        presences: vec![p(AFU, ROLE_PRESENT)],
+        ..BeatDraft::default()
+    };
+    let report = book.constrain_draft(&sail).await.unwrap();
+    assert!(
+        report.findings.iter().any(|f| f.code == "rule_block" && f.grade == narra::services::constrain::Grade::Strict),
+        "夜间开船规则为挡则应挡 {:?}",
+        report.findings
+    );
+    assert!(book.commit(sail).await.is_err());
+    rule.profile.insert("enforcement".into(), "标黄".into());
+    book.upsert_entity(&rule).await.unwrap();
+    let warn = BeatDraft {
+        id: Some("b_sail_warn".into()),
+        kind: "scene".into(),
+        column_id: COL0.into(),
+        intent: "夜间开船".into(),
+        value_shift: Some("破戒".into()),
+        do_text: Some("解缆开船".into()),
+        clock_from: 0,
+        clock_to: 60,
+        place_id: Some(FERRY.into()),
+        presences: vec![p(AFU, ROLE_PRESENT)],
+        ..BeatDraft::default()
+    };
+    let report = book.constrain_draft(&warn).await.unwrap();
+    assert!(
+        report.findings.iter().any(|f| f.code == "rule_warn"),
+        "标黄应可见 {:?}",
+        report.findings
+    );
+    assert!(!report.blocks());
+}
+
+#[tokio::test]
+async fn s4_person_lens_keeps_world_and_filters_person_ledger() {
+    let (_h, book) = book().await;
+    book.commit(afu_sees_knife()).await.unwrap();
+    let world = book.world_at(10, None).await.unwrap();
+    let canon = book.load_canon().await.unwrap();
+    let draft = BeatDraft {
+        intent: "阿莲来找东西".into(),
+        column_id: COL1.into(),
+        clock_from: 10,
+        clock_to: 60,
+        place_id: Some(FERRY.into()),
+        presences: vec![p(LIAN, ROLE_PRESENT)],
+        ..BeatDraft::default()
+    };
+    let pkt = given_circumstances(&world, &canon, &draft);
+    let lens = apply_person_lens(pkt, &world, LIAN);
+    assert!(
+        lens.stakes
+            .iter()
+            .any(|s| s.contains(KNIFE) && (s.contains("holder") || s.contains(AFU))),
+        "人物透镜不得藏世界上的刀 {:?}",
+        lens.stakes
+    );
+    assert!(
+        lens.knowledge_gaps.iter().all(|s| s.contains(LIAN)),
+        "人物账应变阿莲的 {:?}",
+        lens.knowledge_gaps
+    );
+    assert!(
+        lens.knowledge_gaps
+            .iter()
+            .any(|s| s.contains("不知道") && (s.contains(KNIFE) || s.contains("刀"))),
+        "阿莲应不知道刀 {:?}",
+        lens.knowledge_gaps
+    );
+}
+
+#[tokio::test]
+async fn s4_relations_afu_sees_knife_and_lian_readonly() {
+    let (_h, book) = book().await;
+    book.commit(afu_sees_knife()).await.unwrap();
+    book.commit(BeatDraft {
+        id: Some("b_meet".into()),
+        kind: "scene".into(),
+        column_id: COL1.into(),
+        intent: "阿莲来找东西".into(),
+        value_shift: Some("寻找→落空".into()),
+        do_text: Some("进门".into()),
+        clock_from: 60,
+        clock_to: 120,
+        place_id: Some(FERRY.into()),
+        presences: vec![p(AFU, ROLE_PRESENT), p(LIAN, ROLE_PRESENT)],
+        ..BeatDraft::default()
+    })
+    .await
+    .unwrap();
+    let world = book.world_at(70, None).await.unwrap();
+    let canon = book.load_canon().await.unwrap();
+    let (nodes, edges) = relations_for(&canon, &world, AFU);
+    assert!(
+        nodes.iter().any(|n| n.id == KNIFE),
+        "应有刀节点 {nodes:?}"
+    );
+    assert!(
+        nodes.iter().any(|n| n.id == LIAN),
+        "应有阿莲节点 {nodes:?}"
+    );
+    assert!(
+        edges.iter().any(|e| e.to == KNIFE && e.rel == "持有"),
+        "阿福应有持有刀的边 {edges:?}"
+    );
+    assert!(
+        edges.iter().any(|e| e.to == LIAN && e.rel == "同场"),
+        "阿福应有与阿莲同场的边 {edges:?}"
+    );
+    assert!(
+        world
+            .states
+            .iter()
+            .any(|s| s.entity_id == KNIFE && s.attr == "holder" && s.value == AFU),
+        "连线不得改正史 {:?}",
+        world.states
+    );
+}
+
+#[tokio::test]
+async fn s5_export_premise_and_chapters_no_beat_advice() {
+    let (_h, book) = book().await;
+    book.commit(afu_sees_knife()).await.unwrap();
+    let world = book.world_at(10, None).await.unwrap();
+    let canon = book.load_canon().await.unwrap();
+    let pkt = book
+        .given_circumstances(&BeatDraft {
+            intent: "阿莲来找东西".into(),
+            column_id: COL1.into(),
+            clock_from: 10,
+            place_id: Some(FERRY.into()),
+            presences: vec![p(LIAN, ROLE_PRESENT)],
+            ..BeatDraft::default()
+        })
+        .await
+        .unwrap();
+    let pkt_json = serde_json::to_string(&pkt).unwrap();
+    assert!(
+        craft::forbids_beat_advice(&pkt_json),
+        "规定情境不得出现节拍指令 {pkt_json}"
+    );
+    let fake = format!("（假模型）为「{}」走了一步", "阿莲来找东西");
+    assert!(craft::forbids_beat_advice(&fake));
+    assert!(!fake.contains("你现在应该写中点"));
+    assert_eq!(world.t, 10);
+
+    let craft = BookCraft {
+        premise: "渡口夜里，铜牌三日，刀在抽屉。".into(),
+        chapters: vec![
+            CraftChapter {
+                id: "ch1".into(),
+                title: "抽屉".into(),
+                start_column: COL0.into(),
+            },
+            CraftChapter {
+                id: "ch2".into(),
+                title: "来人".into(),
+                start_column: COL1.into(),
+            },
+        ],
+    };
+    let cols = vec![
+        Column {
+            id: COL0.into(),
+            clock_from: 0,
+            clock_to: 60,
+            display_ord: 0,
+        },
+        Column {
+            id: COL1.into(),
+            clock_from: 60,
+            clock_to: 120,
+            display_ord: 1,
+        },
+    ];
+    let md = craft::export_markdown(
+        "渡口",
+        &craft,
+        &cols,
+        vec![
+            ExportBeat {
+                column_id: COL0.into(),
+                clock: 0,
+                telling: 1,
+                seq: 1,
+                block: "## 场 · 阿福发现刀在抽屉\n状态：正史\n\n".into(),
+            },
+            ExportBeat {
+                column_id: COL1.into(),
+                clock: 60,
+                telling: 2,
+                seq: 2,
+                block: "## 场 · 阿莲来找东西\n状态：正史\n\n".into(),
+            },
+        ],
+        false,
+    );
+    assert!(md.contains("> 主脑：渡口夜里，铜牌三日，刀在抽屉。"), "{md}");
+    assert!(md.contains("# 第1回 抽屉"), "{md}");
+    assert!(md.contains("# 第2回 来人"), "{md}");
+    assert!(md.contains("阿福发现刀在抽屉"));
+    assert!(craft::forbids_beat_advice(&md));
+    let _ = canon;
+}
+
+#[tokio::test]
+async fn s6_lie_visible_warns_but_does_not_block() {
+    let (_h, book) = book().await;
+    book.commit(afu_sees_knife()).await.unwrap();
+    let lie = BeatDraft {
+        id: Some("b_lie".into()),
+        kind: "scene".into(),
+        column_id: COL1.into(),
+        intent: "阿福说没看见".into(),
+        value_shift: Some("隐瞒".into()),
+        do_text: Some("摇头".into()),
+        say_text: Some("阿福：没看见。".into()),
+        clock_from: 60,
+        clock_to: 120,
+        place_id: Some(FERRY.into()),
+        presences: vec![p(AFU, ROLE_PRESENT), p(LIAN, ROLE_PRESENT)],
+        ..BeatDraft::default()
+    };
+    let report = book.constrain_draft(&lie).await.unwrap();
+    assert!(
+        report
+            .findings
+            .iter()
+            .any(|f| f.code == "lie_visible" && f.grade == narra::services::constrain::Grade::Warn),
+        "撒谎应标黄 {:?}",
+        report.findings
+    );
+    assert!(!report.blocks());
+}
+
+#[tokio::test]
+async fn s6_official_cli_scene_is_not_canon() {
+    let (_h, book) = book().await;
+    book.commit(afu_sees_knife()).await.unwrap();
+    book.db()
+        .query(
+            "UPSERT event:cli_ghost SET title = 'ghost', sequence = 99, updated_at = time::now();
+             UPSERT scene:cli_ghost SET title = '官方CLI冒充', event = event:cli_ghost, status = 'committed', intent = '官方CLI冒充', commit_seq = 99, updated_at = time::now();",
+        )
+        .await
+        .expect("official cli scene");
+    let canon = book.load_canon().await.unwrap();
+    assert!(
+        !canon.beats.iter().any(|b| b.id == "cli_ghost" || b.intent.contains("官方CLI")),
+        "官方 CLI 新建场不得进正史 {:?}",
+        canon.beats.iter().map(|b| &b.intent).collect::<Vec<_>>()
+    );
+    let world = book.world_at(10, None).await.unwrap();
+    assert!(world.playing.contains(&"b_knife".into()));
+    assert!(!world.playing.iter().any(|id| id.contains("ghost") || id.contains("cli")));
+    let mut q = book
+        .db()
+        .query("SELECT intent, title FROM scene WHERE intent = '官方CLI冒充' OR title = '官方CLI冒充'")
+        .await
+        .expect("select ghost");
+    #[derive(Debug, serde::Deserialize)]
+    struct Row {
+        intent: Option<String>,
+        title: Option<String>,
+    }
+    let rows: Vec<Row> = q.take(0).unwrap_or_default();
+    assert!(
+        !rows.is_empty(),
+        "官方表可以有这场，只是产品不当正史 {rows:?}"
+    );
 }
 

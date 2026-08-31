@@ -118,12 +118,43 @@
     #minimap {
       grid-column: 1 / -1;
       display: flex;
-      align-items: center;
-      gap: 3px;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 2px;
       padding: 6px 14px;
       background: var(--panel);
       border-bottom: 1px solid var(--line);
       overflow-x: auto;
+      position: relative;
+    }
+    #mini-chapters {
+      display: flex;
+      gap: 3px;
+      min-height: 14px;
+      font-family: "Noto Serif SC", serif;
+      font-size: 10px;
+      color: var(--brass);
+      line-height: 14px;
+    }
+    .ch-seg {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      border-left: 1px solid var(--brass);
+      padding-left: 3px;
+      box-sizing: border-box;
+    }
+    .ch-seg.empty { border-left-color: transparent; padding-left: 0; }
+    #mini-track { display: flex; align-items: center; gap: 3px; position: relative; }
+    .mini-window {
+      position: absolute;
+      top: -2px;
+      height: 22px;
+      border: 1px solid var(--brass);
+      box-sizing: border-box;
+      pointer-events: auto;
+      cursor: grab;
+      background: rgba(196, 165, 116, 0.12);
     }
     .tooth {
       width: 10px; height: 18px;
@@ -136,10 +167,36 @@
     .tooth.canon { background: var(--brass); }
     .tooth.draft { background: var(--warn); }
     .tooth.empty { background: #5a5246; }
+    .tooth.ellipsis {
+      background: repeating-linear-gradient(-45deg, #8a7a5c, #8a7a5c 3px, #4a453c 3px, #4a453c 5px);
+    }
     .tooth.telling-diff::after {
       content: "";
       position: absolute; left: 0; right: 0; bottom: 0; height: 3px;
       background: #7ea0c4;
+    }
+    .tooth.chapter-start { box-shadow: inset 2px 0 0 var(--cream); }
+    .tooth.debt::before {
+      content: "";
+      position: absolute; left: 0; right: 0; top: 0; height: 3px;
+      background: var(--warn);
+    }
+    .tooth.chapter-start {
+      box-shadow: inset 3px 0 0 var(--cream);
+    }
+    .sit-block { margin: 10px 0 14px; }
+    .sit-head {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 10px;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      color: var(--brass);
+      margin: 0 0 6px;
+    }
+    .card .debt {
+      color: var(--warn);
+      font-size: 11px;
+      margin-top: 4px;
     }
     .library, .side {
       background: var(--panel);
@@ -167,11 +224,32 @@
     #ent-list li, #search-hits li {
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 6px;
       padding: 5px 4px;
       cursor: grab;
     }
     #ent-list li:hover, #search-hits li:hover { background: var(--panel-2); }
+    #ent-list li.selected, #search-hits li.selected { outline: 1px solid var(--brass); }
+    #ent-list li.rule, #search-hits li.rule { cursor: default; opacity: .88; }
+    .ent-name { flex: 1; min-width: 0; cursor: pointer; }
+    .off-page { font-size: 10px; color: var(--mute); flex-shrink: 0; }
+    .ent-scenes { font-size: 11px; padding: 1px 6px; margin: 0; flex-shrink: 0; }
+    #rail-msg { min-height: 1.2em; }
+    #occ-table { border-collapse: collapse; font-size: 11px; width: 100%; }
+    #occ-table th, #occ-table td { border: 1px solid var(--line); padding: 4px 6px; text-align: center; }
+    #occ-table th { color: var(--mute); font-weight: 500; }
+    #occ-table td { cursor: pointer; }
+    #occ-table td.canon { background: var(--brass); color: var(--brass-ink); }
+    #occ-table td.draft { background: var(--warn-bg); color: var(--warn); }
+    #occ-table .row-name { text-align: left; cursor: default; }
+    #flyout { max-width: min(920px, 92vw); }
+    #paste-dlg textarea, #premise { min-height: 120px; width: 100%; }
+    #premise { min-height: 72px; }
+    #dossier-appearances { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 18px; }
+    #dossier-appearances button { margin: 0; }
+    #dossier-windows table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    #dossier-windows th, #dossier-windows td { border: 1px solid var(--line); padding: 4px 6px; text-align: left; }
+    #book-list { max-width: 10em; }
     .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
     .stage {
       display: flex;
@@ -180,6 +258,38 @@
       min-height: 0;
       background: radial-gradient(1200px 400px at 20% -10%, var(--glow) 0%, transparent 55%), var(--night);
     }
+    #ruler {
+      display: grid;
+      grid-template-columns: repeat(var(--cols), minmax(0, 1fr));
+      flex-shrink: 0;
+      background: var(--panel);
+      border-bottom: 1px solid var(--line);
+    }
+    #ruler .col-head {
+      cursor: pointer;
+    }
+    #ruler .col-head.on {
+      background: var(--col-on);
+      box-shadow: inset 0 -2px 0 var(--brass);
+    }
+    .cov {
+      display: flex;
+      gap: 6px;
+      margin-top: 8px;
+      align-items: center;
+    }
+    .cov i {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--line);
+      display: inline-block;
+    }
+    .cov i.on[data-dim="place"] { background: #6d6875; }
+    .cov i.on[data-dim="person"] { background: #c45c26; }
+    .cov i.on[data-dim="thing"] { background: #e9c46a; }
+    .cov i.on[data-dim="faction"] { background: #bc6c25; }
+    .cov i.on[data-dim="promise"] { background: #8d6b4a; }
     #cols {
       display: grid;
       grid-template-columns: repeat(var(--cols), minmax(0, 1fr));
@@ -223,6 +333,19 @@
       z-index: 3;
     }
     .col-handle:hover { background: var(--handle-hover); }
+    .add-seam {
+      position: absolute;
+      top: 4px; right: 10px;
+      z-index: 4;
+      padding: 0 6px;
+      font-size: 14px;
+      line-height: 18px;
+    }
+    #suggest-list button[aria-pressed="true"] {
+      background: var(--cream);
+      color: var(--night);
+      border-color: var(--cream);
+    }
     .col-handle::after {
       content: "";
       position: absolute;
@@ -265,6 +388,19 @@
       letter-spacing: .06em;
     }
     .badge.warn { border-color: var(--warn); color: var(--warn); background: var(--warn-bg); }
+    .warn-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--warn);
+      display: inline-block;
+    }
+    .promise-op { font-size: 11px; color: var(--mute); margin-top: 4px; }
+    #moment {
+      border: 1px solid var(--line);
+      padding: 8px;
+      margin: 10px 0;
+      background: var(--night);
+    }
+    #moment h3 { margin: 0 0 6px; font-size: 13px; }
     .title {
       font-family: "Noto Serif SC", "EB Garamond", serif;
       font-size: 15px;
@@ -299,7 +435,15 @@
       gap: 8px;
       margin: 10px 0 4px;
     }
-    .field-head h3 { margin: 0; }
+    .field-head h3, .field-head label { margin: 0; }
+    .discuss-btn { font-size: 11px; padding: 2px 8px; flex-shrink: 0; }
+    #discuss-panel {
+      border: 1px solid var(--brass);
+      padding: 8px;
+      margin: 8px 0;
+      background: var(--night);
+    }
+    #discuss-panel h4 { margin: 0 0 6px; font-size: 12px; color: var(--brass); }
     .field-row { display: flex; gap: 6px; flex-wrap: wrap; margin: 6px 0; }
     textarea { width: 100%; min-height: 64px; resize: vertical; }
     textarea.short { min-height: 44px; }
@@ -325,13 +469,120 @@
       background: var(--panel);
       color: var(--cream);
       border: 1px solid var(--brass);
-      max-width: 480px;
+      max-width: 520px;
+      max-height: 80vh;
+      overflow: auto;
       padding: 16px;
     }
-    dialog::backdrop { background: rgba(0,0,0,.55); }
+    dialog::backdrop { background: rgba(0,0,0,.62); }
     dialog h3 { margin: 0 0 10px; font-family: "Noto Serif SC", serif; }
     dialog ul { padding-left: 18px; }
     dialog button { margin: 4px 6px 0 0; }
+    #craft-dlg { max-width: 640px; }
+    #craft-premise { width: 100%; min-height: 4.5em; }
+    .craft-row { display: flex; gap: 6px; align-items: center; margin: 6px 0; }
+    .craft-row input { flex: 1; }
+    .craft-row select { min-width: 11em; }
+    #dossier {
+      width: min(1200px, calc(100vw - 32px));
+      max-width: none;
+      height: calc(100vh - 32px);
+      max-height: none;
+      padding: 0;
+      overflow: hidden;
+    }
+    #dossier[open] {
+      display: flex;
+      flex-direction: column;
+    }
+    .dossier-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 16px 22px 14px;
+      border-bottom: 1px solid var(--line);
+      background: var(--panel-2);
+      flex-shrink: 0;
+    }
+    .dossier-kicker {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 10px;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      color: var(--brass);
+      margin: 0 0 4px;
+    }
+    #dossier-title { margin: 0; font-size: 22px; }
+    .dossier-note { color: var(--mute); font-size: 12px; margin: 6px 0 0; max-width: 42em; }
+    .dossier-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    .dossier-actions button { margin: 0; }
+    .dossier-body {
+      flex: 1;
+      min-height: 0;
+      display: grid;
+      grid-template-columns: minmax(0, 1.45fr) minmax(280px, .85fr);
+      overflow: hidden;
+    }
+    .dossier-main, .dossier-rail {
+      overflow: auto;
+      padding: 18px 22px 28px;
+    }
+    .dossier-rail {
+      border-left: 1px solid var(--line);
+      background: var(--night);
+    }
+    .dossier-section {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 10px;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      color: var(--mute);
+      margin: 0 0 12px;
+    }
+    #dossier-fields {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px 16px;
+      margin: 0;
+    }
+    #dossier-fields label { margin: 0; }
+    #dossier-fields .span-2 { grid-column: 1 / -1; }
+    #dossier-fields input, #dossier-fields textarea { width: 100%; }
+    #dossier-fields textarea { min-height: 96px; }
+    #dossier-windows .sit-row { margin: 6px 0; }
+    #dossier-error { padding: 0 22px 12px; min-height: 1em; }
+    #flyout {
+      width: min(1200px, calc(100vw - 32px));
+      max-width: none;
+      height: calc(100vh - 32px);
+      max-height: none;
+      padding: 0;
+      overflow: hidden;
+    }
+    #flyout[open] { display: flex; flex-direction: column; }
+    #flyout h3, #graph h3 { padding: 14px 18px 0; }
+    #flyout .muted, #graph .muted { padding: 0 18px; }
+    #occ-wrap, #graph-wrap {
+      flex: 1;
+      min-height: 0;
+      overflow: auto;
+      padding: 8px 18px 18px;
+    }
+    #flyout menu, #graph menu { padding: 8px 18px 14px; margin: 0; }
+    .lens-veil { opacity: .42; filter: grayscale(.3); }
+    .lens-veil::after { content: " （此人不知道）"; color: var(--mute); font-size: 11px; }
+    #graph {
+      width: min(920px, calc(100vw - 32px));
+      height: calc(100vh - 80px);
+      max-height: none;
+      padding: 0;
+      overflow: hidden;
+    }
+    #graph[open] { display: flex; flex-direction: column; }
+    #graph-svg { width: 100%; height: 520px; background: var(--night); }
+    #occ-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    #occ-table td { border-bottom: 1px solid var(--line); padding: 6px 8px; }
     #suggest-list button, #gap-list { width: 100%; text-align: left; }
     #suggest-list li { list-style: none; margin: 4px 0; }
     #suggest-list { padding: 0; }
@@ -380,9 +631,11 @@
     <header>
       <div class="brand">设定图 <em>一场一块</em></div>
       <div class="book-box">
+        <select id="book-list" data-testid="book-list" aria-label="切换书"></select>
         <input id="book-name" data-testid="book-name" placeholder="书名" value="渡口" />
         <button type="button" id="create-book" data-testid="create-book">创建书</button>
         <button type="button" id="open-book" data-testid="open-book">打开书</button>
+        <button type="button" id="open-craft" data-testid="open-craft" disabled>书页</button>
         <span id="book-label" data-testid="book-label"></span>
       </div>
       <div class="spacer"></div>
@@ -398,7 +651,7 @@
         <button type="button" id="plus" data-testid="plus" aria-label="本页多一列">+</button>
         <button type="button" id="next" data-testid="next" aria-label="窗口往右">›</button>
       </div>
-      <button type="button" class="primary" id="write-next" data-testid="write-next">写下一场</button>
+      <button type="button" class="primary" id="write-next" data-testid="write-next" disabled title="没有本场任务不准写下一场">写下一场</button>
     </header>
     <div class="subbar">
       <span class="lab">结构</span>
@@ -410,9 +663,13 @@
       <button type="button" id="add-parallel" data-testid="add-parallel">在本列再写一场</button>
       <button type="button" id="ellipsis" data-testid="ellipsis">省略场</button>
       <button type="button" id="occupancy" data-testid="occupancy">出场</button>
+      <label class="lab" for="person-lens">人物透镜</label>
+      <select id="person-lens" data-testid="person-lens" aria-label="只看谁">
+        <option value="">全知</option>
+      </select>
+      <button type="button" id="relations" data-testid="relations">关系</button>
       <button type="button" id="export" data-testid="export">导出</button>
       <button type="button" id="paste" data-testid="paste">丢一段草稿</button>
-      <button type="button" id="plant-promise" data-testid="plant-promise">埋伏笔</button>
     </div>
     <div id="minimap" data-testid="minimap"></div>
     <aside class="library" id="rail" data-testid="left-rail">
@@ -432,6 +689,7 @@
             <option value="thing">道具</option>
             <option value="faction">组织</option>
             <option value="rule">规则</option>
+            <option value="promise">伏笔</option>
           </select>
         </div>
         <div class="row">
@@ -439,28 +697,86 @@
           <button type="button" id="delete-entity" data-testid="delete-entity">删设定</button>
         </div>
       </div>
+      <p id="rail-msg" data-testid="rail-msg" class="muted"></p>
       <ul id="ent-list" data-testid="ent-list"></ul>
     </aside>
     <div class="stage">
+      <div id="ruler" data-testid="ruler"></div>
       <div id="cols" data-testid="stripboard"></div>
     </div>
     <aside class="side" id="side">
       <h2>本场</h2>
-      <label>本场任务</label>
+      <div class="field-head">
+        <label>场次</label>
+        <button type="button" class="discuss-btn" data-discuss="title" data-testid="talk-title">讨论</button>
+      </div>
+      <input id="scene-title" data-testid="scene-title" placeholder="未名场" />
+      <div class="field-head">
+        <label>本场任务</label>
+        <button type="button" class="discuss-btn" data-discuss="intent" data-testid="talk-intent">讨论</button>
+      </div>
       <input id="intent" data-testid="intent" placeholder="这场要改变什么" />
       <label>地点</label>
       <input id="place-id" data-testid="place-id" placeholder="本场地点" />
       <div class="field-row">
         <button type="button" id="talk" data-testid="talk">讨论</button>
-        <button type="button" id="write-box" data-testid="write-box">写入此框</button>
+        <button type="button" id="write-box" data-testid="write-box" disabled>写入此框</button>
         <button type="button" id="fill-fake" data-testid="fill-fake">模型填下一场</button>
       </div>
-      <label>动作</label>
+      <div id="discuss-panel" data-testid="discuss-panel" class="hidden">
+        <h4 id="discuss-label" data-testid="discuss-label">讨论</h4>
+        <div id="discuss-draft" data-testid="discuss-draft" class="muted"></div>
+      </div>
+      <div class="field-head">
+        <label>动作</label>
+        <button type="button" class="discuss-btn" data-discuss="do_text" data-testid="talk-do">讨论</button>
+      </div>
       <textarea id="do-text" data-testid="do-text" placeholder="动作"></textarea>
-      <label>对白</label>
+      <div class="field-head">
+        <label>对白</label>
+        <button type="button" class="discuss-btn" data-discuss="say_text" data-testid="talk-say">讨论</button>
+      </div>
       <textarea id="say-text" data-testid="say-text" class="short" placeholder="对白"></textarea>
-      <label>内心</label>
+      <div class="field-head">
+        <label>内心</label>
+        <button type="button" class="discuss-btn" data-discuss="think_text" data-testid="talk-think">讨论</button>
+      </div>
       <textarea id="think-text" data-testid="think-text" class="short" placeholder="内心"></textarea>
+      <div class="field-head">
+        <label>价值转折</label>
+        <button type="button" class="discuss-btn" data-discuss="value_shift" data-testid="talk-shift">讨论</button>
+      </div>
+      <input id="value-shift" data-testid="value-shift" placeholder="例如 无知→把柄" />
+      <label>本场变化</label>
+      <div class="row" style="display:flex;gap:6px;flex-wrap:wrap">
+        <input id="delta-ent" data-testid="delta-ent" placeholder="实体" style="flex:1;min-width:4em" />
+        <input id="delta-attr" data-testid="delta-attr" placeholder="属性" style="flex:1;min-width:4em" />
+        <input id="delta-val" data-testid="delta-val" placeholder="新值" style="flex:1;min-width:4em" />
+        <input id="delta-from" data-testid="delta-from" placeholder="变化起点钟，可早于本场" style="flex:1;min-width:6em" />
+        <button type="button" id="add-delta" data-testid="add-delta">加入变化</button>
+      </div>
+      <div id="delta-list" data-testid="delta-list" class="muted"></div>
+      <label>知情写入</label>
+      <div class="row" style="display:flex;gap:6px;flex-wrap:wrap">
+        <input id="know-who" data-testid="know-who" placeholder="谁" style="flex:1;min-width:4em" />
+        <input id="know-fact" data-testid="know-fact" placeholder="知道什么" style="flex:2;min-width:6em" />
+        <select id="know-cert" data-testid="know-cert" style="min-width:5em">
+          <option value="knows">知道</option>
+          <option value="wrong">信错</option>
+          <option value="suspects">怀疑</option>
+        </select>
+        <input id="know-truth" data-testid="know-truth" placeholder="信错则填实际是什么" style="flex:2;min-width:6em" />
+        <select id="know-method" data-testid="know-method" style="min-width:5em">
+          <option value="discovered">发现</option>
+          <option value="saw">看见</option>
+          <option value="heard">听见</option>
+          <option value="told">被告诉</option>
+          <option value="inferred">推断</option>
+        </select>
+        <input id="know-source" data-testid="know-source" placeholder="谁告诉的" style="flex:1;min-width:4em" />
+        <button type="button" id="add-know" data-testid="add-know">加入知情</button>
+      </div>
+      <div id="know-write-list" data-testid="know-write-list" class="muted"></div>
       <div class="field-row">
         <label>当众 <input type="radio" name="vis" id="vis-public" data-testid="vis-public" checked /></label>
         <label>私下 <input type="radio" name="vis" id="vis-private" data-testid="vis-private" /></label>
@@ -473,10 +789,16 @@
       </div>
       <div class="field-row">
         <button type="button" class="primary" id="commit" data-testid="commit">写入正史</button>
+        <button type="button" class="primary hidden" id="revise" data-testid="revise">改已写入正史的场</button>
         <button type="button" id="delete-draft" data-testid="delete-draft">删草稿场</button>
-        <button type="button" id="delete-canon" data-testid="delete-canon">删已正史</button>
+        <button type="button" id="delete-canon" data-testid="delete-canon" disabled>删已正史</button>
       </div>
       <div id="light-delete-error" data-testid="light-delete-error" class="muted"></div>
+      <div id="revise-msg" data-testid="revise-msg" class="muted"></div>
+      <div id="moment" data-testid="moment">
+        <h3>这一刻</h3>
+        <div id="moment-body" data-testid="moment-body" class="muted">点标尺上的一列，看这一刻世界上为真什么。</div>
+      </div>
       <h3>本场规定情境</h3>
       <div id="sidebar" data-testid="sidebar" class="muted">点一场或写下一场后，这里列出上场已正史。</div>
       <div id="promise-suggest" data-testid="promise-suggest"></div>
@@ -494,15 +816,14 @@
           <section data-testid="group-presence"><h5>在场来源</h5><div id="g-presence"></div></section>
         </div>
       </div>
-      <div id="paste-suggest" data-testid="paste-suggest"></div>
-      <pre id="world" data-testid="world" class="muted"></pre>
+      <pre id="world" data-testid="world" class="hidden"></pre>
     </aside>
   </div>
   <dialog id="confirm-dlg" data-testid="confirm-change">
     <h3>确认变更</h3>
     <ul id="impact-list" data-testid="impact-list"></ul>
     <ul id="suggest-list" data-testid="suggest-list"></ul>
-    <button type="button" class="primary" id="confirm-ok" data-testid="confirm-ok">确认变更</button>
+    <button type="button" class="primary" id="confirm-ok" data-testid="confirm-ok" disabled>确认变更</button>
     <button type="button" id="confirm-cancel" data-testid="confirm-cancel">取消</button>
   </dialog>
   <dialog id="gap-dlg" data-testid="gap-dialog">
@@ -512,29 +833,111 @@
     <button type="button" id="gap-cancel" data-testid="gap-cancel">取消</button>
   </dialog>
   <dialog id="flyout" data-testid="flyout">
-    <h3>出场（只读）</h3>
-    <table id="occ-table" data-testid="occ-table"></table>
-    <button type="button" id="flyout-edit" data-testid="flyout-edit">改格</button>
-    <button type="button" id="flyout-close" data-testid="flyout-close">关闭</button>
+    <h3>出场总表（只读）</h3>
+    <p class="muted">点格跳到该列。改在场须拖标记，不能改格。不是默认主面。</p>
+    <div id="occ-wrap"><table id="occ-table" data-testid="occ-table"></table></div>
+    <menu>
+      <button type="button" id="flyout-close" data-testid="flyout-close">关闭</button>
+    </menu>
     <div id="flyout-error" data-testid="flyout-error"></div>
   </dialog>
+  <dialog id="graph" data-testid="graph">
+    <h3>关系（只读）</h3>
+    <p class="muted">选中人才画。拖边不能改正史。改正史回分场条。</p>
+    <div id="graph-wrap"><svg id="graph-svg" data-testid="graph-svg" viewBox="0 0 640 520"></svg></div>
+    <div id="graph-error" data-testid="graph-error" class="muted"></div>
+    <menu>
+      <button type="button" id="graph-close" data-testid="graph-close">关闭</button>
+    </menu>
+  </dialog>
+  <dialog id="paste-dlg" data-testid="paste-dialog">
+    <h3>丢一段草稿</h3>
+    <p class="muted">辅助入口。拆成建议后逐条「写入此框」，不会写成正史。</p>
+    <textarea id="paste-text" data-testid="paste-text" placeholder="贴一段动作或对白"></textarea>
+    <div class="field-row">
+      <button type="button" class="primary" id="paste-run" data-testid="paste-run">拆成建议</button>
+      <button type="button" id="paste-close" data-testid="paste-close">关闭</button>
+    </div>
+    <div id="paste-suggest" data-testid="paste-suggest"></div>
+  </dialog>
   <dialog id="dossier" data-testid="dossier">
-    <h3 id="dossier-title" data-testid="dossier-title">档案</h3>
-    <label>欲望 <input id="dossier-desire" data-testid="dossier-desire" /></label>
-    <div id="dossier-beats" data-testid="dossier-beats"></div>
-    <div id="dossier-windows" data-testid="dossier-windows"></div>
-    <button type="button" id="dossier-save" data-testid="dossier-save">保存基本设定</button>
-    <button type="button" id="dossier-delete" data-testid="dossier-delete">删设定</button>
-    <div id="dossier-error" data-testid="dossier-error"></div>
-    <button type="button" id="dossier-close" data-testid="dossier-close">关闭</button>
+    <div class="dossier-head">
+      <div>
+        <p class="dossier-kicker" id="dossier-kind">档案</p>
+        <h3 id="dossier-title" data-testid="dossier-title">档案</h3>
+        <p class="dossier-note">基本设定写这一页。世界上发生了什么，点右边的场回分场条改。情状窗口只读。</p>
+      </div>
+      <div class="dossier-actions">
+        <button type="button" class="primary" id="dossier-save" data-testid="dossier-save">保存基本设定</button>
+        <button type="button" id="dossier-delete" data-testid="dossier-delete">删设定</button>
+        <button type="button" id="dossier-close" data-testid="dossier-close">关闭</button>
+      </div>
+    </div>
+    <div class="dossier-body">
+      <section class="dossier-main">
+        <h4 class="dossier-section">基本设定</h4>
+        <div id="dossier-fields" data-testid="dossier-fields"></div>
+        <div id="dossier-discuss" data-testid="dossier-discuss" class="hidden">
+          <h4 id="dossier-discuss-label">讨论</h4>
+          <div id="dossier-discuss-draft" data-testid="dossier-discuss-draft" class="muted"></div>
+          <button type="button" id="dossier-write-box" data-testid="dossier-write-box">写入此框</button>
+        </div>
+      </section>
+      <aside class="dossier-rail">
+        <h4 class="dossier-section">出场的场</h4>
+        <div id="dossier-appearances" data-testid="dossier-appearances"></div>
+        <h4 class="dossier-section">情状窗口</h4>
+        <div id="dossier-windows" data-testid="dossier-windows"></div>
+        <h4 class="dossier-section">他知道什么</h4>
+        <div id="dossier-knows" data-testid="dossier-knows"></div>
+        <h4 class="dossier-section">相关伏笔</h4>
+        <div id="dossier-promises" data-testid="dossier-promises"></div>
+      </aside>
+    </div>
+    <div id="dossier-error" data-testid="dossier-error" class="muted"></div>
+  </dialog>
+  <dialog id="export-dlg" data-testid="export-dialog">
+    <h3>导出</h3>
+    <p class="muted">默认含草稿，每场标明正史或草稿。已作废场不会出现。有回目则按章分段。</p>
+    <label><input type="checkbox" id="export-include-drafts" data-testid="export-include-drafts" checked /> 含草稿</label>
+    <div class="field-row">
+      <button type="button" class="primary" id="export-run" data-testid="export-run">导出 Markdown</button>
+      <button type="button" id="export-close" data-testid="export-close">关闭</button>
+    </div>
+  </dialog>
+  <dialog id="craft-dlg" data-testid="craft-dialog">
+    <h3>书页 · 章法</h3>
+    <p class="muted">主脑和回目挂在这本书上，不算进算出这一刻，也不指挥每一场写哪一拍。</p>
+    <label for="craft-premise">主脑（一句前提）</label>
+    <textarea id="craft-premise" data-testid="craft-premise" placeholder="这本书在写什么"></textarea>
+    <label>回目</label>
+    <p class="muted">章界：从这一列起到下一章。不强制每场对应节拍。</p>
+    <div id="craft-chapters" data-testid="craft-chapters"></div>
+    <div class="field-row">
+      <button type="button" id="craft-add-chapter" data-testid="craft-add-chapter">加一回</button>
+      <button type="button" class="primary" id="craft-save" data-testid="craft-save">写入书页</button>
+      <button type="button" id="craft-close" data-testid="craft-close">关闭</button>
+    </div>
+    <div id="craft-msg" data-testid="craft-msg" class="muted"></div>
   </dialog>
   <pre id="export-out" data-testid="export-out" class="hidden"></pre>
 <script>
+// @ts-nocheck  无类型 DOM 脚本。开 checkJs 会把 $() / state 刷成几百条红线。
 const $ = (id) => document.getElementById(id);
-const KIND_COLOR = { person: "#c45c26", place: "#6d6875", thing: "#e9c46a", faction: "#bc6c25", rule: "#a98467" };
-const KIND_NAME = { person: "人物", place: "地点", thing: "道具", faction: "组织", rule: "规则" };
+const KIND_COLOR = { person: "#c45c26", place: "#6d6875", thing: "#e9c46a", faction: "#bc6c25", rule: "#a98467", promise: "#8d6b4a" };
+const KIND_NAME = { person: "人物", place: "地点", thing: "道具", faction: "组织", rule: "规则", promise: "伏笔" };
+const F10_KEYS = {
+  person: [["setup","小传"],["aliases","别称"],["role","身份"],["appearance","外观"],["voice","说话方式"],["desire","欲望"],["need","深层需要"],["wound","创伤"],["fear","恐惧"],["secret","秘密"],["limit","底线"],["contradiction","矛盾"],["ties","关系摘要"],["capability","能力与限制"]],
+  place: [["setup","小传"],["aliases","别称"],["place_kind","种类"],["parent","上级地点"],["atmosphere","氛围"],["senses","感官"],["function","功能"],["access","进出"]],
+  thing: [["setup","小传"],["aliases","别称"],["appearance","外形"],["function","功能"],["owner_setup","默认归属"],["place_setup","默认所在"],["capability","能力"],["limit","限制"],["symbol","象征"]],
+  faction: [["setup","小传"],["aliases","别称"],["creed","宗旨"],["public_face","明面"],["private_line","暗线"],["hierarchy","层级"],["leader_setup","默认首领"],["membership_rule","成员资格"],["ties","对外关系摘要"]],
+  rule: [["setup","小传"],["aliases","别称"],["capability","能力"],["cost","代价"],["limit","限制"],["exception","例外"],["scope","生效范围"],["enforcement","检查分级"]],
+  promise: [["setup","小传"],["debt","欠读者什么"],["promise_kind","种类"],["deadline","期限"],["related","关联"]]
+};
+const F10_LONG = new Set(["setup","secret","contradiction","capability","senses","atmosphere","private_line","debt"]);
 let state = { n: 1, window_start: 0, drafts: [], committed: [], columns: [], entities: [], pending: null };
-let pendingTalk = '';
+let pendingTalk = null;
+let discussField = "do_text";
 let currentDraft = null;
 let currentCanon = null;
 let pendingChoice = null;
@@ -544,7 +947,34 @@ let pendingFill = null;
 let pendingPaste = [];
 let ignoreSuggestion = false;
 let pendingDeleteDraft = null;
+let pendingDeltas = [];
+let pendingKnows = [];
+let selectedEntityId = null;
+let castFilter = "";
+let searchHits = [];
+let searchEmpty = false;
+let fillingBooks = false;
+let pendingDossierTalk = null;
+const PASTE_FIELD = { do_text: "动作", say_text: "对白", think_text: "内心", intent: "本场任务", title: "场次", value_shift: "价值转折" };
 
+function openPromises() {
+  return ((state.world && state.world.promises) || []).filter(p => p.status === "open");
+}
+function openDebtsAt(from, to, beats) {
+  const pres = new Set();
+  (beats || []).forEach(b => (b.presences || []).forEach(p => pres.add(p.entity_id)));
+  const places = (beats || []).map(b => b.place_id).filter(Boolean);
+  return openPromises().filter(p => {
+    const rel = p.related || [];
+    const hit = !rel.length || rel.some(r => pres.has(r) || places.includes(r));
+    const due = p.deadline_clock != null && from != null && p.deadline_clock >= from && p.deadline_clock < (to == null ? from + 1 : to);
+    const overdue = p.deadline_clock != null && to != null && p.deadline_clock <= to;
+    return hit || due || overdue;
+  });
+}
+function openDebtsForBeat(b) {
+  return openDebtsAt(b.clock_from, b.clock_to, [b]);
+}
 function clockLabel(m) {
   const n = Number(m) || 0;
   const h = Math.floor(n / 60);
@@ -568,10 +998,14 @@ async function refresh() {
   $("sparse").setAttribute("aria-pressed", state.n === 2 ? "true" : "false");
   $("mid").setAttribute("aria-pressed", state.n === 4 ? "true" : "false");
   $("dense").setAttribute("aria-pressed", state.n === 6 ? "true" : "false");
-  if (state.selected) currentDraft = state.selected;
-  if (state.selected_canon) currentCanon = state.selected_canon;
+  $("reading-order").setAttribute("aria-pressed", state.reading_order ? "true" : "false");
+  if ($("open-craft")) $("open-craft").disabled = !state.book;
+  fillLensSelect();
+  currentDraft = state.selected || null;
+  currentCanon = state.selected_canon || null;
   pendingFill = state.fill_pending || pendingFill;
   pendingPaste = state.paste_suggestions || pendingPaste;
+  await renderBookList();
   render();
   if (state.pending) openConfirm(state.pending);
 }
@@ -585,6 +1019,321 @@ function currentBeat() {
   }
   return (state.committed || []).find(b => b.id === currentCanon) || null;
 }
+const DISCUSS_FIELDS = {
+  title: { el: "scene-title", label: "场次", key: "title" },
+  intent: { el: "intent", label: "本场任务", key: "intent" },
+  do_text: { el: "do-text", label: "动作", key: "do_text" },
+  say_text: { el: "say-text", label: "对白", key: "say_text" },
+  think_text: { el: "think-text", label: "内心", key: "think_text" },
+  value_shift: { el: "value-shift", label: "价值转折", key: "value_shift" }
+};
+function intentEmpty() {
+  return !($("intent").value || "").trim();
+}
+function syncGates() {
+  $("write-next").disabled = intentEmpty();
+  $("add-parallel").disabled = intentEmpty();
+  $("write-box").disabled = !(pendingTalk || pendingFill) || !currentDraft;
+  $("write-next").title = intentEmpty() ? "没有本场任务不准写下一场" : "";
+  const hasDraft = !!currentDraft;
+  const hasCanon = !!currentCanon;
+  $("commit").disabled = !hasDraft;
+  $("commit").classList.toggle("hidden", hasCanon && !hasDraft);
+  $("revise").classList.toggle("hidden", !hasCanon);
+  $("revise").disabled = !hasCanon;
+  $("delete-canon").disabled = !hasCanon;
+  $("delete-canon").title = hasCanon ? "" : "没有选中的正史，不能删";
+}
+function escHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+function beatHasEntity(b, id) {
+  if (!id) return true;
+  if ((b.presences || []).some(p => p.entity_id === id)) return true;
+  return b.place_id === id;
+}
+function beatShows(b) {
+  return !castFilter || beatHasEntity(b, castFilter);
+}
+function railEntities() {
+  if (searchHits.length) return searchHits;
+  return state.entities || [];
+}
+function renderEntRow(e, { offPage, testid }) {
+  const li = document.createElement("li");
+  const isRule = e.kind === "rule";
+  li.draggable = !isRule;
+  li.dataset.id = e.id;
+  li.dataset.kind = e.kind;
+  li.dataset.testid = testid;
+  if (isRule) li.classList.add("rule");
+  if (selectedEntityId === e.id) li.classList.add("selected");
+  const dot = document.createElement("span");
+  dot.className = "dot";
+  dot.style.background = KIND_COLOR[e.kind] || "var(--brass)";
+  li.appendChild(dot);
+  const name = document.createElement("span");
+  name.className = "ent-name";
+  name.textContent = e.name + (KIND_NAME[e.kind] ? " · " + KIND_NAME[e.kind] : "");
+  li.appendChild(name);
+  if (offPage) {
+    const tag = document.createElement("span");
+    tag.className = "off-page";
+    tag.dataset.testid = "off-page-" + e.id;
+    tag.textContent = "不在本页";
+    li.appendChild(tag);
+  }
+  const scenes = document.createElement("button");
+  scenes.type = "button";
+  scenes.className = "ent-scenes";
+  scenes.textContent = "场";
+  scenes.dataset.testid = "ent-scenes-" + e.id;
+  scenes.setAttribute("aria-pressed", castFilter === e.id ? "true" : "false");
+  scenes.onclick = ev => {
+    ev.stopPropagation();
+    selectedEntityId = e.id;
+    castFilter = castFilter === e.id ? "" : e.id;
+    render();
+  };
+  li.appendChild(scenes);
+  if (!isRule) {
+    li.ondragstart = ev => ev.dataTransfer.setData("text/plain", JSON.stringify({ type: "entity", id: e.id, kind: e.kind }));
+  } else {
+    li.ondragstart = ev => ev.preventDefault();
+  }
+  li.onclick = () => {
+    selectedEntityId = e.id;
+    $("delete-entity").disabled = !selectedEntityId;
+    openDossier(e.id);
+  };
+  return li;
+}
+function renderRail() {
+  const box = $("ent-list");
+  box.innerHTML = "";
+  (state.entities || []).forEach(e => box.appendChild(renderEntRow(e, { offPage: false, testid: "ent-" + e.id })));
+  $("delete-entity").disabled = !selectedEntityId;
+  const hits = $("search-hits");
+  hits.innerHTML = "";
+  if (searchEmpty) {
+    hits.innerHTML = '<li data-testid="search-empty">无<\/li>';
+    return;
+  }
+  (searchHits || []).forEach(e => {
+    hits.appendChild(renderEntRow(e, { offPage: e.on_page === false, testid: "hit-" + e.id }));
+  });
+}
+async function renderBookList() {
+  try {
+    const r = await api("/api/books");
+    fillingBooks = true;
+    const sel = $("book-list");
+    const books = r.books || [];
+    sel.innerHTML = books.length
+      ? books.map(n => `<option value="${escHtml(n)}">${escHtml(n)}<\/option>`).join("")
+      : '<option value="">（没有书）<\/option>';
+    if (r.current) sel.value = r.current;
+    fillingBooks = false;
+  } catch {
+    fillingBooks = false;
+  }
+}
+async function switchBook(name) {
+  if (!name) return;
+  await api("/api/books/" + encodeURIComponent(name) + "/open", { method: "POST", body: "{}" });
+  currentDraft = null;
+  currentCanon = null;
+  pendingPaste = [];
+  pendingFill = null;
+  inspectFilter = "";
+  castFilter = "";
+  selectedEntityId = null;
+  searchHits = [];
+  searchEmpty = false;
+  pendingTalk = null;
+  pendingDeltas = [];
+  pendingKnows = [];
+  $("intent").value = "";
+  $("do-text").value = "";
+  $("say-text").value = "";
+  $("think-text").value = "";
+  $("search-hits").innerHTML = "";
+  await refresh();
+}
+function fillFormFromBeat(obj, canon) {
+  const b = canon ? obj : obj.draft;
+  const title = canon ? "" : ((obj.title && obj.title !== "下一场" && obj.title !== "并列") ? obj.title : "");
+  $("scene-title").value = title;
+  $("intent").value = b.intent || "";
+  $("do-text").value = b.do_text || "";
+  $("say-text").value = b.say_text || "";
+  $("think-text").value = b.think_text || "";
+  $("place-id").value = b.place_id || "";
+  $("value-shift").value = b.value_shift || "";
+  pendingDeltas = (b.deltas || []).slice();
+  pendingKnows = (b.knowledge_writes || []).slice();
+  renderDeltas();
+  syncGates();
+}
+function startDiscuss(field) {
+  const spec = DISCUSS_FIELDS[field] || DISCUSS_FIELDS.do_text;
+  discussField = spec.key;
+  const cur = ($(spec.el).value || "").trim();
+  const fallback = ($("intent").value || "").trim() || spec.label;
+  pendingTalk = { field: spec.key, el: spec.el, label: spec.label, text: "讨论稿：" + (cur || fallback) };
+  pendingFill = null;
+  renderDiscussPanel();
+  syncGates();
+}
+function renderDiscussPanel() {
+  const panel = $("discuss-panel");
+  if (pendingFill) {
+    panel.classList.remove("hidden");
+    $("discuss-label").textContent = "模型稿（待写入此框）";
+    $("discuss-draft").textContent =
+      "动作：" + (pendingFill.do_text || "（空）") + "\n" +
+      "对白：" + (pendingFill.say_text || "（空）") + "\n" +
+      "内心：" + (pendingFill.think_text || "（空）");
+    return;
+  }
+  if (pendingTalk) {
+    panel.classList.remove("hidden");
+    $("discuss-label").textContent = "讨论「" + pendingTalk.label + "」";
+    $("discuss-draft").textContent = pendingTalk.text;
+    return;
+  }
+  panel.classList.add("hidden");
+  $("discuss-draft").textContent = "";
+}
+const PROMISE_OP = { plant: "埋设", advance: "推进", payoff: "兑现", discard: "作废" };
+function sceneTitle(obj, canon) {
+  if (!canon) {
+    const t = ((obj.title) || "").trim();
+    if (t && t !== "下一场") return t;
+  }
+  return "未名场";
+}
+function beatHasWarn(id) {
+  return (state.warnings || []).some(w => w.beat_id === id);
+}
+function coverageOf(colId) {
+  return (state.coverage || []).find(c => c.column_id === colId) || {};
+}
+async function selectColumn(id) {
+  await api("/api/select", { method: "POST", body: JSON.stringify({ column_id: id }) });
+  refresh();
+}
+function selectedColId() {
+  if (state.selected_col) return state.selected_col;
+  const cols = state.columns || [];
+  const start = state.window_start || 0;
+  return (cols[start] && cols[start].id) || (cols[0] && cols[0].id) || null;
+}
+function clockOf(c) {
+  const p = state.pending && state.pending.proposed_columns;
+  if (p) {
+    const hit = p.find(x => x.id === c.id);
+    if (hit) return hit;
+  }
+  return c;
+}
+function startClockDrag(ev, col) {
+  ev.preventDefault();
+  ev.stopPropagation();
+  const startX = ev.clientX;
+  const head = ev.currentTarget.closest(".col-head");
+  const width = Math.max(head.getBoundingClientRect().width, 1);
+  const orig = clockOf(col);
+  const origTo = orig.clock_to;
+  const origFrom = orig.clock_from;
+  const origDur = Math.max(origTo - origFrom, 1);
+  const pxPerMin = width / origDur;
+  let lastTo = origTo;
+  const clockEl = head.querySelector(".clock");
+  const labEl = head.querySelector(".lab");
+  function onMove(e) {
+    const dMin = Math.round((e.clientX - startX) / pxPerMin);
+    lastTo = origTo + dMin;
+    if (lastTo <= origFrom) lastTo = origFrom + 1;
+    clockEl.textContent = clockLabel(origFrom) + "–" + clockLabel(lastTo);
+    labEl.textContent = (lastTo - origFrom) + " 分钟（预览）";
+  }
+  function onUp(e) {
+    window.removeEventListener("pointermove", onMove);
+    window.removeEventListener("pointerup", onUp);
+    if (Math.abs(e.clientX - startX) < 4 || lastTo === origTo) return;
+    previewResize(col.id, lastTo);
+  }
+  window.addEventListener("pointermove", onMove);
+  window.addEventListener("pointerup", onUp);
+}
+function renderRuler(view, start) {
+  const ruler = $("ruler");
+  ruler.innerHTML = "";
+  if (!state.book) return;
+  const selected = state.selected_col || (view[0] && view[0].id);
+  view.forEach((c, i) => {
+    const head = document.createElement("div");
+    head.className = "col-head" + (c.id === selected ? " on" : "");
+    head.dataset.testid = "ruler-col-" + i;
+    head.dataset.colId = c.id;
+    const cov = coverageOf(c.id);
+    const ck = clockOf(c);
+    const dur = ck.clock_to - ck.clock_from;
+    const dims = [["place","地点"],["person","人物"],["thing","道具"],["faction","组织"],["promise","伏笔"]];
+    const dots = dims.map(([k, lab]) => {
+      const on = cov[k] ? " on" : "";
+      return `<i class="${on.trim()}" data-dim="${k}" data-testid="track-${c.id}-${k}" title="${lab}"><\/i>`;
+    }).join("");
+    head.innerHTML = `<span class="n">列 ${start + i + 1}<\/span><span class="clock">${clockLabel(ck.clock_from)}–${clockLabel(ck.clock_to)}<\/span><span class="lab">${dur} 分钟<\/span><span class="cov">${dots}<\/span>`;
+    if (c.id === selected) {
+      const seam = document.createElement("button");
+      seam.type = "button";
+      seam.className = "add-seam";
+      seam.dataset.testid = "add-column-seam";
+      seam.title = "在列缝插入故事列";
+      seam.textContent = "➕";
+      seam.onclick = ev => {
+        ev.stopPropagation();
+        previewAddColumn(c.id);
+      };
+      head.appendChild(seam);
+    }
+    const handle = document.createElement("div");
+    handle.className = "col-handle";
+    handle.dataset.testid = "col-handle-" + i;
+    handle.title = "拖列右缘，改故事时间";
+    handle.onpointerdown = ev => startClockDrag(ev, c);
+    head.appendChild(handle);
+    head.onclick = ev => {
+      if (ev.target.closest(".col-handle") || ev.target.closest(".add-seam")) return;
+      selectColumn(c.id);
+    };
+    ruler.appendChild(head);
+  });
+}
+function renderMoment() {
+  const box = $("moment-body");
+  const w = state.world;
+  const col = state.selected_col;
+  if (!w) {
+    box.textContent = "点标尺上的一列，看这一刻世界上为真什么。";
+    return;
+  }
+  const where = Object.entries(w.where || {}).map(([p, pl]) => p + "在" + pl).join("；") || "无";
+  const holds = (w.states || []).filter(s => s.attr === "holds").map(s => s.entity_id + "=" + s.value).join("；") || "无";
+  const members = (w.states || []).filter(s => s.attr === "member").map(s => s.entity_id + "=" + s.value).join("；") || "无";
+  const promises = (w.promises || []).filter(p => p.status === "open").map(p => p.name || p.id).join("、") || "无";
+  const playing = (w.playing || []).join("、") || "无";
+  box.innerHTML =
+    `<div class="sit-row" data-testid="moment-col">列 ${col || "（本页第一列）"} · t=${w.t}<\/div>` +
+    `<div class="sit-row">在演：${playing}<\/div>` +
+    `<div class="sit-row">谁在哪：${where}<\/div>` +
+    `<div class="sit-row">道具：${holds}<\/div>` +
+    `<div class="sit-row">组织：${members}<\/div>` +
+    `<div class="sit-row">未收伏笔：${promises}<\/div>`;
+  $("world").textContent = JSON.stringify({ playing: w.playing, where: w.where, t: w.t }, null, 0);
+}
 function render() {
   const cols = state.columns || [];
   const start = state.window_start || 0;
@@ -592,34 +1341,25 @@ function render() {
   const view = cols.slice(start, start + n);
   const board = $("cols");
   board.innerHTML = "";
+  renderRuler(view, start);
   if (!state.book) {
     const empty = document.createElement("div");
     empty.className = "empty-hint";
-    empty.innerHTML = "<h1>还没有一场戏。</h1><p>先创建书。可以只写人物、地点、规则。点「写下一场」前要有本场任务。</p>";
+    empty.innerHTML = "<h1>还没有一场戏。<\/h1><p>先创建书。可以只写人物、地点、规则。点「写下一场」前要有本场任务。<\/p>";
     board.appendChild(empty);
   }
+  const selected = state.selected_col || (view[0] && view[0].id);
   view.forEach((c, i) => {
     const div = document.createElement("div");
-    div.className = "col" + (i === 0 ? " on" : "");
+    div.className = "col" + (c.id === selected ? " on" : "");
     div.dataset.testid = "column-" + i;
     div.dataset.colId = c.id;
-    const head = document.createElement("div");
-    head.className = "col-head";
-    const dur = (c.clock_to - c.clock_from);
-    head.innerHTML = `<span class="n">列 ${start + i + 1}</span><span class="clock">${clockLabel(c.clock_from)}–${clockLabel(c.clock_to)}</span><span class="lab">${dur} 分钟 · ${c.id}</span>`;
-    const handle = document.createElement("div");
-    handle.className = "col-handle";
-    handle.dataset.testid = "col-handle-" + i;
-    handle.title = "拖列右缘，改故事时间";
-    handle.onmousedown = () => previewInvade(c.id);
-    head.appendChild(handle);
-    div.appendChild(head);
     const cards = document.createElement("div");
     cards.className = "col-cards";
-    (state.committed || []).filter(b => b.column_id === c.id).forEach(b => {
+    (state.committed || []).filter(b => b.column_id === c.id && beatShows(b)).forEach(b => {
       cards.appendChild(renderCard(b, true));
     });
-    (state.drafts || []).filter(d => d.draft.column_id === c.id).forEach(d => {
+    (state.drafts || []).filter(d => d.draft.column_id === c.id && beatShows(d.draft)).forEach(d => {
       cards.appendChild(renderCard(d, false));
     });
     div.appendChild(cards);
@@ -627,34 +1367,42 @@ function render() {
     div.addEventListener("drop", e => onDropOnCol(e, c.id));
     board.appendChild(div);
   });
-  $("ent-list").innerHTML = "";
-  (state.entities || []).forEach(e => {
-    const li = document.createElement("li");
-    li.draggable = true;
-    li.dataset.id = e.id;
-    li.dataset.testid = "ent-" + e.id;
-    const dot = document.createElement("span");
-    dot.className = "dot";
-    dot.style.background = KIND_COLOR[e.kind] || "var(--brass)";
-    li.appendChild(dot);
-    li.appendChild(document.createTextNode(e.name + (KIND_NAME[e.kind] ? " · " + KIND_NAME[e.kind] : "")));
-    li.ondragstart = ev => ev.dataTransfer.setData("text/plain", JSON.stringify({ type: "entity", id: e.id }));
-    li.onclick = () => openDossier(e.id);
-    $("ent-list").appendChild(li);
-  });
-  $("minimap").innerHTML = (state.columns || []).map((c, i) => {
-    const beats = (state.committed || []).filter(b => b.column_id === c.id);
-    const hasC = beats.length > 0;
-    const hasD = (state.drafts || []).some(d => d.draft.column_id === c.id);
-    const cls = hasC ? "canon" : hasD ? "draft" : "empty";
-    const tellingDiff = beats.some(b => b.telling_ord != null && b.telling_ord !== c.display_ord);
-    return `<span class="tooth ${cls}${tellingDiff ? " telling-diff" : ""}" data-testid="tooth-${i}" onclick="jump(${i})"></span>`;
-  }).join("");
-  $("world").textContent = state.world ? JSON.stringify({ playing: state.world.playing, where: state.world.where }, null, 0) : "";
+  renderRail();
+  renderMinimap();
+  renderMoment();
   renderInspector();
   renderPaste();
+  renderDiscussPanel();
   loadCircumstances();
   loadKnows();
+  syncGates();
+}
+function fillLensSelect() {
+  const sel = $("person-lens");
+  if (!sel) return;
+  const cur = state.lens_person || "";
+  const people = state.people || [];
+  sel.innerHTML = '<option value="">全知</option>' + people.map(p =>
+    `<option value="${escHtml(p.id)}">${escHtml(p.name || p.id)}<\/option>`
+  ).join("");
+  sel.value = cur;
+  if ($("relations")) $("relations").disabled = !(cur || selectedEntityId);
+}
+function lensVeilText(text) {
+  const person = state.lens_person;
+  if (!person || !text) return false;
+  const knows = ((state.world && state.world.knows) || {})[person] || [];
+  const blob = knows.join("\n");
+  return ((state.world && state.world.states) || []).some(s => {
+    if (s.entity_id === person) return false;
+    if (s.attr !== "holder" && s.attr !== "where") return false;
+    if (!(text.includes(s.entity_id) || text.includes(String(s.value || "")))) return false;
+    const known = blob.includes(s.entity_id) && (blob.includes(String(s.value || "")) || blob.includes("在") || blob.includes("拿"));
+    return !known;
+  });
+}
+function markVeil(el, text) {
+  if (lensVeilText(text)) el.classList.add("lens-veil");
 }
 function renderCard(obj, canon) {
   const b = canon ? obj : obj.draft;
@@ -673,7 +1421,6 @@ function renderCard(obj, canon) {
   };
   const n = state.n || 1;
   const dense = n >= 5;
-  const mid = n >= 3 && n <= 4;
   const kicker = document.createElement("div");
   kicker.className = "kicker";
   const badge = document.createElement("span");
@@ -686,31 +1433,101 @@ function renderCard(obj, canon) {
     el.textContent = "省略场";
     kicker.appendChild(el);
   }
-  if (b.telling_ord != null) {
-    kicker.appendChild(document.createTextNode("读序 " + b.telling_ord));
+  const colOrd = ((state.columns || []).find(c => c.id === b.column_id) || {}).display_ord;
+  if (b.telling_ord != null && b.telling_ord !== colOrd) {
+    const flash = document.createElement("span");
+    flash.className = "badge";
+    flash.dataset.testid = "telling-badge";
+    flash.textContent = "读序 " + b.telling_ord + " · 闪回";
+    kicker.appendChild(flash);
+  }
+  if (dense && beatHasWarn(id)) {
+    const dot = document.createElement("span");
+    dot.className = "warn-dot";
+    dot.dataset.testid = "warn-dot";
+    dot.title = "未写转折或穿帮标黄";
+    kicker.appendChild(dot);
   }
   card.appendChild(kicker);
   const title = document.createElement("div");
   title.className = "title";
-  title.textContent = b.intent || id;
+  title.dataset.testid = "card-title";
+  title.textContent = sceneTitle(obj, canon);
   card.appendChild(title);
+  if (b.intent && n <= 4) {
+    const intentEl = document.createElement("div");
+    intentEl.className = "sum";
+    intentEl.dataset.testid = "card-intent";
+    intentEl.textContent = b.intent;
+    markVeil(intentEl, b.intent);
+    card.appendChild(intentEl);
+  }
   if (!dense) {
     if (b.value_shift) {
       const v = document.createElement("div");
       v.className = "val";
+      v.dataset.testid = "card-shift";
       v.textContent = b.value_shift;
       card.appendChild(v);
+    } else if (b.kind !== "ellipsis") {
+      const v = document.createElement("div");
+      v.className = "val badge warn";
+      v.dataset.testid = "unwritten-shift";
+      v.textContent = "未写转折";
+      card.appendChild(v);
     }
-    if (b.do_text && n <= 2) {
-      const doEl = document.createElement("div");
-      doEl.className = "sum";
-      doEl.textContent = b.do_text;
-      card.appendChild(doEl);
-    } else if (mid && b.do_text) {
-      const doEl = document.createElement("div");
-      doEl.className = "sum";
-      doEl.textContent = (b.do_text || "").slice(0, 48);
-      card.appendChild(doEl);
+    if (n <= 2) {
+      [["do_text","动作"],["say_text","对白"],["think_text","内心"]].forEach(([key, lab]) => {
+        if (b[key]) {
+          const el = document.createElement("div");
+          el.className = "sum";
+          el.dataset.testid = "card-" + key.replace("_text", "");
+          el.textContent = lab + "：" + b[key];
+          markVeil(el, b[key]);
+          card.appendChild(el);
+        }
+      });
+    }
+    const deltas = b.deltas || [];
+    if (deltas.length) {
+      const dEl = document.createElement("div");
+      dEl.className = "sum";
+      dEl.dataset.testid = "card-delta";
+      dEl.textContent = "本场变化：" + deltas.slice(0, 3).map(d => d.entity_id + "." + d.attr + "=" + d.value).join("；");
+      markVeil(dEl, dEl.textContent);
+      card.appendChild(dEl);
+    }
+    const ops = b.promise_ops || [];
+    if (ops.length) {
+      const pEl = document.createElement("div");
+      pEl.className = "promise-op";
+      pEl.dataset.testid = "promise-op";
+      pEl.textContent = ops.map(o => (PROMISE_OP[o.op] || o.op) + (o.promise_id ? " " + o.promise_id : "")).join(" · ");
+      card.appendChild(pEl);
+    }
+    const debts = openDebtsForBeat(b);
+    if (debts.length) {
+      const dEl = document.createElement("div");
+      dEl.className = "debt";
+      dEl.dataset.testid = "card-debt";
+      dEl.textContent = "未收：" + debts.map(d => d.name || d.id).join("、");
+      card.appendChild(dEl);
+    }
+  } else {
+    const debts = openDebtsForBeat(b);
+    if (debts.length) {
+      const dEl = document.createElement("span");
+      dEl.className = "badge warn";
+      dEl.dataset.testid = "card-debt";
+      dEl.textContent = "欠";
+      kicker.appendChild(dEl);
+    }
+    if (b.value_shift) {
+      const v = document.createElement("span");
+      v.className = "badge";
+      v.dataset.testid = "card-shift";
+      v.textContent = b.value_shift;
+      kicker.appendChild(v);
     }
   }
   const chips = document.createElement("div");
@@ -724,7 +1541,7 @@ function renderCard(obj, canon) {
     const ent = (state.entities || []).find(e => e.id === p.entity_id);
     dot.style.background = KIND_COLOR[ent && ent.kind] || "var(--brass)";
     ch.appendChild(dot);
-    ch.appendChild(document.createTextNode(p.entity_id));
+    ch.appendChild(document.createTextNode((ent && ent.name) || p.entity_id));
     ch.dataset.testid = "chip-" + p.entity_id;
     ch.ondragstart = ev => {
       ev.stopPropagation();
@@ -739,7 +1556,9 @@ function renderCard(obj, canon) {
       ev.stopPropagation();
       inspectFilter = p.entity_id;
       selectBeat(id, canon);
+      fillFormFromBeat(obj, canon);
       renderInspector();
+      loadKnows();
     };
     chips.appendChild(ch);
   });
@@ -747,14 +1566,9 @@ function renderCard(obj, canon) {
   card.onclick = () => {
     inspectFilter = "";
     selectBeat(id, canon);
-    if (!canon) {
-      $("intent").value = b.intent || "";
-      $("do-text").value = b.do_text || "";
-      $("say-text").value = b.say_text || "";
-      $("think-text").value = b.think_text || "";
-      $("place-id").value = b.place_id || "";
-    }
+    fillFormFromBeat(obj, canon);
     renderInspector();
+    syncGates();
   };
   card.addEventListener("dragover", e => e.preventDefault());
   card.addEventListener("drop", e => onDropCard(e, b.column_id, canon ? null : id));
@@ -764,11 +1578,14 @@ async function selectBeat(id, canon) {
   if (canon) {
     currentCanon = id;
     currentDraft = null;
-    await api("/api/select", { method: "POST", body: JSON.stringify({ canon_id: id }) });
+    const b = (state.committed || []).find(x => x.id === id);
+    await api("/api/select", { method: "POST", body: JSON.stringify({ canon_id: id, column_id: b && b.column_id }) });
   } else {
     currentDraft = id;
     currentCanon = null;
-    await api("/api/select", { method: "POST", body: JSON.stringify({ draft_id: id }) });
+    const d = (state.drafts || []).find(x => x.id === id);
+    const col = d && d.draft && d.draft.column_id;
+    await api("/api/select", { method: "POST", body: JSON.stringify({ draft_id: id, column_id: col }) });
   }
 }
 function renderInspector() {
@@ -780,29 +1597,65 @@ function renderInspector() {
   $("g-presence").textContent = (b.presences || []).map(p => p.entity_id).join("、");
   $("filter-entity").textContent = inspectFilter ? ("本场来源分组（点了 " + inspectFilter + "，不是人物泳道）") : "本场来源分组";
 }
+function renderDeltas() {
+  $("delta-list").textContent = pendingDeltas.map(d => d.entity_id + "." + d.attr + "=" + d.value).join("；") || "";
+  $("know-write-list").textContent = pendingKnows.map(k => {
+    const cert = k.certainty === "wrong" ? "信错" : (k.certainty === "suspects" ? "怀疑" : "知道");
+    const truth = k.truth_value ? "（实际：" + k.truth_value + "）" : "";
+    return k.person_id + cert + "「" + k.fact + "」" + truth;
+  }).join("；") || "";
+}
 function renderPaste() {
   const box = $("paste-suggest");
+  if (!box) return;
   box.innerHTML = "";
   (pendingPaste || []).forEach(s => {
     const row = document.createElement("div");
     row.className = "sit-row";
-    row.textContent = s.field + "：" + s.text + (s.applied ? "（已写入此框）" : "");
+    const fieldLab = PASTE_FIELD[s.field] || s.field;
+    const status = s.skipped ? "（已跳过）" : s.applied ? "（已写入此框）" : "";
+    row.appendChild(document.createTextNode(fieldLab + " · " + (s.target_label || "当前草稿") + "：" + s.text + status));
     row.dataset.testid = "paste-" + s.id;
     if (!s.applied) {
       const btn = document.createElement("button");
       btn.textContent = "写入此框";
       btn.dataset.testid = "paste-apply-" + s.id;
       btn.onclick = async () => {
-        await api("/api/paste/apply", { method: "POST", body: JSON.stringify({ id: s.id }) });
+        const r = await api("/api/paste/apply", { method: "POST", body: JSON.stringify({ id: s.id }) });
+        if (r.draft_id) currentDraft = r.draft_id;
         if (s.field === "say_text") $("say-text").value = s.text;
         else if (s.field === "think_text") $("think-text").value = s.text;
+        else if (s.field === "intent") $("intent").value = s.text;
+        else if (s.field === "title") $("scene-title").value = s.text;
+        else if (s.field === "value_shift") $("value-shift").value = s.text;
         else $("do-text").value = s.text;
         refresh();
       };
+      const skip = document.createElement("button");
+      skip.textContent = "跳过";
+      skip.dataset.testid = "paste-skip-" + s.id;
+      skip.onclick = async () => {
+        await api("/api/paste/apply", { method: "POST", body: JSON.stringify({ id: s.id, skip: true }) });
+        refresh();
+      };
       row.appendChild(btn);
+      row.appendChild(skip);
     }
     box.appendChild(row);
   });
+}
+async function addPresenceToDraft(entityId, kind, draftId) {
+  $("rail-msg").textContent = "";
+  if (kind === "rule") {
+    $("rail-msg").textContent = "规则不能拖进场，请去档案";
+    return;
+  }
+  try {
+    await api("/api/presence", { method: "POST", body: JSON.stringify({ draft_id: draftId, entity_id: entityId, action: "add" }) });
+    refresh();
+  } catch (err) {
+    $("rail-msg").textContent = String(err.message || err);
+  }
 }
 async function onDropCard(e, colId, draftId) {
   e.preventDefault();
@@ -811,8 +1664,7 @@ async function onDropCard(e, colId, draftId) {
   try { data = JSON.parse(e.dataTransfer.getData("text/plain")); } catch { return; }
   const target = draftId || currentDraft;
   if (data.type === "entity" && target) {
-    await api("/api/presence", { method: "POST", body: JSON.stringify({ draft_id: target, entity_id: data.id, action: "add" }) });
-    refresh();
+    await addPresenceToDraft(data.id, data.kind, target);
   }
 }
 async function onDropOnCol(e, colId) {
@@ -820,8 +1672,7 @@ async function onDropOnCol(e, colId) {
   let data;
   try { data = JSON.parse(e.dataTransfer.getData("text/plain")); } catch { return; }
   if (data.type === "entity" && currentDraft) {
-    await api("/api/presence", { method: "POST", body: JSON.stringify({ draft_id: currentDraft, entity_id: data.id, action: "add" }) });
-    refresh();
+    await addPresenceToDraft(data.id, data.kind, currentDraft);
     return;
   }
   if (data.type === "beat") {
@@ -839,26 +1690,143 @@ $("rail").addEventListener("drop", async e => {
   e.preventDefault();
   let data;
   try { data = JSON.parse(e.dataTransfer.getData("text/plain")); } catch { return; }
-  if (data.type === "chip" && data.draft) {
-    await api("/api/presence", { method: "POST", body: JSON.stringify({ draft_id: data.draft, entity_id: data.id, action: "remove" }) });
-    refresh();
-  } else if (data.type === "chip" && data.canon) {
-    await api("/api/presence", { method: "POST", body: JSON.stringify({ canon_id: data.canon, entity_id: data.id, action: "remove" }) });
-    refresh();
+  $("rail-msg").textContent = "";
+  try {
+    if (data.type === "chip" && data.draft) {
+      await api("/api/presence", { method: "POST", body: JSON.stringify({ draft_id: data.draft, entity_id: data.id, action: "remove" }) });
+      refresh();
+    } else if (data.type === "chip" && data.canon) {
+      await api("/api/presence", { method: "POST", body: JSON.stringify({ canon_id: data.canon, entity_id: data.id, action: "remove" }) });
+      refresh();
+    }
+  } catch (err) {
+    $("rail-msg").textContent = String(err.message || err);
   }
 });
 window.jump = async (i) => { await api("/api/window", { method: "POST", body: JSON.stringify({ start: i }) }); refresh(); };
 
+function chapterOfColumn(colId) {
+  const col = (state.columns || []).find(c => c.id === colId);
+  const chs = ((state.craft && state.craft.chapters) || []).filter(ch => ch.start_column);
+  if (!chs.length || !col) return null;
+  const cols = (state.columns || []).slice().sort((a, b) => a.display_ord - b.display_ord);
+  const starts = chs.map(ch => {
+    const hit = cols.find(x => x.id === ch.start_column);
+    return hit ? { ord: hit.display_ord, ch } : null;
+  }).filter(Boolean).sort((a, b) => a.ord - b.ord);
+  let found = null;
+  for (const s of starts) {
+    if (s.ord <= col.display_ord) found = s.ch;
+  }
+  return found;
+}
+
+function renderMinimap() {
+  const box = $("minimap");
+  box.innerHTML = "";
+  const cols = state.columns || [];
+  const start = state.window_start || 0;
+  const n = state.n || 1;
+  const tooth = 10, gap = 3;
+  const startIds = new Set(((state.craft && state.craft.chapters) || []).map(ch => ch.start_column).filter(Boolean));
+  const chBar = document.createElement("div");
+  chBar.id = "mini-chapters";
+  chBar.dataset.testid = "mini-chapters";
+  let i = 0;
+  let hasCh = false;
+  while (i < cols.length) {
+    const ch = chapterOfColumn(cols[i].id);
+    let j = i + 1;
+    while (j < cols.length) {
+      const nch = chapterOfColumn(cols[j].id);
+      const same = (!ch && !nch) || (ch && nch && ch.id === nch.id);
+      if (!same) break;
+      j++;
+    }
+    if (ch) hasCh = true;
+    const seg = document.createElement("span");
+    seg.className = "ch-seg" + (ch ? "" : " empty");
+    const w = (j - i) * tooth + Math.max(0, j - i - 1) * gap;
+    seg.style.width = w + "px";
+    if (ch) {
+      seg.textContent = ch.title || "未名回";
+      seg.title = ch.title || "未名回";
+      seg.dataset.testid = "chapter-seg-" + (ch.id || i);
+    }
+    chBar.appendChild(seg);
+    i = j;
+  }
+  const track = document.createElement("div");
+  track.id = "mini-track";
+  cols.forEach((c, idx) => {
+    const beats = (state.committed || []).filter(b => b.column_id === c.id);
+    const hasScene = beats.some(b => b.kind !== "ellipsis");
+    const hasEll = beats.some(b => b.kind === "ellipsis");
+    const hasD = (state.drafts || []).some(d => d.draft.column_id === c.id);
+    const cls = hasScene ? "canon" : hasEll ? "ellipsis" : hasD ? "draft" : "empty";
+    const tellingDiff = beats.some(b => b.telling_ord != null && b.telling_ord !== c.display_ord);
+    const debts = openDebtsAt(c.clock_from, c.clock_to, beats);
+    const sp = document.createElement("span");
+    const chNow = chapterOfColumn(c.id);
+    sp.className = "tooth " + cls + (tellingDiff ? " telling-diff" : "") + (debts.length ? " debt" : "") + (startIds.has(c.id) ? " chapter-start" : "");
+    sp.dataset.testid = "tooth-" + idx;
+    if (chNow) sp.setAttribute("data-chapter", chNow.id || c.id);
+    sp.title = (chNow ? "回目：" + (chNow.title || "未名回") + " · " : "") + (debts.length ? "未收：" + debts.map(d => d.name).join("、") + " · " : "") + "列 " + (idx + 1);
+    sp.onclick = () => jump(idx);
+    track.appendChild(sp);
+  });
+  if (hasCh) box.appendChild(chBar);
+  if (cols.length) {
+    const vis = Math.max(1, Math.min(n, cols.length - start));
+    const frame = document.createElement("div");
+    frame.className = "mini-window";
+    frame.dataset.testid = "mini-window";
+    frame.style.left = (start * (tooth + gap)) + "px";
+    frame.style.width = (vis * tooth + Math.max(0, vis - 1) * gap) + "px";
+    let dragStartX = 0, dragStart = start;
+    frame.onpointerdown = ev => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      dragStartX = ev.clientX;
+      dragStart = start;
+      function move(e) {
+        const step = Math.round((e.clientX - dragStartX) / (tooth + gap));
+        const maxStart = Math.max(0, cols.length - 1);
+        const next = Math.max(0, Math.min(maxStart, dragStart + step));
+        frame.style.left = (next * (tooth + gap)) + "px";
+        frame.dataset.previewStart = String(next);
+      }
+      function up() {
+        window.removeEventListener("pointermove", move);
+        window.removeEventListener("pointerup", up);
+        const next = Number(frame.dataset.previewStart);
+        if (!Number.isNaN(next) && next !== start) jump(next);
+      }
+      window.addEventListener("pointermove", move);
+      window.addEventListener("pointerup", up);
+    };
+    track.appendChild(frame);
+  }
+  box.appendChild(track);
+  const maxStart = Math.max(0, cols.length - 1);
+  $("prev").disabled = start <= 0 || !cols.length;
+  $("next").disabled = start >= maxStart || !cols.length;
+}
 function openConfirm(pending) {
   const ul = $("suggest-list");
   ul.innerHTML = "";
-  pendingChoice = pending.suggestions[0] && pending.suggestions[0].id;
+  pendingChoice = null;
+  $("confirm-ok").disabled = true;
   pending.suggestions.forEach(s => {
     const li = document.createElement("li");
     const btn = document.createElement("button");
     btn.textContent = s.label;
     btn.dataset.testid = "suggest-" + s.id;
-    btn.onclick = () => { pendingChoice = s.id; };
+    btn.onclick = () => {
+      pendingChoice = s.id;
+      ul.querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", b === btn ? "true" : "false"));
+      $("confirm-ok").disabled = false;
+    };
     li.appendChild(btn);
     ul.appendChild(li);
   });
@@ -872,29 +1840,63 @@ function openConfirm(pending) {
   });
   $("confirm-dlg").showModal();
 }
-async function previewInvade(colId) {
-  await api("/api/structure/preview", { method: "POST", body: JSON.stringify({ op: "invade", column_id: colId }) });
+async function previewResize(colId, clockTo) {
+  await api("/api/structure/preview", { method: "POST", body: JSON.stringify({ op: "resize", column_id: colId, clock_to: clockTo }) });
+  refresh();
+}
+async function previewAddColumn(colId) {
+  await api("/api/structure/preview", { method: "POST", body: JSON.stringify({ op: "add_column", column_id: colId }) });
   refresh();
 }
 
 $("create-book").onclick = async () => {
   await api("/api/books", { method: "POST", body: JSON.stringify({ name: $("book-name").value }) });
+  currentDraft = null;
+  currentCanon = null;
+  searchHits = [];
+  searchEmpty = false;
+  castFilter = "";
+  selectedEntityId = null;
   refresh();
 };
 $("open-book").onclick = async () => {
-  await api("/api/books/" + encodeURIComponent($("book-name").value) + "/open", { method: "POST", body: "{}" });
-  refresh();
+  try {
+    await switchBook($("book-name").value);
+  } catch (e) {
+    $("sidebar").textContent = String(e.message || e);
+  }
+};
+$("book-list").onchange = async () => {
+  if (fillingBooks) return;
+  const name = $("book-list").value;
+  if (!name || name === state.book) return;
+  try {
+    await switchBook(name);
+  } catch (e) {
+    $("sidebar").textContent = String(e.message || e);
+  }
 };
 $("sparse").onclick = async () => { await api("/api/window", { method: "POST", body: JSON.stringify({ density: "sparse" }) }); refresh(); };
 $("mid").onclick = async () => { await api("/api/window", { method: "POST", body: JSON.stringify({ density: "mid" }) }); refresh(); };
 $("dense").onclick = async () => { await api("/api/window", { method: "POST", body: JSON.stringify({ density: "dense" }) }); refresh(); };
 $("minus").onclick = async () => { await api("/api/window", { method: "POST", body: JSON.stringify({ n: Math.max(1, (state.n || 1) - 1) }) }); refresh(); };
 $("plus").onclick = async () => { await api("/api/window", { method: "POST", body: JSON.stringify({ n: Math.min(6, (state.n || 1) + 1) }) }); refresh(); };
-$("prev").onclick = async () => { await api("/api/window", { method: "POST", body: JSON.stringify({ start: Math.max(0, (state.window_start || 0) - 1) }) }); refresh(); };
-$("next").onclick = async () => { await api("/api/window", { method: "POST", body: JSON.stringify({ start: (state.window_start || 0) + 1 }) }); refresh(); };
+$("prev").onclick = async () => {
+  const start = Math.max(0, (state.window_start || 0) - 1);
+  await api("/api/window", { method: "POST", body: JSON.stringify({ start }) });
+  refresh();
+};
+$("next").onclick = async () => {
+  const maxStart = Math.max(0, ((state.columns || []).length - 1));
+  const start = Math.min(maxStart, (state.window_start || 0) + 1);
+  await api("/api/window", { method: "POST", body: JSON.stringify({ start }) });
+  refresh();
+};
 $("new-entity").onclick = async () => {
-  const name = $("ent-name").value;
+  const name = $("ent-name").value.trim();
+  if (!name) return;
   await api("/api/entities", { method: "POST", body: JSON.stringify({ id: name, kind: $("ent-kind").value, name }) });
+  selectedEntityId = name;
   refresh();
 };
 async function tryDeleteEntity(id) {
@@ -911,26 +1913,54 @@ async function tryDeleteEntity(id) {
   }
 }
 $("delete-entity").onclick = async () => {
-  try { await tryDeleteEntity($("ent-name").value); refresh(); } catch (e) {}
+  if (!selectedEntityId) {
+    $("rail-msg").textContent = "先点左栏一个设定再删";
+    return;
+  }
+  try { await tryDeleteEntity(selectedEntityId); selectedEntityId = null; refresh(); } catch (e) {}
 };
 $("write-next").onclick = async () => {
+  if (intentEmpty()) {
+    $("intent").focus();
+    $("sidebar").textContent = "没有本场任务不准写下一场";
+    syncGates();
+    return;
+  }
   try {
     const r = await api("/api/write-next", { method: "POST", body: JSON.stringify({ intent: $("intent").value, place_id: $("place-id").value.trim() || undefined }) });
     currentDraft = r.id;
     currentCanon = null;
+    pendingDeltas = [];
+    pendingKnows = [];
+    pendingTalk = null;
+    pendingFill = null;
+    $("do-text").value = "";
+    $("say-text").value = "";
+    $("think-text").value = "";
+    $("value-shift").value = "";
+    $("scene-title").value = "";
+    renderDeltas();
+    renderDiscussPanel();
     refresh();
   } catch (e) {
     $("sidebar").textContent = String(e.message || e);
   }
 };
 $("add-parallel").onclick = async () => {
+  if (intentEmpty()) {
+    $("intent").focus();
+    $("sidebar").textContent = "没有本场任务不准写下一场";
+    syncGates();
+    return;
+  }
+  pendingDeltas = [];
+  pendingKnows = [];
   const col = (state.columns && state.columns[state.window_start] && state.columns[state.window_start].id) || "col0";
   const place = $("place-id").value.trim();
   await api("/api/write-parallel", { method: "POST", body: JSON.stringify({ intent: $("intent").value, column_id: col, place_id: place || undefined }) });
-  refresh();
-};
-$("plant-promise").onclick = async () => {
-  await api("/api/promises", { method: "POST", body: JSON.stringify({ id: "token_due", name: "铜牌三日", related: ["阿莲"], deadline_clock: 0 }) });
+  $("do-text").value = "";
+  $("say-text").value = "";
+  $("think-text").value = "";
   refresh();
 };
 $("set-telling").onclick = async () => {
@@ -940,30 +1970,69 @@ $("set-telling").onclick = async () => {
   await api("/api/telling", { method: "POST", body: JSON.stringify({ beat_id: id, telling_ord: ord }) });
   refresh();
 };
-$("talk").onclick = () => { pendingTalk = "讨论稿：" + ($("intent").value || "动作"); };
+$("add-delta").onclick = () => {
+  const entity_id = $("delta-ent").value.trim();
+  const attr = $("delta-attr").value.trim();
+  const value = $("delta-val").value.trim();
+  if (!entity_id || !attr || !value) return;
+  const beat = currentBeat() || {};
+  const typed = ($("delta-from").value || "").trim();
+  const clock_from = typed === "" ? (Number(beat.clock_from) || 0) : Number(typed);
+  if (!Number.isFinite(clock_from)) return;
+  pendingDeltas.push({ entity_id, attr, value, clock_from, clock_to: null });
+  renderDeltas();
+};
+$("add-know").onclick = () => {
+  const person_id = $("know-who").value.trim();
+  const fact = $("know-fact").value.trim();
+  if (!person_id || !fact) return;
+  const certainty = ($("know-cert") && $("know-cert").value) || "knows";
+  const truth = ($("know-truth") && $("know-truth").value.trim()) || "";
+  const method = ($("know-method") && $("know-method").value) || "";
+  const source = ($("know-source") && $("know-source").value.trim()) || "";
+  const row = { person_id, fact, certainty, method };
+  if (certainty === "wrong" && truth) row.truth_value = truth;
+  if (method === "told" && source) row.source_person = source;
+  pendingKnows.push(row);
+  renderDeltas();
+};
+$("talk").onclick = () => startDiscuss(discussField || "do_text");
+document.querySelectorAll("[data-discuss]").forEach(btn => {
+  btn.onclick = () => startDiscuss(btn.getAttribute("data-discuss"));
+});
+["intent", "scene-title", "do-text", "say-text", "think-text", "value-shift"].forEach(id => {
+  const el = $(id);
+  el.addEventListener("focus", () => {
+    const map = { intent: "intent", "scene-title": "title", "do-text": "do_text", "say-text": "say_text", "think-text": "think_text", "value-shift": "value_shift" };
+    discussField = map[id];
+  });
+  if (id === "intent") el.addEventListener("input", syncGates);
+});
 $("write-box").onclick = async () => {
-  if (pendingFill && currentDraft) {
-    if ($("do-text").value) pendingFill.do_text = $("do-text").value;
-    if ($("say-text").value) pendingFill.say_text = $("say-text").value;
-    if ($("think-text").value) pendingFill.think_text = $("think-text").value;
-    await api("/api/drafts/patch", { method: "POST", body: JSON.stringify({
-      id: currentDraft,
-      do_text: $("do-text").value,
-      say_text: $("say-text").value,
-      think_text: $("think-text").value,
-      intent: $("intent").value,
-      apply_fill: true
-    }) });
-    pendingFill = null;
-    pendingTalk = "";
-    refresh();
+  if (!currentDraft) {
+    $("sidebar").textContent = "没有选中的草稿，不能写入此框";
     return;
   }
-  if (pendingTalk && currentDraft) {
-    $("do-text").value = pendingTalk;
-    pendingTalk = "";
-    await api("/api/drafts/patch", { method: "POST", body: JSON.stringify({ id: currentDraft, do_text: $("do-text").value, intent: $("intent").value }) });
-    refresh();
+  if (pendingFill) {
+    await api("/api/drafts/patch", { method: "POST", body: JSON.stringify({ id: currentDraft, apply_fill: true }) });
+    const filled = pendingFill;
+    pendingFill = null;
+    pendingTalk = null;
+    $("do-text").value = filled.do_text || "";
+    $("say-text").value = filled.say_text || "";
+    $("think-text").value = filled.think_text || "";
+    renderDiscussPanel();
+    await refresh();
+    return;
+  }
+  if (pendingTalk) {
+    const patch = { id: currentDraft };
+    patch[pendingTalk.field] = pendingTalk.text;
+    $(pendingTalk.el).value = pendingTalk.text;
+    pendingTalk = null;
+    await api("/api/drafts/patch", { method: "POST", body: JSON.stringify(patch) });
+    renderDiscussPanel();
+    await refresh();
   }
 };
 $("commit").onclick = async () => {
@@ -978,6 +2047,9 @@ $("commit").onclick = async () => {
   if ($("say-text").value) body.say_text = $("say-text").value;
   if ($("think-text").value) body.think_text = $("think-text").value;
   if ($("place-id").value.trim()) body.place_id = $("place-id").value.trim();
+  if ($("value-shift").value.trim()) body.value_shift = $("value-shift").value.trim();
+  if (pendingDeltas.length) body.deltas = pendingDeltas;
+  if (pendingKnows.length) body.knowledge_writes = pendingKnows;
   if ($("vis-private").checked && $("visible-to").value.trim()) {
     body.visible_to = $("visible-to").value.split(/[,，]/).map(s => s.trim()).filter(Boolean);
   }
@@ -985,34 +2057,74 @@ $("commit").onclick = async () => {
     await api("/api/drafts/patch", { method: "POST", body: JSON.stringify(body) });
     await api("/api/commit", { method: "POST", body: JSON.stringify({ id }) });
     currentDraft = null;
+    pendingDeltas = [];
+    pendingKnows = [];
+    refresh();
+  } catch (e) {
+    $("sidebar").textContent = String(e.message || e);
+  }
+};
+$("revise").onclick = async () => {
+  if (!currentCanon) {
+    $("sidebar").textContent = "没有选中的正史，不能改已写入正史的场";
+    return;
+  }
+  const patch = {
+    intent: $("intent").value,
+    do_text: $("do-text").value,
+    say_text: $("say-text").value,
+    think_text: $("think-text").value,
+    place_id: $("place-id").value.trim(),
+    value_shift: $("value-shift").value.trim(),
+  };
+  if (pendingDeltas.length) patch.deltas = pendingDeltas;
+  if (pendingKnows.length) patch.knowledge_writes = pendingKnows;
+  try {
+    const r = await api("/api/beats/" + encodeURIComponent(currentCanon) + "/revise", {
+      method: "POST",
+      body: JSON.stringify(patch),
+    });
+    const seq = r.commit_seq;
+    let msg = "已改正史。第几次写入正史仍是 " + seq + "。";
+    if (r.warnings && r.warnings.length) {
+      msg += " 冲突：" + r.warnings.join("；");
+    }
+    $("revise-msg").textContent = msg;
     refresh();
   } catch (e) {
     $("sidebar").textContent = String(e.message || e);
   }
 };
 $("fill-fake").onclick = async () => {
-  if (!currentDraft) return;
+  if (!currentDraft) {
+    $("sidebar").textContent = "没有选中的草稿，不能填下一场";
+    return;
+  }
   let r;
   try {
-    r = await api("/api/fill-live", { method: "POST", body: JSON.stringify({ id: currentDraft }) });
+    r = await api("/api/fill-live", {
+      method: "POST",
+      body: JSON.stringify({ id: currentDraft }),
+      signal: AbortSignal.timeout(5000)
+    });
   } catch (e) {
     const msg = String(e.message || e);
-    if (msg.includes("缺 SETTING_LLM")) {
-      r = await api("/api/fill-fake", { method: "POST", body: JSON.stringify({ id: currentDraft }) });
-    } else {
-      $("sidebar").textContent = msg;
-      return;
+    r = await api("/api/fill-fake", { method: "POST", body: JSON.stringify({ id: currentDraft }) });
+    if (!msg.includes("缺 SETTING_LLM")) {
+      $("sidebar").textContent = "真调未成，已用假模型。" + msg.slice(0, 80);
     }
   }
   pendingFill = r;
-  $("do-text").value = r.do_text || "";
-  $("say-text").value = r.say_text || "";
-  $("think-text").value = r.think_text || "";
-  renderInspector();
+  pendingTalk = null;
+  renderDiscussPanel();
+  syncGates();
 };
 $("ellipsis").onclick = async () => {
   if (!currentDraft) return;
   await api("/api/ellipsis", { method: "POST", body: JSON.stringify({ id: currentDraft }) });
+  $("do-text").value = "";
+  $("say-text").value = "";
+  $("think-text").value = "";
   refresh();
 };
 $("delete-draft").onclick = async () => {
@@ -1043,31 +2155,32 @@ $("gap-ok").onclick = async () => {
 };
 $("gap-cancel").onclick = () => { $("gap-dlg").close(); pendingDeleteDraft = null; };
 $("delete-canon").onclick = async () => {
-  const id = currentCanon || (state.committed && state.committed[0] && state.committed[0].id);
-  if (!id) return;
-  await api("/api/delete-canon", { method: "POST", body: JSON.stringify({ id }) });
+  if (!currentCanon) {
+    $("sidebar").textContent = "没有选中的正史，不能删";
+    return;
+  }
+  await api("/api/delete-canon", { method: "POST", body: JSON.stringify({ id: currentCanon }) });
   refresh();
 };
 $("add-column").onclick = async () => {
-  const col = (state.columns && state.columns[state.window_start] && state.columns[state.window_start].id) || null;
-  await api("/api/structure/preview", { method: "POST", body: JSON.stringify({ op: "add_column", column_id: col }) });
-  refresh();
+  await previewAddColumn(selectedColId());
 };
 $("remove-column").onclick = async () => {
-  const col = (state.columns && state.columns[state.window_start] && state.columns[state.window_start].id);
+  const col = selectedColId();
   await api("/api/structure/preview", { method: "POST", body: JSON.stringify({ op: "remove_column", column_id: col }) });
   refresh();
 };
 $("merge-columns").onclick = async () => {
-  await api("/api/structure/preview", { method: "POST", body: JSON.stringify({ op: "merge_columns" }) });
+  await api("/api/structure/preview", { method: "POST", body: JSON.stringify({ op: "merge_columns", column_id: selectedColId() }) });
   refresh();
 };
 $("swap-columns").onclick = async () => {
-  await api("/api/structure/preview", { method: "POST", body: JSON.stringify({ op: "swap_columns" }) });
+  await api("/api/structure/preview", { method: "POST", body: JSON.stringify({ op: "swap_columns", column_id: selectedColId() }) });
   refresh();
 };
 $("confirm-ok").onclick = async () => {
-  await api("/api/structure/confirm", { method: "POST", body: JSON.stringify({ choice: pendingChoice || "empty_col" }) });
+  if (!pendingChoice) return;
+  await api("/api/structure/confirm", { method: "POST", body: JSON.stringify({ choice: pendingChoice }) });
   $("confirm-dlg").close();
   refresh();
 };
@@ -1080,117 +2193,410 @@ $("reading-order").onclick = async () => { await api("/api/reading-order", { met
 $("occupancy").onclick = async () => {
   const occ = await api("/api/occupancy");
   const tbl = $("occ-table");
-  tbl.innerHTML = (occ.cells || []).map(c => `<tr data-col="${c.column}"><td>${c.entity}</td><td>${c.column}</td><td>${c.present}</td></tr>`).join("");
-  tbl.querySelectorAll("tr").forEach(tr => tr.onclick = () => {
-    const col = tr.getAttribute("data-col");
-    const idx = (state.columns || []).findIndex(c => c.id === col);
-    if (idx >= 0) jump(idx);
+  const rows = occ.entities || railEntities();
+  const cols = occ.columns || (state.columns || []).map(c => ({ id: c.id }));
+  const head = "<tr><th><\/th>" + cols.map(c => `<th>${escHtml(c.id)}<\/th>`).join("") + "<\/tr>";
+  const body = rows.map(e => {
+    const cells = cols.map(c => {
+      const hit = (occ.cells || []).find(x => x.entity === e.id && x.column === c.id);
+      const st = (hit && hit.status) || "none";
+      const mark = st === "canon" ? "正史" : st === "draft" ? "草稿" : "";
+      return `<td class="${st}" data-col="${escHtml(c.id)}" data-testid="occ-${escHtml(e.id)}-${escHtml(c.id)}">${mark}<\/td>`;
+    }).join("");
+    return `<tr><th class="row-name">${escHtml(e.name || e.id)}<\/th>${cells}<\/tr>`;
+  }).join("");
+  tbl.innerHTML = head + body;
+  tbl.querySelectorAll("td[data-col]").forEach(td => {
+    td.onclick = ev => {
+      ev.stopPropagation();
+      const col = td.getAttribute("data-col");
+      const idx = (state.columns || []).findIndex(c => c.id === col);
+      $("flyout").close();
+      if (idx >= 0) {
+        jump(idx);
+        api("/api/select", { method: "POST", body: JSON.stringify({ column_id: col }) });
+      }
+    };
   });
   $("flyout-error").textContent = "";
   $("flyout").showModal();
 };
-$("flyout-edit").onclick = async () => {
-  try {
-    await api("/api/occupancy", { method: "POST", body: "{}" });
-  } catch (e) {
-    $("flyout-error").textContent = String(e.message || e);
-  }
-};
+$("flyout").addEventListener("click", async e => {
+  if (e.target === $("flyout")) $("flyout").close();
+});
 $("flyout-close").onclick = () => $("flyout").close();
-$("export").onclick = async () => {
-  const md = await api("/api/export");
+$("person-lens").onchange = async () => {
+  const person = $("person-lens").value || "";
+  await api("/api/lens", { method: "POST", body: JSON.stringify({ person }) });
+  refresh();
+};
+$("relations").onclick = async () => {
+  const person = $("person-lens").value || selectedEntityId || state.lens_person || "";
+  if (!person) {
+    $("graph-error").textContent = "先选一个人";
+    $("graph").showModal();
+    return;
+  }
+  let data;
+  try {
+    data = await api("/api/relations?person=" + encodeURIComponent(person));
+  } catch (e) {
+    $("graph-error").textContent = String(e.message || e);
+    $("graph").showModal();
+    return;
+  }
+  $("graph-error").textContent = "";
+  drawGraph(data);
+  $("graph").showModal();
+};
+$("graph-close").onclick = () => $("graph").close();
+function drawGraph(data) {
+  const svg = $("graph-svg");
+  while (svg.firstChild) svg.removeChild(svg.firstChild);
+  const nodes = data.nodes || [];
+  const edges = data.edges || [];
+  const cx = 320, cy = 250, rad = nodes.length > 8 ? 190 : 150;
+  const pos = {};
+  nodes.forEach((n, i) => {
+    const a = (Math.PI * 2 * i) / Math.max(nodes.length, 1) - Math.PI / 2;
+    pos[n.id] = { x: cx + rad * Math.cos(a), y: cy + rad * Math.sin(a) };
+  });
+  edges.forEach(e => {
+    const a = pos[e.from], b = pos[e.to];
+    if (!a || !b) return;
+    const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+    line.setAttribute("x1", a.x);
+    line.setAttribute("y1", a.y);
+    line.setAttribute("x2", b.x);
+    line.setAttribute("y2", b.y);
+    line.setAttribute("stroke", "#c4a574");
+    line.setAttribute("stroke-width", "2");
+    line.setAttribute("data-testid", "graph-edge-" + e.from + "-" + e.to);
+    line.style.cursor = "grab";
+    line.onpointerdown = ev => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      $("graph-error").textContent = "连线只读，改正史回分场条";
+    };
+    svg.appendChild(line);
+    const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+    const lab = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    lab.setAttribute("x", mx);
+    lab.setAttribute("y", my - 4);
+    lab.setAttribute("fill", "var(--mute)");
+    lab.setAttribute("font-size", "11");
+    lab.setAttribute("text-anchor", "middle");
+    lab.textContent = e.rel;
+    svg.appendChild(lab);
+  });
+  nodes.forEach(n => {
+    const p = pos[n.id];
+    if (!p) return;
+    const c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    c.setAttribute("cx", p.x);
+    c.setAttribute("cy", p.y);
+    c.setAttribute("r", n.id === (data.person || "") ? 16 : 11);
+    c.setAttribute("fill", n.kind === "person" ? "#c45c26" : n.kind === "thing" ? "#e9c46a" : "#6d6875");
+    c.setAttribute("data-testid", "graph-node-" + n.id);
+    svg.appendChild(c);
+    const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    t.setAttribute("x", p.x);
+    t.setAttribute("y", p.y + 28);
+    t.setAttribute("fill", "var(--cream)");
+    t.setAttribute("font-size", "12");
+    t.setAttribute("text-anchor", "middle");
+    t.textContent = n.name || n.id;
+    svg.appendChild(t);
+  });
+}
+async function runExport(canonOnly) {
+  const q = canonOnly ? "?canon_only=1" : "";
+  const md = await api("/api/export" + q);
   $("export-out").classList.remove("hidden");
   $("export-out").textContent = md;
+  return md;
+}
+let craftDraft = { premise: "", chapters: [] };
+function renderCraftChapters() {
+  const box = $("craft-chapters");
+  if (!box) return;
+  const cols = (state.columns || []).slice().sort((a, b) => a.display_ord - b.display_ord);
+  box.innerHTML = "";
+  (craftDraft.chapters || []).forEach((ch, i) => {
+    const row = document.createElement("div");
+    row.className = "craft-row";
+    row.dataset.testid = "craft-chapter-" + i;
+    const title = document.createElement("input");
+    title.placeholder = "回目";
+    title.value = ch.title || "";
+    title.dataset.testid = "craft-title-" + i;
+    title.oninput = () => { craftDraft.chapters[i].title = title.value; };
+    const sel = document.createElement("select");
+    sel.dataset.testid = "craft-start-" + i;
+    sel.innerHTML = '<option value="">章界（从哪一列起）</option>' + cols.map((c, idx) =>
+      `<option value="${escHtml(c.id)}">列 ${idx + 1} · ${escHtml(c.id)}<\/option>`
+    ).join("");
+    sel.value = ch.start_column || "";
+    sel.onchange = () => { craftDraft.chapters[i].start_column = sel.value; };
+    const del = document.createElement("button");
+    del.type = "button";
+    del.textContent = "删回";
+    del.dataset.testid = "craft-del-" + i;
+    del.onclick = () => { craftDraft.chapters.splice(i, 1); renderCraftChapters(); };
+    row.appendChild(title);
+    row.appendChild(sel);
+    row.appendChild(del);
+    box.appendChild(row);
+  });
+  if (!(craftDraft.chapters || []).length) {
+    box.innerHTML = '<p class="muted">还没有回目。加一回，选定从哪一列起。<\/p>';
+  }
+}
+$("open-craft").onclick = () => {
+  const c = state.craft || { premise: "", chapters: [] };
+  craftDraft = {
+    premise: c.premise || "",
+    chapters: (c.chapters || []).map(ch => ({ id: ch.id, title: ch.title || "", start_column: ch.start_column || "" }))
+  };
+  $("craft-premise").value = craftDraft.premise;
+  $("craft-msg").textContent = "主脑和回目只在书页，不算进算出这一刻。";
+  renderCraftChapters();
+  $("craft-dlg").showModal();
 };
-$("paste").onclick = async () => {
-  const text = $("do-text").value || "阿福打开抽屉。\n阿莲：东西呢。";
+$("craft-add-chapter").onclick = () => {
+  craftDraft.chapters = craftDraft.chapters || [];
+  craftDraft.chapters.push({ id: "ch" + Date.now(), title: "", start_column: "" });
+  renderCraftChapters();
+};
+$("craft-save").onclick = async () => {
+  craftDraft.premise = $("craft-premise").value || "";
+  const r = await api("/api/craft", { method: "POST", body: JSON.stringify(craftDraft) });
+  state.craft = r;
+  $("craft-msg").textContent = "已写入书页。不算进算出这一刻。";
+  renderMinimap();
+};
+$("craft-close").onclick = () => $("craft-dlg").close();
+$("export").onclick = async () => {
+  $("export-include-drafts").checked = true;
+  $("export-dlg").showModal();
+  await runExport(false);
+};
+$("export-run").onclick = async () => {
+  await runExport(!$("export-include-drafts").checked);
+};
+$("export-close").onclick = () => $("export-dlg").close();
+$("paste").onclick = () => {
+  $("paste-text").value = "";
+  pendingPaste = state.paste_suggestions || [];
+  renderPaste();
+  $("paste-dlg").showModal();
+};
+$("paste-run").onclick = async () => {
+  const text = ($("paste-text").value || "").trim();
+  if (!text) {
+    $("paste-suggest").textContent = "先贴一段文字";
+    return;
+  }
   const r = await api("/api/paste", { method: "POST", body: JSON.stringify({ text }) });
   pendingPaste = r.suggestions || [];
   renderPaste();
 };
+$("paste-close").onclick = () => $("paste-dlg").close();
 $("do-search").onclick = async () => {
-  const r = await api("/api/search?q=" + encodeURIComponent($("ent-search").value));
-  $("search-hits").innerHTML = (r.hits || []).map(h => `<li data-testid="hit-${h.id}">${h.name}</li>`).join("") || '<li data-testid="search-empty">无</li>';
+  const q = ($("ent-search").value || "").trim();
+  if (!q) {
+    searchHits = [];
+    searchEmpty = false;
+    $("search-hits").innerHTML = "";
+    return;
+  }
+  const r = await api("/api/search?q=" + encodeURIComponent(q));
+  searchHits = r.hits || [];
+  searchEmpty = !searchHits.length;
+  renderRail();
 };
+$("ent-search").addEventListener("input", () => {
+  if (!($("ent-search").value || "").trim()) {
+    searchHits = [];
+    searchEmpty = false;
+    $("search-hits").innerHTML = "";
+  }
+});
 $("ignore-suggest").onclick = () => {
   ignoreSuggestion = true;
   $("promise-suggest").textContent = "已忽略建议（不进模型）";
 };
 async function openDossier(id) {
   dossierId = id;
+  selectedEntityId = id;
+  pendingDossierTalk = null;
   $("dossier-error").textContent = "";
+  $("dossier-discuss").classList.add("hidden");
   const d = await api("/api/dossier/" + encodeURIComponent(id));
-  $("dossier-title").textContent = "档案 " + d.name;
-  $("dossier-desire").value = (d.profile && d.profile.desire) || "";
-  const beats = d.beats || [];
-  $("dossier-beats").innerHTML = "场：" + beats.map(b => {
-    const bid = typeof b === "string" ? b : b.id;
-    const col = typeof b === "string" ? "" : b.column_id;
-    return `<button type="button" data-testid="dossier-beat-${bid}" data-col="${col}">${bid}</button>`;
-  }).join(" ");
-  $("dossier-beats").querySelectorAll("button").forEach(btn => {
+  $("dossier-kind").textContent = "档案 · " + (KIND_NAME[d.kind] || d.kind || "");
+  $("dossier-title").textContent = d.name || "档案";
+  const keys = F10_KEYS[d.kind] || F10_KEYS.person;
+  const profile = d.profile || {};
+  $("dossier-fields").innerHTML = keys.map(([key, label]) => {
+    const tid = key === "desire" ? "dossier-desire" : "dossier-" + key;
+    const val = (profile[key] || "").replace(/[<]/g, "");
+    const span = F10_LONG.has(key) ? " span-2" : "";
+    const input = F10_LONG.has(key)
+      ? `<textarea id="${tid}" data-testid="${tid}" data-profile-key="${key}">${val}<\/textarea>`
+      : `<input id="${tid}" data-testid="${tid}" data-profile-key="${key}" value="${val.replace(/"/g, "&quot;")}" />`;
+    return `<div class="field-head${span}"><label>${label}<\/label><button type="button" class="discuss-btn" data-dossier-key="${key}" data-dossier-label="${label}">讨论<\/button><\/div>${input}`;
+  }).join("");
+  $("dossier-fields").querySelectorAll("[data-dossier-key]").forEach(btn => {
+    btn.onclick = () => {
+      const key = btn.getAttribute("data-dossier-key");
+      const label = btn.getAttribute("data-dossier-label");
+      const el = $("dossier-fields").querySelector(`[data-profile-key="${key}"]`);
+      pendingDossierTalk = { key, text: "讨论稿：" + ((el && el.value) || label) };
+      $("dossier-discuss").classList.remove("hidden");
+      $("dossier-discuss-label").textContent = "讨论 · " + label;
+      $("dossier-discuss-draft").textContent = pendingDossierTalk.text;
+    };
+  });
+  const appearances = d.appearances || d.beats || [];
+  $("dossier-appearances").innerHTML = appearances.length
+    ? appearances.map(b => {
+        const bid = typeof b === "string" ? b : b.id;
+        const col = typeof b === "string" ? "" : (b.column_id || "");
+        const intent = typeof b === "string" ? bid : (b.intent || bid);
+        const st = typeof b === "string" ? "" : (b.status === "draft" ? " · 草稿" : "");
+        return `<button type="button" data-testid="dossier-appearance-${bid}" data-col="${col}">${escHtml(intent)}${st}<\/button>`;
+      }).join("")
+    : '<p class="muted">没有场，就没有出场记录。<\/p>';
+  $("dossier-appearances").querySelectorAll("button").forEach(btn => {
     btn.onclick = () => {
       const col = btn.getAttribute("data-col");
       const idx = (state.columns || []).findIndex(c => c.id === col);
-      if (idx >= 0) jump(idx);
       $("dossier").close();
+      if (idx >= 0) jump(idx);
     };
   });
-  const win = document.createElement("div");
-  win.textContent = JSON.stringify(d.windows_readonly || []);
-  const ro = document.createElement("input");
-  ro.readOnly = true;
-  ro.dataset.testid = "dossier-windows-ro";
-  ro.value = "情状窗口只读";
-  $("dossier-windows").innerHTML = "";
-  $("dossier-windows").appendChild(ro);
-  $("dossier-windows").appendChild(win);
+  const wins = d.windows_readonly || [];
+  const rows = wins.length
+    ? wins.map(w => {
+        const to = w.clock_to == null ? "开着" : String(w.clock_to);
+        const val = (w.attr || "") + " = " + (w.value || "");
+        return `<tr><td>${escHtml(String(w.clock_from ?? ""))}<\/td><td>${escHtml(to)}<\/td><td>${escHtml(val)}<\/td><\/tr>`;
+      }).join("")
+    : '<tr><td colspan="3" class="muted">只读。还没有情状窗口。<\/td><\/tr>';
+  $("dossier-windows").innerHTML = `<table data-testid="dossier-windows-table"><thead><tr><th>起点<\/th><th>终点<\/th><th>值<\/th><\/tr><\/thead><tbody>${rows}<\/tbody><\/table>`;
+  const knows = d.knows_readonly || [];
+  const wrong = d.wrong_beliefs_readonly || [];
+  const knowRows = [
+    ...wrong.map(s => `<div class="sit-row" data-testid="dossier-wrong">${escHtml(s)}<\/div>`),
+    ...knows.map(s => `<div class="sit-row">${escHtml(s)}<\/div>`)
+  ];
+  $("dossier-knows").innerHTML = knowRows.length ? knowRows.join("") : '<p class="muted">只读。这一刻还没有记下他知道什么。<\/p>';
+  const prs = d.promises_readonly || [];
+  $("dossier-promises").innerHTML = prs.length
+    ? prs.map(p => `<div class="sit-row">${escHtml((p.name || p.id) + " · " + (p.status || ""))}<\/div>`).join("")
+    : '<p class="muted">只读。没有挂到这个人上的伏笔。<\/p>';
   $("dossier").showModal();
 }
+$("dossier-write-box").onclick = async () => {
+  if (!pendingDossierTalk || !dossierId) return;
+  const profile = {};
+  profile[pendingDossierTalk.key] = pendingDossierTalk.text;
+  await api("/api/dossier/" + encodeURIComponent(dossierId), { method: "POST", body: JSON.stringify({ profile }) });
+  const el = $("dossier-fields").querySelector(`[data-profile-key="${pendingDossierTalk.key}"]`);
+  if (el) el.value = pendingDossierTalk.text;
+  pendingDossierTalk = null;
+  $("dossier-discuss").classList.add("hidden");
+};
 $("dossier-save").onclick = async () => {
-  await api("/api/dossier/" + encodeURIComponent(dossierId), { method: "POST", body: JSON.stringify({ profile: { desire: $("dossier-desire").value } }) });
+  const profile = {};
+  $("dossier-fields").querySelectorAll("[data-profile-key]").forEach(el => {
+    profile[el.getAttribute("data-profile-key")] = el.value;
+  });
+  await api("/api/dossier/" + encodeURIComponent(dossierId), { method: "POST", body: JSON.stringify({ profile }) });
 };
 $("dossier-delete").onclick = async () => {
   try { await tryDeleteEntity(dossierId); refresh(); } catch (e) {}
 };
 $("dossier-close").onclick = () => $("dossier").close();
 async function loadCircumstances() {
+  if (!currentDraft && !state.lens_person) {
+    if (currentCanon) {
+      $("sidebar").textContent = "正史场。改栏位用「改已写入正史的场」，不是再点写入正史。";
+    } else {
+      $("sidebar").textContent = "点写下一场或选中草稿后，这里列出本场规定情境。";
+    }
+    $("promise-suggest").textContent = "";
+    $("ignore-suggest").classList.add("hidden");
+    return;
+  }
   try {
     const p = await api("/api/circumstances");
+    if (p.empty) {
+      $("sidebar").textContent = "点写下一场或选中草稿后，这里列出本场规定情境。";
+      $("promise-suggest").textContent = "";
+      return;
+    }
     const pkt = p.packet || p;
-    const side = [];
-    side.push("本场任务：" + (pkt.intent || ""));
-    side.push("当场利害：" + ((pkt.stakes || []).join("；") || "无"));
-    side.push("知情差：" + ((pkt.knowledge_gaps || []).join("；") || "无"));
-    side.push("本场默认谁会看见：" + ((pkt.default_witnesses || []).join("、") || "无"));
-    side.push("上场价值转折：" + (pkt.last_value_shift || "无"));
-    side.push("未收伏笔：" + ((pkt.open_promises || []).map(x => x.name || x.id).join("、") || "无"));
-    $("sidebar").innerHTML = side.map(t => `<div class="sit-row">${t}</div>`).join("");
+    const block = (id, head, rows) => {
+      const body = (rows && rows.length) ? rows.map(t => `<div class="sit-row">${t}<\/div>`).join("") : `<div class="sit-row muted">无<\/div>`;
+      return `<div class="sit-block" data-testid="${id}"><div class="sit-head">${head}<\/div>${body}<\/div>`;
+    };
+    const debts = (pkt.open_promises || []).map(x => {
+      const due = x.deadline_clock != null ? "（期限 " + x.deadline_clock + "）" : "";
+      return (x.name || x.id) + due;
+    });
+    $("sidebar").innerHTML = [
+      block("ledger-task", "本场任务", [pkt.intent || "（空）"]),
+      block("ledger-shift", "上场价值转折", [pkt.last_value_shift || "无"]),
+      block("ledger-world", "世界账", (pkt.stakes || []).length ? pkt.stakes : []),
+      block("ledger-person", "人物账", [
+        ...((pkt.wrong_beliefs || []).length ? pkt.wrong_beliefs : []),
+        ...((pkt.knowledge_gaps || []).length ? pkt.knowledge_gaps : []),
+        "本场默认谁会看见：" + ((pkt.default_witnesses || []).join("、") || "无")
+      ].filter(Boolean)),
+      block("ledger-reader", "读者账", (pkt.reader_irony && pkt.reader_irony.length) ? pkt.reader_irony : (pkt.reader_knows || [])),
+      block("ledger-debt", "未收伏笔", debts)
+    ].join("");
     if (p.suggestion && !ignoreSuggestion) {
-      $("promise-suggest").textContent = "建议：" + p.suggestion.op + " " + p.suggestion.promise_id;
+      const names = (pkt.open_promises || []);
+      const hit = names.find(x => x.id === p.suggestion.promise_id);
+      const nm = (hit && (hit.name || hit.id)) || p.suggestion.promise_id;
+      $("promise-suggest").textContent = "建议：" + (PROMISE_OP[p.suggestion.op] || p.suggestion.op) + " " + nm;
       $("ignore-suggest").classList.remove("hidden");
     } else if (!p.suggestion) {
       $("promise-suggest").textContent = "";
       $("ignore-suggest").classList.add("hidden");
     }
-  } catch { /* no draft */ }
+  } catch {
+    $("sidebar").textContent = "点写下一场或选中草稿后，这里列出本场规定情境。";
+  }
 }
 async function loadKnows() {
   try {
     const k = await api("/api/knows");
-    const entries = Object.entries(k.knows || {});
+    let entries = Object.entries(k.knows || {});
+    if (inspectFilter) {
+      entries = entries.filter(([p]) => p === inspectFilter);
+      if (!entries.length) {
+        $("knows-list").textContent = inspectFilter + " 这一刻还没有记下他知道什么。";
+        return;
+      }
+    }
     if (!entries.length) {
       $("knows-list").textContent = "他知道什么：无";
       return;
     }
+    const beliefs = k.beliefs || [];
+    const wrongOf = pid => beliefs.filter(b => b.person_id === pid && b.certainty === "wrong")
+      .map(b => "信错「" + (b.fact || "") + "」" + (b.truth_value ? "（实际：" + b.truth_value + "）" : ""));
     $("knows-list").innerHTML = entries.map(([p, fs]) =>
-      `<div class="know-block"><div class="who">${p}</div>${(fs || []).map(f => `<p>${f}</p>`).join("")}</div>`
+      `<div class="know-block"><div class="who">${p}<\/div>${wrongOf(p).map(f => `<p>${f}<\/p>`).join("")}${(fs || []).map(f => `<p>${f}<\/p>`).join("")}<\/div>`
     ).join("");
   } catch {
     $("knows-list").textContent = "";
   }
 }
-document.addEventListener("DOMContentLoaded", refresh);
+document.addEventListener("DOMContentLoaded", () => { syncGates(); refresh(); });
 </script>
 </body>
 </html>

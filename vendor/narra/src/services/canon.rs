@@ -4,8 +4,10 @@ use crate::db::connection::NarraDb;
 use crate::services::circumstances::{given_circumstances, ScenePacket};
 use crate::services::constrain::{constrain, ConstraintReport};
 use crate::services::materialize::{invalidate_interval, world_at_cached};
+use crate::services::narra_bridge;
 use crate::services::world::{
-    knows_at, world_at, Beat, BeatDraft, Canon, Column, Entity, Presence, Promise, World,
+    knows_at, world_at, Beat, BeatDraft, Canon, Column, Delta, Entity, KnowledgeWrite, Presence,
+    Promise, PromiseOp, World, STATUS_COMMITTED, STATUS_SUPERSEDED,
 };
 use crate::NarraError;
 use serde::{Deserialize, Serialize};
@@ -53,6 +55,36 @@ struct BeatRow {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+struct WindowRow {
+    entity: RecordId,
+    attr: String,
+    value: String,
+    clock_from: i64,
+    clock_to: Option<i64>,
+    commit_seq: i64,
+    source_beat: RecordId,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct KnowsEdgeRow {
+    #[serde(rename = "in")]
+    inn: RecordId,
+    out: RecordId,
+    certainty: Option<String>,
+    truth_value: Option<String>,
+    learning_method: Option<String>,
+    scene: Option<RecordId>,
+    clock_from: Option<i64>,
+    commit_seq: Option<i64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct KnowledgeRow {
+    id: RecordId,
+    fact: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 struct RelRow {
     #[serde(rename = "in")]
     inn: RecordId,
@@ -70,6 +102,54 @@ struct PromiseRow {
     plant_clock: Option<i64>,
     deadline_clock: Option<i64>,
     red_herring: bool,
+}
+
+/// 改已写入正史的场。缺省字段保持原值。不新分配 commit_seq。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct BeatPatch {
+    pub intent: Option<String>,
+    pub do_text: Option<String>,
+    pub say_text: Option<String>,
+    pub think_text: Option<String>,
+    pub value_shift: Option<String>,
+    pub place_id: Option<String>,
+    pub deltas: Option<Vec<Delta>>,
+    pub knowledge_writes: Option<Vec<KnowledgeWrite>>,
+    pub promise_ops: Option<Vec<PromiseOp>>,
+    pub visible_to: Option<Vec<String>>,
+}
+
+fn opt_text(s: String) -> Option<String> {
+    let t = s.trim().to_string();
+    if t.is_empty() {
+        None
+    } else {
+        Some(t)
+    }
+}
+
+fn beat_as_draft(b: &Beat) -> BeatDraft {
+    BeatDraft {
+        id: Some(b.id.clone()),
+        kind: b.kind.clone(),
+        column_id: b.column_id.clone(),
+        intent: b.intent.clone(),
+        value_shift: b.value_shift.clone(),
+        do_text: b.do_text.clone(),
+        say_text: b.say_text.clone(),
+        think_text: b.think_text.clone(),
+        clock_from: b.clock_from,
+        clock_to: b.clock_to,
+        place_id: b.place_id.clone(),
+        telling_ord: b.telling_ord,
+        cause_beat: b.cause_beat.clone(),
+        visible_to: b.visible_to.clone(),
+        deltas: b.deltas.clone(),
+        knowledge_writes: b.knowledge_writes.clone(),
+        promise_ops: b.promise_ops.clone(),
+        presences: b.presences.clone(),
+        ..BeatDraft::default()
+    }
 }
 
 fn rec_key(id: &RecordId) -> String {
@@ -91,13 +171,16 @@ impl SettingBook {
     pub async fn load_canon(&self) -> Result<Canon, NarraError> {
         let mut q = self
             .db
-            .query("SELECT * FROM setting_entity; SELECT * FROM setting_column; SELECT * FROM setting_beat; SELECT * FROM setting_present_in; SELECT * FROM setting_promise;")
+            .query("SELECT * FROM setting_entity; SELECT * FROM setting_column; SELECT * FROM setting_beat; SELECT * FROM setting_present_in; SELECT * FROM setting_promise; SELECT entity, attr, value, clock_from, clock_to, commit_seq, source_beat FROM setting_window; SELECT * FROM knows; SELECT id, fact FROM knowledge;")
             .await?;
         let entities: Vec<EntityRow> = q.take(0)?;
         let columns: Vec<ColumnRow> = q.take(1)?;
         let beats: Vec<BeatRow> = q.take(2)?;
         let rels: Vec<RelRow> = q.take(3)?;
         let promises: Vec<PromiseRow> = q.take(4)?;
+        let windows: Vec<WindowRow> = q.take(5).unwrap_or_default();
+        let know_edges: Vec<KnowsEdgeRow> = q.take(6).unwrap_or_default();
+        let knowledge_rows: Vec<KnowledgeRow> = q.take(7).unwrap_or_default();
 
         let entities: Vec<Entity> = entities
             .into_iter()
@@ -120,41 +203,83 @@ impl SettingBook {
                 display_ord: c.display_ord,
             })
             .collect();
+        let mut win_map: std::collections::HashMap<String, Vec<Delta>> =
+            std::collections::HashMap::new();
+        for w in windows {
+            win_map.entry(rec_key(&w.source_beat)).or_default().push(Delta {
+                entity_id: rec_key(&w.entity),
+                attr: w.attr,
+                value: w.value,
+                clock_from: w.clock_from,
+                clock_to: w.clock_to,
+            });
+        }
+        let fact_by_kid: std::collections::HashMap<String, String> = knowledge_rows
+            .into_iter()
+            .map(|k| (rec_key(&k.id), k.fact))
+            .collect();
+        let mut know_map: std::collections::HashMap<String, Vec<KnowledgeWrite>> =
+            std::collections::HashMap::new();
+        for e in know_edges {
+            let Some(scene) = e.scene.as_ref() else { continue };
+            let fact = fact_by_kid
+                .get(&rec_key(&e.out))
+                .cloned()
+                .unwrap_or_default();
+            if fact.is_empty() {
+                continue;
+            }
+            know_map.entry(rec_key(scene)).or_default().push(KnowledgeWrite {
+                person_id: rec_key(&e.inn),
+                fact,
+                certainty: e.certainty.unwrap_or_default(),
+                truth_value: e.truth_value,
+                method: e.learning_method,
+                source_person: None,
+            });
+        }
         let mut beat_map: Vec<Beat> = beats
             .into_iter()
-            .map(|b| Beat {
-                id: rec_key(&b.id),
-                kind: b.kind,
-                column_id: rec_key(&b.column),
-                status: b.status,
-                commit_seq: b.commit_seq,
-                intent: b.intent,
-                value_shift: b.value_shift,
-                do_text: b.do_text,
-                say_text: b.say_text,
-                think_text: b.think_text,
-                clock_from: b.clock_from,
-                clock_to: b.clock_to,
-                place_id: b.place.as_ref().map(rec_key),
-                telling_ord: b.telling_ord,
-                cause_beat: b.cause_beat.as_ref().map(rec_key),
-                visible_to: b.visible_to,
-                deltas: b
-                    .deltas_json
-                    .as_deref()
-                    .and_then(|s| serde_json::from_str(s).ok())
-                    .unwrap_or_default(),
-                knowledge_writes: b
-                    .knowledge_json
-                    .as_deref()
-                    .and_then(|s| serde_json::from_str(s).ok())
-                    .unwrap_or_default(),
-                promise_ops: b
-                    .promise_ops_json
-                    .as_deref()
-                    .and_then(|s| serde_json::from_str(s).ok())
-                    .unwrap_or_default(),
-                presences: vec![],
+            .map(|b| {
+                let id = rec_key(&b.id);
+                let deltas = win_map.get(&id).cloned().unwrap_or_else(|| {
+                    b.deltas_json
+                        .as_deref()
+                        .and_then(|s| serde_json::from_str(s).ok())
+                        .unwrap_or_default()
+                });
+                let knowledge_writes = know_map.get(&id).cloned().unwrap_or_else(|| {
+                    b.knowledge_json
+                        .as_deref()
+                        .and_then(|s| serde_json::from_str(s).ok())
+                        .unwrap_or_default()
+                });
+                Beat {
+                    id,
+                    kind: b.kind,
+                    column_id: rec_key(&b.column),
+                    status: b.status,
+                    commit_seq: b.commit_seq,
+                    intent: b.intent,
+                    value_shift: b.value_shift,
+                    do_text: b.do_text,
+                    say_text: b.say_text,
+                    think_text: b.think_text,
+                    clock_from: b.clock_from,
+                    clock_to: b.clock_to,
+                    place_id: b.place.as_ref().map(rec_key),
+                    telling_ord: b.telling_ord,
+                    cause_beat: b.cause_beat.as_ref().map(rec_key),
+                    visible_to: b.visible_to,
+                    deltas,
+                    knowledge_writes,
+                    promise_ops: b
+                        .promise_ops_json
+                        .as_deref()
+                        .and_then(|s| serde_json::from_str(s).ok())
+                        .unwrap_or_default(),
+                    presences: vec![],
+                }
             })
             .collect();
         for rel in rels {
@@ -230,6 +355,7 @@ impl SettingBook {
             .bind(("name", e.name.clone()))
             .bind(("profile", profile))
             .await?;
+        narra_bridge::mirror_entity(&self.db, e).await?;
         Ok(())
     }
 
@@ -242,6 +368,7 @@ impl SettingBook {
             .bind(("b", c.clock_to))
             .bind(("o", c.display_ord))
             .await?;
+        narra_bridge::mirror_column(&self.db, c).await?;
         Ok(())
     }
 
@@ -372,6 +499,14 @@ impl SettingBook {
         invalidate_interval(&self.db, draft.clock_from).await?;
 
         let canon = self.load_canon().await?;
+        if let Some(beat) = canon.beats.iter().find(|b| b.id == id) {
+            let col = canon.columns.iter().find(|c| c.id == beat.column_id);
+            if let Some(c) = col {
+                narra_bridge::mirror_column(&self.db, c).await?;
+            }
+            narra_bridge::mirror_beat(&self.db, beat, col).await?;
+        }
+        let canon = self.load_canon().await?;
         canon
             .beats
             .into_iter()
@@ -397,20 +532,99 @@ impl SettingBook {
         }
         let from = rows[0].clock_from;
         invalidate_interval(&self.db, from).await?;
+        self.remirror_beat_id(beat_id).await?;
         Ok(())
     }
 
-    pub async fn revise_delta(
+    /// 改已写入正史的场。不新分配 commit_seq。返回冲突列表（不挡本次写入，除非本场本身被挡）。
+    pub async fn revise(
         &self,
         beat_id: &str,
-        deltas: Vec<crate::services::world::Delta>,
-    ) -> Result<(), NarraError> {
-        let dj = serde_json::to_string(&deltas)?;
+        patch: BeatPatch,
+    ) -> Result<(Beat, Vec<String>), NarraError> {
+        let canon = self.load_canon().await?;
+        let old = canon
+            .beats
+            .iter()
+            .find(|b| b.id == beat_id && b.status == STATUS_COMMITTED)
+            .cloned()
+            .ok_or_else(|| NarraError::NotFound {
+                entity_type: "setting_beat".into(),
+                id: beat_id.into(),
+            })?;
+        let seq = old.commit_seq;
+        let mut next = old.clone();
+        if let Some(v) = patch.intent {
+            next.intent = v;
+        }
+        if let Some(v) = patch.do_text {
+            next.do_text = opt_text(v);
+        }
+        if let Some(v) = patch.say_text {
+            next.say_text = opt_text(v);
+        }
+        if let Some(v) = patch.think_text {
+            next.think_text = opt_text(v);
+        }
+        if let Some(v) = patch.value_shift {
+            next.value_shift = opt_text(v);
+        }
+        if let Some(v) = patch.place_id {
+            next.place_id = opt_text(v);
+        }
+        if let Some(v) = patch.deltas {
+            next.deltas = v;
+        }
+        if let Some(v) = patch.knowledge_writes {
+            next.knowledge_writes = v;
+        }
+        if let Some(v) = patch.promise_ops {
+            next.promise_ops = v;
+        }
+        if let Some(v) = patch.visible_to {
+            next.visible_to = if v.is_empty() { None } else { Some(v) };
+        }
+        let draft = beat_as_draft(&next);
+        let mut canon_ex = canon.clone();
+        if let Some(b) = canon_ex.beats.iter_mut().find(|b| b.id == beat_id) {
+            b.status = STATUS_SUPERSEDED.into();
+        }
+        let world = world_at(&canon_ex, next.clock_from, None).map_err(NarraError::Validation)?;
+        let report = constrain(&world, &canon_ex, &draft);
+        if report.blocks() {
+            let msg = report
+                .findings
+                .iter()
+                .filter(|f| f.grade == crate::services::constrain::Grade::Strict)
+                .map(|f| f.message.clone())
+                .collect::<Vec<_>>()
+                .join("; ");
+            return Err(NarraError::Validation(msg));
+        }
+        let dj = serde_json::to_string(&next.deltas)?;
+        let kws = serde_json::to_string(&next.knowledge_writes)?;
+        let pops = serde_json::to_string(&next.promise_ops)?;
         let mut q = self
             .db
-            .query("UPDATE $id SET deltas_json = $dj WHERE status = 'committed' RETURN AFTER")
-            .bind(("id", RecordId::from(("setting_beat", beat_id))))
+            .query(
+                "UPDATE $bid SET intent = $intent, value_shift = $vs, do_text = $do, say_text = $say, think_text = $th, place = $place, visible_to = $vis, deltas_json = $dj, promise_ops_json = $pj, knowledge_json = $kj WHERE status = 'committed' RETURN AFTER",
+            )
+            .bind(("bid", RecordId::from(("setting_beat", beat_id))))
+            .bind(("intent", next.intent.clone()))
+            .bind(("vs", next.value_shift.clone()))
+            .bind(("do", next.do_text.clone()))
+            .bind(("say", next.say_text.clone()))
+            .bind(("th", next.think_text.clone()))
+            .bind((
+                "place",
+                next.place_id
+                    .as_ref()
+                    .map(|p| RecordId::from(("setting_entity", p.as_str()))),
+            ))
+            .bind(("vis", next.visible_to.clone()))
             .bind(("dj", dj))
+            .bind(("pj", pops))
+            .bind(("kj", kws))
             .await?;
         let rows: Vec<BeatRow> = q.take(0)?;
         if rows.is_empty() {
@@ -419,7 +633,84 @@ impl SettingBook {
                 id: beat_id.into(),
             });
         }
-        invalidate_interval(&self.db, rows[0].clock_from).await?;
+        let invalidate_from = next
+            .deltas
+            .iter()
+            .map(|d| d.clock_from)
+            .min()
+            .unwrap_or(next.clock_from)
+            .min(next.clock_from);
+        invalidate_interval(&self.db, invalidate_from).await?;
+        let canon2 = self.load_canon().await?;
+        let beat = canon2
+            .beats
+            .iter()
+            .find(|b| b.id == beat_id)
+            .cloned()
+            .ok_or_else(|| NarraError::NotFound {
+                entity_type: "setting_beat".into(),
+                id: beat_id.into(),
+            })?;
+        if beat.commit_seq != seq {
+            return Err(NarraError::Validation(
+                "改已正史不得新分配第几次写入正史".into(),
+            ));
+        }
+        let mut warnings = vec![];
+        for later in canon2.beats.iter().filter(|b| {
+            b.status == STATUS_COMMITTED && b.id != beat_id && b.clock_from >= beat.clock_from
+        }) {
+            let mut later_ex = canon2.clone();
+            if let Some(b) = later_ex.beats.iter_mut().find(|b| b.id == later.id) {
+                b.status = STATUS_SUPERSEDED.into();
+            }
+            let w = match world_at(&later_ex, later.clock_from, None) {
+                Ok(w) => w,
+                Err(e) => {
+                    warnings.push(format!("{}：{}", later.id, e));
+                    continue;
+                }
+            };
+            let r = constrain(&w, &later_ex, &beat_as_draft(later));
+            for f in r.findings {
+                if f.grade != crate::services::constrain::Grade::Info {
+                    warnings.push(format!("{}：{}", later.intent, f.message));
+                }
+            }
+        }
+        self.remirror_beat_id(beat_id).await?;
+        Ok((beat, warnings))
+    }
+
+    pub async fn revise_delta(
+        &self,
+        beat_id: &str,
+        deltas: Vec<crate::services::world::Delta>,
+    ) -> Result<(), NarraError> {
+        self.revise(
+            beat_id,
+            BeatPatch {
+                deltas: Some(deltas),
+                ..BeatPatch::default()
+            },
+        )
+        .await?;
+        Ok(())
+    }
+
+    pub async fn set_beat_clocks(
+        &self,
+        beat_id: &str,
+        clock_from: i64,
+        clock_to: i64,
+    ) -> Result<(), NarraError> {
+        self.db
+            .query("UPDATE $id SET clock_from = $a, clock_to = $b WHERE status = 'committed'")
+            .bind(("id", RecordId::from(("setting_beat", beat_id))))
+            .bind(("a", clock_from))
+            .bind(("b", clock_to))
+            .await?;
+        self.remirror_beat_id(beat_id).await?;
         Ok(())
     }
 
@@ -456,6 +747,9 @@ impl SettingBook {
         }
         q.await?;
         invalidate_interval(&self.db, 0).await?;
+        for c in &columns {
+            narra_bridge::mirror_column(&self.db, c).await?;
+        }
         Ok(())
     }
 
@@ -493,6 +787,7 @@ impl SettingBook {
         }
         let rid = RecordId::from(("setting_entity", resolved.as_str()));
         self.db.query("DELETE $rid").bind(("rid", rid)).await?;
+        narra_bridge::delete_mirrored_entity(&self.db, &resolved).await?;
         Ok(())
     }
 
@@ -522,12 +817,14 @@ impl SettingBook {
         if let Some(b) = beats.first() {
             invalidate_interval(&self.db, b.clock_from).await?;
         }
+        self.remirror_beat_id(beat_id).await?;
         Ok(())
     }
 
     pub async fn delete_column(&self, column_id: &str) -> Result<(), NarraError> {
         let rid = RecordId::from(("setting_column", column_id));
         self.db.query("DELETE $rid").bind(("rid", rid)).await?;
+        narra_bridge::delete_mirrored_column(&self.db, column_id).await?;
         Ok(())
     }
 
@@ -537,6 +834,7 @@ impl SettingBook {
             .bind(("id", RecordId::from(("setting_beat", beat_id))))
             .bind(("o", ord))
             .await?;
+        self.remirror_beat_id(beat_id).await?;
         Ok(())
     }
 
@@ -555,7 +853,23 @@ impl SettingBook {
             });
         }
         invalidate_interval(&self.db, rows[0].clock_from).await?;
+        self.remirror_beat_id(beat_id).await?;
         Ok(())
+    }
+
+    async fn remirror_beat_id(&self, beat_id: &str) -> Result<(), NarraError> {
+        let canon = self.load_canon().await?;
+        if let Some(beat) = canon.beats.iter().find(|b| b.id == beat_id) {
+            let col = canon.columns.iter().find(|c| c.id == beat.column_id);
+            narra_bridge::mirror_beat(&self.db, beat, col).await?;
+        }
+        Ok(())
+    }
+
+    /// 把已有 setting_* 正史映到官方表。开书时调用。
+    pub async fn sync_official(&self) -> Result<(), NarraError> {
+        let canon = self.load_canon().await?;
+        narra_bridge::sync_official(&self.db, &canon).await
     }
 
     pub async fn search_entities(&self, q: &str) -> Result<Vec<Entity>, NarraError> {
@@ -564,7 +878,21 @@ impl SettingBook {
         Ok(canon
             .entities
             .into_iter()
-            .filter(|e| needle.is_empty() || e.id.contains(needle) || e.name.contains(needle))
+            .filter(|e| {
+                if needle.is_empty() {
+                    return true;
+                }
+                if e.id.contains(needle) || e.name.contains(needle) {
+                    return true;
+                }
+                e.profile
+                    .get("aliases")
+                    .map(|a| {
+                        a.split(|c| c == ',' || c == '，')
+                            .any(|x| x.trim().contains(needle))
+                    })
+                    .unwrap_or(false)
+            })
             .collect())
     }
 

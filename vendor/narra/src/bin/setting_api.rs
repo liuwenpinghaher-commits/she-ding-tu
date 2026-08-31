@@ -7,13 +7,16 @@ use axum::routing::{get, post};
 use axum::{Json, Router};
 use narra::db::connection::{init_db, DbConfig};
 use narra::db::schema::apply_schema;
-use narra::services::canon::SettingBook;
-use narra::services::circumstances::suggest_promise_op;
+use narra::services::canon::{BeatPatch, SettingBook};
+use narra::services::circumstances::{apply_person_lens, suggest_promise_op};
+use narra::services::craft::{self, BookCraft, ExportBeat};
+use narra::services::relations;
 use narra::services::world::{
-    BeatDraft, Column, Entity, Presence, Promise, ROLE_PRESENT, STATUS_COMMITTED, World,
+    Beat, BeatDraft, Canon, Column, Delta, Entity, KnowledgeWrite, Presence, Promise, PromiseOp,
+    KIND_PERSON, KIND_PLACE, KIND_RULE, ROLE_PRESENT, STATUS_COMMITTED, World,
 };
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -39,8 +42,11 @@ struct BookSess {
     pending: Option<Pending>,
     selected: Option<String>,
     selected_canon: Option<String>,
+    selected_col: Option<String>,
     paste_suggestions: Vec<PasteSuggest>,
     fill_pending: Option<BeatDraft>,
+    lens_person: Option<String>,
+    craft: BookCraft,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -65,6 +71,8 @@ struct Pending {
     target_beat: Option<String>,
     target_entity: Option<String>,
     target_column: Option<String>,
+    #[serde(default)]
+    proposed_clock_to: Option<i64>,
     impacts: Vec<String>,
 }
 
@@ -74,6 +82,12 @@ struct PasteSuggest {
     field: String,
     text: String,
     applied: bool,
+    #[serde(default)]
+    skipped: bool,
+    #[serde(default)]
+    target_draft: Option<String>,
+    #[serde(default)]
+    target_label: String,
 }
 
 #[derive(Serialize)]
@@ -104,6 +118,7 @@ struct WindowReq {
 #[derive(Deserialize)]
 struct PatchDraft {
     id: String,
+    title: Option<String>,
     intent: Option<String>,
     do_text: Option<String>,
     say_text: Option<String>,
@@ -115,6 +130,9 @@ struct PatchDraft {
     visible_to: Option<Vec<String>>,
     telling_ord: Option<i64>,
     apply_fill: Option<bool>,
+    deltas: Option<Vec<Delta>>,
+    knowledge_writes: Option<Vec<KnowledgeWrite>>,
+    promise_ops: Option<Vec<PromiseOp>>,
 }
 
 #[derive(Deserialize)]
@@ -142,11 +160,30 @@ struct StructPreview {
     beat_id: Option<String>,
     #[serde(default)]
     fail_refs: bool,
+    #[serde(default)]
+    clock_to: Option<i64>,
 }
 
 #[derive(Deserialize)]
 struct StructConfirm {
     choice: String,
+}
+
+#[derive(Clone, Serialize)]
+struct ColCoverage {
+    column_id: String,
+    place: bool,
+    person: bool,
+    thing: bool,
+    faction: bool,
+    promise: bool,
+}
+
+#[derive(Clone, Serialize)]
+struct BeatWarning {
+    beat_id: String,
+    code: String,
+    message: String,
 }
 
 #[derive(Serialize)]
@@ -163,8 +200,14 @@ struct UiState {
     pending: Option<Pending>,
     selected: Option<String>,
     selected_canon: Option<String>,
+    selected_col: Option<String>,
+    coverage: Vec<ColCoverage>,
+    warnings: Vec<BeatWarning>,
     paste_suggestions: Vec<PasteSuggest>,
     fill_pending: Option<BeatDraft>,
+    lens_person: Option<String>,
+    people: Vec<Entity>,
+    craft: BookCraft,
 }
 
 fn html() -> &'static str {
@@ -180,7 +223,11 @@ async fn open_book_dir(root: &PathBuf, name: &str) -> Result<SettingBook, String
     };
     let db = init_db(&cfg, &dir).await.map_err(|e| e.to_string())?;
     apply_schema(&db).await.map_err(|e| e.to_string())?;
-    Ok(SettingBook::new(Arc::new(db)))
+    let book = SettingBook::new(Arc::new(db));
+    book.sync_official()
+        .await
+        .map_err(|e| format!("官方表双写失败: {e}"))?;
+    Ok(book)
 }
 
 fn empty_sess(book: SettingBook) -> BookSess {
@@ -193,8 +240,24 @@ fn empty_sess(book: SettingBook) -> BookSess {
         pending: None,
         selected: None,
         selected_canon: None,
+        selected_col: None,
         paste_suggestions: vec![],
         fill_pending: None,
+        lens_person: None,
+        craft: BookCraft::default(),
+    }
+}
+
+fn book_db_path(root: &std::path::Path, name: &str) -> PathBuf {
+    root.join(name).join("world.db")
+}
+
+fn n_for_loaded_book(canon: &narra::services::world::Canon, drafts: &[UiDraft]) -> u8 {
+    let has_canon = canon.beats.iter().any(|b| b.status == STATUS_COMMITTED);
+    if has_canon || !drafts.is_empty() {
+        4
+    } else {
+        1
     }
 }
 
@@ -214,6 +277,25 @@ fn persist_drafts(root: &std::path::Path, name: &str, drafts: &[UiDraft]) {
     let _ = std::fs::write(
         drafts_path(root, name),
         serde_json::to_string_pretty(drafts).unwrap_or_else(|_| "[]".into()),
+    );
+}
+
+fn craft_path(root: &std::path::Path, name: &str) -> PathBuf {
+    root.join(name).join("craft.json")
+}
+
+fn load_craft(root: &std::path::Path, name: &str) -> BookCraft {
+    std::fs::read_to_string(craft_path(root, name))
+        .ok()
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or_default()
+}
+
+fn persist_craft(root: &std::path::Path, name: &str, craft: &BookCraft) {
+    let _ = std::fs::create_dir_all(root.join(name));
+    let _ = std::fs::write(
+        craft_path(root, name),
+        serde_json::to_string_pretty(craft).unwrap_or_else(|_| "{}".into()),
     );
 }
 
@@ -286,6 +368,7 @@ async fn main() {
         .route("/api/presence", post(set_presence))
         .route("/api/commit", post(do_commit))
         .route("/api/world", get(get_world))
+        .route("/api/coverage", get(get_coverage))
         .route("/api/write-next", post(write_next))
         .route("/api/write-parallel", post(write_parallel))
         .route("/api/export", get(export_md))
@@ -298,16 +381,21 @@ async fn main() {
         .route("/api/ellipsis", post(make_ellipsis))
         .route("/api/delete-draft", post(delete_draft))
         .route("/api/delete-canon", post(delete_canon))
+        .route("/api/beats/{id}/revise", post(revise_beat))
         .route("/api/dossier/{id}", get(get_dossier).post(save_dossier))
         .route("/api/occupancy", get(occupancy).post(occupancy_write_refuse))
+        .route("/api/lens", post(set_lens))
+        .route("/api/relations", get(relations_get).post(relations_write_refuse))
         .route("/api/circumstances", get(circumstances))
         .route("/api/search", get(search_entities))
+        .route("/api/bridge", get(official_bridge))
         .route("/api/knows", get(knows_list))
         .route("/api/telling", post(set_telling))
         .route("/api/fill-live", post(fill_live))
         .route("/api/paste/apply", post(paste_apply))
         .route("/api/select", post(select_item))
         .route("/api/promises", post(plant_promise))
+        .route("/api/craft", get(get_craft).post(put_craft).put(put_craft))
         .route("/health", get(|| async { "ok" }))
         .layer(CorsLayer::permissive())
         .with_state(app);
@@ -335,6 +423,451 @@ async fn list_books(State(app): State<App>) -> Json<BookList> {
     })
 }
 
+fn reveal_column(sess: &mut BookSess, display_ord: i64) {
+    let idx = display_ord.max(0) as usize;
+    let n = sess.n.max(1) as usize;
+    if idx < sess.window_start {
+        sess.window_start = idx;
+    } else if idx >= sess.window_start + n {
+        sess.window_start = idx + 1 - n;
+    }
+}
+
+fn max_committed_clock(canon: &narra::services::world::Canon) -> i64 {
+    canon
+        .beats
+        .iter()
+        .filter(|b| b.status == STATUS_COMMITTED)
+        .map(|b| b.clock_from)
+        .max()
+        .unwrap_or(0)
+}
+
+fn column_clock(
+    columns: &[Column],
+    selected_col: Option<&str>,
+    window_start: usize,
+) -> i64 {
+    if let Some(id) = selected_col {
+        if let Some(c) = columns.iter().find(|c| c.id == id) {
+            return c.clock_from;
+        }
+    }
+    columns
+        .get(window_start)
+        .or_else(|| columns.first())
+        .map(|c| c.clock_from)
+        .unwrap_or(0)
+}
+
+fn entity_by_id<'a>(canon: &'a Canon, id: &str) -> Option<&'a Entity> {
+    canon
+        .entities
+        .iter()
+        .find(|e| e.id == id || e.name == id)
+}
+
+fn entity_kind(canon: &Canon, id: &str) -> Option<String> {
+    entity_by_id(canon, id).map(|e| e.kind.clone())
+}
+
+fn window_column_ids(columns: &[Column], start: usize, n: u8) -> HashSet<String> {
+    let mut cols = columns.to_vec();
+    cols.sort_by_key(|c| c.display_ord);
+    cols.into_iter()
+        .skip(start)
+        .take((n.max(1)) as usize)
+        .map(|c| c.id)
+        .collect()
+}
+
+fn ids_on_beat(place_id: Option<&str>, presences: &[Presence]) -> HashSet<String> {
+    let mut ids = HashSet::new();
+    if let Some(p) = place_id {
+        if !p.trim().is_empty() {
+            ids.insert(p.to_string());
+        }
+    }
+    for p in presences.iter().filter(|p| p.role == ROLE_PRESENT) {
+        ids.insert(p.entity_id.clone());
+    }
+    ids
+}
+
+fn appearing_on(
+    committed: &[Beat],
+    drafts: &[UiDraft],
+    col_ids: &HashSet<String>,
+) -> HashSet<String> {
+    let mut ids = HashSet::new();
+    for b in committed
+        .iter()
+        .filter(|b| b.status == STATUS_COMMITTED && col_ids.contains(&b.column_id))
+    {
+        ids.extend(ids_on_beat(b.place_id.as_deref(), &b.presences));
+    }
+    for d in drafts.iter().filter(|d| col_ids.contains(&d.draft.column_id)) {
+        ids.extend(ids_on_beat(d.draft.place_id.as_deref(), &d.draft.presences));
+    }
+    ids
+}
+
+fn page_entities(canon: &Canon, drafts: &[UiDraft], start: usize, n: u8) -> Vec<Entity> {
+    let page_cols = window_column_ids(&canon.columns, start, n);
+    let on_page = appearing_on(&canon.beats, drafts, &page_cols);
+    let all_cols: HashSet<String> = canon.columns.iter().map(|c| c.id.clone()).collect();
+    let anywhere = appearing_on(&canon.beats, drafts, &all_cols);
+    canon
+        .entities
+        .iter()
+        .filter(|e| on_page.contains(&e.id) || !anywhere.contains(&e.id))
+        .cloned()
+        .collect()
+}
+
+fn present_of_kind(canon: &Canon, presences: &[Presence], kind: &str) -> Vec<String> {
+    presences
+        .iter()
+        .filter(|p| p.role == ROLE_PRESENT)
+        .filter(|p| entity_kind(canon, &p.entity_id).as_deref() == Some(kind))
+        .map(|p| p.entity_id.clone())
+        .collect()
+}
+
+fn refuse_empty_cast(
+    canon: &Canon,
+    presences: &[Presence],
+    place_id: Option<&str>,
+    removing: &str,
+) -> Result<(), (StatusCode, String)> {
+    let kind = entity_kind(canon, removing).unwrap_or_default();
+    if kind == KIND_PERSON {
+        let left = present_of_kind(canon, presences, KIND_PERSON)
+            .into_iter()
+            .filter(|id| id != removing)
+            .count();
+        if left == 0 {
+            return Err((
+                StatusCode::BAD_REQUEST,
+                "场面不能拿掉最后一人".into(),
+            ));
+        }
+    }
+    if kind == KIND_PLACE {
+        let other_presence = present_of_kind(canon, presences, KIND_PLACE)
+            .into_iter()
+            .any(|id| id != removing);
+        let other_place = place_id
+            .map(|p| !p.is_empty() && p != removing)
+            .unwrap_or(false);
+        if !other_presence && !other_place {
+            return Err((StatusCode::BAD_REQUEST, "地点不能拿空".into()));
+        }
+    }
+    Ok(())
+}
+
+fn paste_field_of(text: &str) -> String {
+    if text.contains('：') || text.contains(':') {
+        "say_text".into()
+    } else {
+        "do_text".into()
+    }
+}
+
+fn delete_canon_impacts(canon: &Canon, beat: &Beat) -> Vec<String> {
+    let same_col_left = canon.beats.iter().any(|b| {
+        b.id != beat.id
+            && b.column_id == beat.column_id
+            && b.status == STATUS_COMMITTED
+    });
+    let hole = if same_col_left {
+        format!(
+            "故事时间空洞：无（同列 {} 还有其他正史）",
+            beat.column_id
+        )
+    } else {
+        format!(
+            "故事时间空洞：列 {} 的 {}–{} 将空",
+            beat.column_id, beat.clock_from, beat.clock_to
+        )
+    };
+    let later = canon
+        .beats
+        .iter()
+        .filter(|b| {
+            b.id != beat.id && b.status == STATUS_COMMITTED && b.clock_from >= beat.clock_to
+        })
+        .count();
+    let later_s = if later == 0 {
+        "后续场规定情境：无".into()
+    } else {
+        format!("后续场规定情境：后续 {later} 场仍声称成立，须重查穿帮")
+    };
+    let know_n = beat.knowledge_writes.len();
+    let know = if know_n == 0
+        && beat.do_text.as_deref().unwrap_or("").is_empty()
+        && beat.say_text.as_deref().unwrap_or("").is_empty()
+    {
+        "知情：无".into()
+    } else {
+        format!("知情：本场 {know_n} 条知情写入及当场目击将不再进入算出这一刻")
+    };
+    let promises = if beat.promise_ops.is_empty() {
+        "伏笔状态：无".into()
+    } else {
+        format!(
+            "伏笔状态：本场 {} 条埋设/推进/兑现/作废将失去依据",
+            beat.promise_ops.len()
+        )
+    };
+    let pres: Vec<_> = beat
+        .presences
+        .iter()
+        .filter(|p| p.role == ROLE_PRESENT)
+        .map(|p| p.entity_id.as_str())
+        .collect();
+    let presence = if pres.is_empty() {
+        "在场连续性：无".into()
+    } else {
+        format!("在场连续性：{}", pres.join("、"))
+    };
+    vec![
+        hole,
+        later_s,
+        know,
+        promises,
+        presence,
+        format!(
+            "算出这一刻：须从 t={} 起重算",
+            beat.clock_from
+        ),
+        format!(
+            "第几次写入正史不重编号 / 该次写入作废（seq={}）",
+            beat.commit_seq
+        ),
+    ]
+}
+
+fn delete_canon_suggestions() -> Vec<Suggestion> {
+    vec![
+        Suggestion {
+            id: "empty_beat".into(),
+            label: "空洞变空场：占时不演或待写".into(),
+        },
+        Suggestion {
+            id: "ellipsis".into(),
+            label: "空洞变省略场：有时长不演".into(),
+        },
+        Suggestion {
+            id: "extend_neighbor".into(),
+            label: "邻场扩展故事时间盖住空洞".into(),
+        },
+        Suggestion {
+            id: "shift".into(),
+            label: "后续列前移合上缺口".into(),
+        },
+        Suggestion {
+            id: "leave_hole".into(),
+            label: "删完停在空洞，手写补一场".into(),
+        },
+        Suggestion {
+            id: "cancel".into(),
+            label: "取消删除".into(),
+        },
+    ]
+}
+
+fn coverage_for(canon: &Canon) -> Vec<ColCoverage> {
+    canon
+        .columns
+        .iter()
+        .map(|c| {
+            let beats: Vec<_> = canon
+                .beats
+                .iter()
+                .filter(|b| b.column_id == c.id && b.status == STATUS_COMMITTED)
+                .collect();
+            let mut place = beats.iter().any(|b| {
+                b.place_id
+                    .as_ref()
+                    .map(|s| !s.trim().is_empty())
+                    .unwrap_or(false)
+            });
+            let mut person = false;
+            let mut thing = false;
+            let mut faction = false;
+            let mut promise = beats.iter().any(|b| !b.promise_ops.is_empty());
+            for b in &beats {
+                for p in b.presences.iter().filter(|p| p.role == ROLE_PRESENT) {
+                    match canon.entity(&p.entity_id).map(|e| e.kind.as_str()) {
+                        Some("place") => place = true,
+                        Some("person") => person = true,
+                        Some("thing") => thing = true,
+                        Some("faction") => faction = true,
+                        Some("promise") => promise = true,
+                        _ => {}
+                    }
+                }
+                for d in &b.deltas {
+                    match canon.entity(&d.entity_id).map(|e| e.kind.as_str()) {
+                        Some("place") => place = true,
+                        Some("thing") => thing = true,
+                        Some("faction") => faction = true,
+                        _ => {}
+                    }
+                }
+            }
+            ColCoverage {
+                column_id: c.id.clone(),
+                place,
+                person,
+                thing,
+                faction,
+                promise,
+            }
+        })
+        .collect()
+}
+
+fn empty_shift_warn(kind: &str, value_shift: Option<&str>) -> bool {
+    if kind == "ellipsis" {
+        return false;
+    }
+    value_shift.map(|s| s.trim().is_empty()).unwrap_or(true)
+}
+
+fn shrink_suggestions() -> Vec<Suggestion> {
+    vec![
+        Suggestion { id: "shift_back".into(), label: "后续列前移合上缺口".into() },
+        Suggestion { id: "merge_next".into(), label: "缺口并入下一列".into() },
+        Suggestion { id: "spare".into(), label: "缺口变空场次".into() },
+        Suggestion { id: "cancel".into(), label: "取消".into() },
+    ]
+}
+
+fn invade_suggestions() -> Vec<Suggestion> {
+    vec![
+        Suggestion { id: "shift_back".into(), label: "后续列前移合上缺口".into() },
+        Suggestion { id: "merge_next".into(), label: "缺口并入下一列".into() },
+        Suggestion { id: "spare".into(), label: "缺口变空场次".into() },
+        Suggestion { id: "compress".into(), label: "被侵入列压缩".into() },
+        Suggestion { id: "shift".into(), label: "被侵入列整体后移".into() },
+        Suggestion { id: "merge".into(), label: "两列合并".into() },
+        Suggestion { id: "empty".into(), label: "重叠变空场或省略场".into() },
+        Suggestion { id: "parallel".into(), label: "重叠变同列多场".into() },
+        Suggestion { id: "cancel".into(), label: "取消".into() },
+    ]
+}
+
+fn resize_pending(
+    original: Vec<Column>,
+    column_id: Option<String>,
+    clock_to: Option<i64>,
+) -> Result<Pending, (StatusCode, String)> {
+    let mut cols = original.clone();
+    cols.sort_by_key(|c| c.display_ord);
+    let id = column_id
+        .clone()
+        .ok_or((StatusCode::BAD_REQUEST, "无列可改钟".into()))?;
+    let i = cols
+        .iter()
+        .position(|c| c.id == id)
+        .ok_or((StatusCode::BAD_REQUEST, "无此列".into()))?;
+    let from = cols[i].clock_from;
+    let old_to = cols[i].clock_to;
+    let new_to = clock_to.ok_or((StatusCode::BAD_REQUEST, "须拖出新时长".into()))?;
+    if new_to <= from {
+        return Err((StatusCode::BAD_REQUEST, "时长须大于 0".into()));
+    }
+    if new_to == old_to {
+        return Err((StatusCode::BAD_REQUEST, "钟未变".into()));
+    }
+    let next_from = cols.get(i + 1).map(|c| c.clock_from);
+    let (op, suggestions, impacts) = if let Some(nf) = next_from {
+        if new_to > nf {
+            (
+                "invade",
+                invade_suggestions(),
+                vec!["侵入邻列：未确认正史仍是拖前".into()],
+            )
+        } else if new_to < old_to {
+            (
+                "shrink",
+                shrink_suggestions(),
+                vec!["空出一段时间：未确认正史仍是拖前".into()],
+            )
+        } else {
+            (
+                "extend",
+                vec![
+                    Suggestion { id: "accept".into(), label: "接受该列新时长".into() },
+                    Suggestion { id: "cancel".into(), label: "取消".into() },
+                ],
+                vec!["拉长但不进入邻列".into()],
+            )
+        }
+    } else if new_to < old_to {
+        (
+            "shrink",
+            vec![
+                Suggestion { id: "spare".into(), label: "缺口变空场次".into() },
+                Suggestion { id: "accept".into(), label: "接受该列新时长".into() },
+                Suggestion { id: "cancel".into(), label: "取消".into() },
+            ],
+            vec!["末列缩短".into()],
+        )
+    } else {
+        (
+            "extend",
+            vec![
+                Suggestion { id: "accept".into(), label: "接受该列新时长".into() },
+                Suggestion { id: "cancel".into(), label: "取消".into() },
+            ],
+            vec!["末列向未来延长".into()],
+        )
+    };
+    let mut proposed = cols;
+    proposed[i].clock_to = new_to;
+    Ok(Pending {
+        op: op.into(),
+        suggestions,
+        original_columns: original,
+        proposed_columns: Some(proposed),
+        target_beat: None,
+        target_entity: None,
+        target_column: Some(id),
+        proposed_clock_to: Some(new_to),
+        impacts,
+    })
+}
+
+fn collect_warnings(
+    committed: &[narra::services::world::Beat],
+    drafts: &[UiDraft],
+) -> Vec<BeatWarning> {
+    let mut out = Vec::new();
+    for b in committed {
+        if empty_shift_warn(&b.kind, b.value_shift.as_deref()) {
+            out.push(BeatWarning {
+                beat_id: b.id.clone(),
+                code: "empty_value_shift".into(),
+                message: "未写转折".into(),
+            });
+        }
+    }
+    for d in drafts {
+        if empty_shift_warn(&d.draft.kind, d.draft.value_shift.as_deref()) {
+            out.push(BeatWarning {
+                beat_id: d.id.clone(),
+                code: "empty_value_shift".into(),
+                message: "未写转折".into(),
+            });
+        }
+    }
+    out
+}
+
 async fn create_book(
     State(app): State<App>,
     Json(body): Json<CreateBook>,
@@ -342,6 +875,9 @@ async fn create_book(
     let name = body.name.trim().to_string();
     if name.is_empty() {
         return Err((StatusCode::BAD_REQUEST, "书名空".into()));
+    }
+    if book_db_path(&app.data_root, &name).exists() {
+        return Err((StatusCode::CONFLICT, "书已存在，请打开书".into()));
     }
     let book = open_book_dir(&app.data_root, &name)
         .await
@@ -367,13 +903,31 @@ async fn open_book(
     State(app): State<App>,
     Path(name): Path<String>,
 ) -> Result<Json<BookList>, (StatusCode, String)> {
-    if !app.inner.lock().await.books.contains_key(&name) {
+    let name = name.trim().to_string();
+    if name.is_empty() {
+        return Err((StatusCode::BAD_REQUEST, "书名空".into()));
+    }
+    let already = {
+        let g = app.inner.lock().await;
+        g.books.contains_key(&name)
+    };
+    if !already {
+        if !book_db_path(&app.data_root, &name).exists() {
+            return Err((StatusCode::NOT_FOUND, "无此书".into()));
+        }
         let book = open_book_dir(&app.data_root, &name)
             .await
             .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
         let drafts = load_drafts(&app.data_root, &name);
+        let canon = book
+            .load_canon()
+            .await
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+        let n = n_for_loaded_book(&canon, &drafts);
         let mut sess = empty_sess(book);
         sess.drafts = drafts;
+        sess.n = n;
+        sess.craft = load_craft(&app.data_root, &name);
         let mut g = app.inner.lock().await;
         g.books.insert(name.clone(), sess);
     }
@@ -387,19 +941,21 @@ async fn open_book(
 
 async fn snapshot(sess: &BookSess, name: &str) -> Result<UiState, String> {
     let canon = sess.book.load_canon().await.map_err(|e| e.to_string())?;
-    let t = sess
-        .drafts
-        .last()
-        .map(|d| d.draft.clock_from)
-        .or_else(|| canon.columns.first().map(|c| c.clock_from))
-        .unwrap_or(0);
+    let coverage = coverage_for(&canon);
+    let t = column_clock(
+        &canon.columns,
+        sess.selected_col.as_deref(),
+        sess.window_start,
+    );
     let world = sess.book.world_at(t, None).await.ok();
     let committed: Vec<_> = canon
         .beats
-        .into_iter()
+        .iter()
         .filter(|b| b.status == STATUS_COMMITTED)
+        .cloned()
         .collect();
-    let mut columns = canon.columns;
+    let warnings = collect_warnings(&committed, &sess.drafts);
+    let mut columns = canon.columns.clone();
     if sess.reading_order {
         columns.sort_by_key(|c| {
             committed
@@ -418,15 +974,26 @@ async fn snapshot(sess: &BookSess, name: &str) -> Result<UiState, String> {
         window_start: sess.window_start,
         reading_order: sess.reading_order,
         columns,
-        entities: canon.entities,
+        entities: page_entities(&canon, &sess.drafts, sess.window_start, sess.n),
         committed,
         drafts: sess.drafts.clone(),
         world,
         pending: sess.pending.clone(),
         selected: sess.selected.clone(),
         selected_canon: sess.selected_canon.clone(),
+        selected_col: sess.selected_col.clone(),
+        coverage,
+        warnings,
         paste_suggestions: sess.paste_suggestions.clone(),
         fill_pending: sess.fill_pending.clone(),
+        lens_person: sess.lens_person.clone(),
+        people: canon
+            .entities
+            .iter()
+            .filter(|e| e.kind == KIND_PERSON)
+            .cloned()
+            .collect(),
+        craft: sess.craft.clone(),
     })
 }
 
@@ -527,7 +1094,13 @@ async fn set_window(
         sess.n = n.clamp(1, 6);
     }
     if let Some(s) = body.start {
-        sess.window_start = s;
+        let canon = sess
+            .book
+            .load_canon()
+            .await
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+        let max_start = canon.columns.len().saturating_sub(1);
+        sess.window_start = s.min(max_start);
     }
     Ok(Json(serde_json::json!({"n": sess.n, "start": sess.window_start})))
 }
@@ -557,6 +1130,9 @@ async fn patch_draft(
             }
             sess.fill_pending = None;
         }
+    }
+    if let Some(v) = body.title {
+        d.title = v;
     }
     if let Some(v) = body.intent {
         d.draft.intent = v;
@@ -588,6 +1164,15 @@ async fn patch_draft(
     if let Some(v) = body.telling_ord {
         d.draft.telling_ord = Some(v);
     }
+    if let Some(v) = body.deltas {
+        d.draft.deltas = v;
+    }
+    if let Some(v) = body.knowledge_writes {
+        d.draft.knowledge_writes = v;
+    }
+    if let Some(v) = body.promise_ops {
+        d.draft.promise_ops = v;
+    }
     sess.selected = Some(body.id.clone());
     let out = d.draft.clone();
     persist_drafts(&app.data_root, &name, &sess.drafts);
@@ -601,15 +1186,33 @@ async fn set_presence(
     let mut g = app.inner.lock().await;
     let name = g.current.clone().ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
     let sess = g.books.get_mut(&name).unwrap();
+    let canon = sess
+        .book
+        .load_canon()
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let kind = entity_kind(&canon, &body.entity_id).unwrap_or_default();
+    if kind == KIND_RULE {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            "规则不能拖进场，请去档案".into(),
+        ));
+    }
     if let Some(canon_id) = &body.canon_id {
         if body.action != "remove" {
             return Err((StatusCode::BAD_REQUEST, "正史在场只能拿掉，须确认变更".into()));
         }
-        let canon = sess
-            .book
-            .load_canon()
-            .await
-            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+        let beat = canon
+            .beats
+            .iter()
+            .find(|b| b.id == *canon_id && b.status == STATUS_COMMITTED)
+            .ok_or((StatusCode::BAD_REQUEST, "无此正史".into()))?;
+        refuse_empty_cast(
+            &canon,
+            &beat.presences,
+            beat.place_id.as_deref(),
+            &body.entity_id,
+        )?;
         sess.pending = Some(Pending {
             op: "remove_presence".into(),
             suggestions: vec![
@@ -627,6 +1230,7 @@ async fn set_presence(
             target_beat: Some(canon_id.clone()),
             target_entity: Some(body.entity_id.clone()),
             target_column: None,
+            proposed_clock_to: None,
             impacts: vec!["在场连续性".into(), "算出这一刻".into()],
         });
         return Ok(Json(serde_json::json!({"need_confirm": true, "op": "remove_presence"})));
@@ -641,6 +1245,12 @@ async fn set_presence(
         .ok_or((StatusCode::BAD_REQUEST, "无此草稿".into()))?;
     match body.action.as_str() {
         "add" => {
+            if kind == KIND_PLACE {
+                d.draft.presences.retain(|p| {
+                    entity_kind(&canon, &p.entity_id).as_deref() != Some(KIND_PLACE)
+                });
+                d.draft.place_id = Some(body.entity_id.clone());
+            }
             if !d.draft.presences.iter().any(|p| p.entity_id == body.entity_id) {
                 d.draft.presences.push(Presence {
                     entity_id: body.entity_id.clone(),
@@ -650,7 +1260,16 @@ async fn set_presence(
             }
         }
         "remove" => {
+            refuse_empty_cast(
+                &canon,
+                &d.draft.presences,
+                d.draft.place_id.as_deref(),
+                &body.entity_id,
+            )?;
             d.draft.presences.retain(|p| p.entity_id != body.entity_id);
+            if d.draft.place_id.as_deref() == Some(body.entity_id.as_str()) {
+                d.draft.place_id = None;
+            }
         }
         _ => return Err((StatusCode::BAD_REQUEST, "action 须 add/remove".into())),
     }
@@ -699,8 +1318,22 @@ async fn get_world(
     let g = app.inner.lock().await;
     let name = g.current.clone().ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
     let sess = g.books.get(&name).unwrap();
+    let t = if let Some(t) = q.t {
+        t
+    } else {
+        let canon = sess
+            .book
+            .load_canon()
+            .await
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+        column_clock(
+            &canon.columns,
+            sess.selected_col.as_deref(),
+            sess.window_start,
+        )
+    };
     sess.book
-        .world_at(q.t.unwrap_or(0), None)
+        .world_at(t, None)
         .await
         .map(Json)
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))
@@ -737,6 +1370,27 @@ async fn write_next(
             clock_to: 60,
             display_ord: 0,
         });
+    let occupied = canon
+        .beats
+        .iter()
+        .any(|b| b.column_id == last.id && b.status == STATUS_COMMITTED)
+        || sess.drafts.iter().any(|d| d.draft.column_id == last.id);
+    let col = if occupied {
+        let next = last.display_ord + 1;
+        let c = Column {
+            id: format!("col{next}"),
+            clock_from: last.clock_to,
+            clock_to: last.clock_to + 60,
+            display_ord: next,
+        };
+        sess.book
+            .upsert_column(&c)
+            .await
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+        c
+    } else {
+        last
+    };
     let id = format!(
         "d{}",
         std::time::SystemTime::now()
@@ -750,12 +1404,11 @@ async fn write_next(
         draft: BeatDraft {
             id: Some(id.clone()),
             kind: "scene".into(),
-            column_id: last.id.clone(),
+            column_id: col.id.clone(),
             intent: intent.clone(),
-            value_shift: Some("本场变化".into()),
-            do_text: Some(format!("为「{intent}」行动")),
-            clock_from: last.clock_from,
-            clock_to: last.clock_to,
+            value_shift: None,
+            clock_from: col.clock_from,
+            clock_to: col.clock_to,
             place_id: body
                 .get("place_id")
                 .and_then(|v| v.as_str())
@@ -766,8 +1419,9 @@ async fn write_next(
         },
     });
     sess.selected = Some(id.clone());
+    reveal_column(sess, col.display_ord);
     persist_drafts(&app.data_root, &name, &sess.drafts);
-    Ok(Json(serde_json::json!({"id": id, "appended_last": true, "column_id": last.id})))
+    Ok(Json(serde_json::json!({"id": id, "appended_last": true, "column_id": col.id})))
 }
 
 async fn write_parallel(
@@ -819,9 +1473,8 @@ async fn write_parallel(
             id: Some(id.clone()),
             kind: "scene".into(),
             column_id: c.id.clone(),
-            intent,
-            value_shift: Some("并列".into()),
-            do_text: Some("并列动作".into()),
+            intent: intent.clone(),
+            value_shift: None,
             clock_from: c.clock_from,
             clock_to: c.clock_to,
             place_id,
@@ -840,12 +1493,44 @@ async fn select_item(
     let mut g = app.inner.lock().await;
     let name = g.current.clone().ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
     let sess = g.books.get_mut(&name).unwrap();
-    sess.selected = body.get("draft_id").and_then(|v| v.as_str()).map(|s| s.to_string());
-    sess.selected_canon = body.get("canon_id").and_then(|v| v.as_str()).map(|s| s.to_string());
+    if let Some(col) = body.get("column_id").and_then(|v| v.as_str()) {
+        sess.selected_col = if col.is_empty() {
+            None
+        } else {
+            Some(col.to_string())
+        };
+    }
+    if body.get("draft_id").is_some() || body.get("canon_id").is_some() {
+        sess.selected = body
+            .get("draft_id")
+            .and_then(|v| v.as_str())
+            .filter(|s| !s.is_empty())
+            .map(|s| s.to_string());
+        sess.selected_canon = body
+            .get("canon_id")
+            .and_then(|v| v.as_str())
+            .filter(|s| !s.is_empty())
+            .map(|s| s.to_string());
+    }
     Ok(Json(serde_json::json!({
         "selected": sess.selected,
         "selected_canon": sess.selected_canon,
+        "selected_col": sess.selected_col,
     })))
+}
+
+async fn get_coverage(
+    State(app): State<App>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    let g = app.inner.lock().await;
+    let name = g.current.clone().ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
+    let sess = g.books.get(&name).unwrap();
+    let canon = sess
+        .book
+        .load_canon()
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    Ok(Json(serde_json::json!({ "coverage": coverage_for(&canon) })))
 }
 
 async fn occupancy_write_refuse() -> (StatusCode, String) {
@@ -855,7 +1540,117 @@ async fn occupancy_write_refuse() -> (StatusCode, String) {
     )
 }
 
-async fn export_md(State(app): State<App>) -> Result<String, (StatusCode, String)> {
+async fn set_lens(
+    State(app): State<App>,
+    Json(body): Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    let mut g = app.inner.lock().await;
+    let name = g.current.clone().ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
+    let sess = g.books.get_mut(&name).unwrap();
+    let person = body
+        .get("person")
+        .and_then(|v| v.as_str())
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty());
+    sess.lens_person = person.clone();
+    Ok(Json(serde_json::json!({"lens_person": person})))
+}
+
+async fn relations_write_refuse() -> (StatusCode, String) {
+    (
+        StatusCode::BAD_REQUEST,
+        "连线只读，改正史回分场条".into(),
+    )
+}
+
+#[derive(Deserialize)]
+struct RelQ {
+    person: Option<String>,
+}
+
+async fn relations_get(
+    State(app): State<App>,
+    Query(q): Query<RelQ>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    let g = app.inner.lock().await;
+    let name = g.current.clone().ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
+    let sess = g.books.get(&name).unwrap();
+    let person = q
+        .person
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .or(sess.lens_person.as_deref())
+        .ok_or((StatusCode::BAD_REQUEST, "先选一个人".into()))?
+        .to_string();
+    let canon = sess
+        .book
+        .load_canon()
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let t = column_clock(
+        &canon.columns,
+        sess.selected_col.as_deref(),
+        sess.window_start,
+    );
+    let world = sess
+        .book
+        .world_at(t, None)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let (nodes, edges) = relations::relations_for(&canon, &world, &person);
+    Ok(Json(serde_json::json!({
+        "readonly": true,
+        "person": person,
+        "t": world.t,
+        "nodes": nodes,
+        "edges": edges,
+        "where": world.r#where,
+    })))
+}
+
+#[derive(Deserialize)]
+struct ExportQ {
+    #[serde(default)]
+    canon_only: Option<String>,
+}
+
+async fn get_craft(State(app): State<App>) -> Result<Json<BookCraft>, (StatusCode, String)> {
+    let g = app.inner.lock().await;
+    let name = g
+        .current
+        .clone()
+        .ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
+    let sess = g
+        .books
+        .get(&name)
+        .ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
+    Ok(Json(sess.craft.clone()))
+}
+
+async fn put_craft(
+    State(app): State<App>,
+    Json(body): Json<BookCraft>,
+) -> Result<Json<BookCraft>, (StatusCode, String)> {
+    let mut g = app.inner.lock().await;
+    let name = g
+        .current
+        .clone()
+        .ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
+    let sess = g
+        .books
+        .get_mut(&name)
+        .ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
+    let craft = craft::normalize(body);
+    persist_craft(&app.data_root, &name, &craft);
+    sess.craft = craft.clone();
+    Ok(Json(craft))
+}
+
+async fn export_md(
+    State(app): State<App>,
+    Query(q): Query<ExportQ>,
+) -> Result<String, (StatusCode, String)> {
     let g = app.inner.lock().await;
     let name = g.current.clone().ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
     let sess = g.books.get(&name).unwrap();
@@ -864,28 +1659,62 @@ async fn export_md(State(app): State<App>) -> Result<String, (StatusCode, String
         .load_canon()
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-    let mut md = format!("# {name}\n\n");
-    let mut beats: Vec<_> = canon
+    let canon_only = matches!(
+        q.canon_only.as_deref(),
+        Some("1") | Some("true") | Some("yes")
+    );
+    let mut rows: Vec<ExportBeat> = canon
         .beats
         .iter()
         .filter(|b| b.status == STATUS_COMMITTED)
-        .cloned()
+        .map(|b| {
+            let kind = if b.kind == "ellipsis" { "省略场" } else { "场" };
+            ExportBeat {
+                column_id: b.column_id.clone(),
+                clock: b.clock_from,
+                telling: b.telling_ord.unwrap_or(b.commit_seq),
+                seq: b.commit_seq,
+                block: format!(
+                    "## {kind} · {}\n状态：正史\n本场任务：{}\n地点：{}\n价值转折：{}\n动作：{}\n对白：{}\n内心：{}\n\n",
+                    b.intent,
+                    b.intent,
+                    b.place_id.as_deref().unwrap_or("（未标）"),
+                    b.value_shift.as_deref().unwrap_or("（无）"),
+                    b.do_text.as_deref().unwrap_or(""),
+                    b.say_text.as_deref().unwrap_or(""),
+                    b.think_text.as_deref().unwrap_or(""),
+                ),
+            }
+        })
         .collect();
-    if sess.reading_order {
-        beats.sort_by_key(|b| b.telling_ord.unwrap_or(b.commit_seq));
-    } else {
-        beats.sort_by_key(|b| (b.clock_from, b.commit_seq));
+    if !canon_only {
+        for d in &sess.drafts {
+            let b = &d.draft;
+            rows.push(ExportBeat {
+                column_id: b.column_id.clone(),
+                clock: b.clock_from,
+                telling: b.telling_ord.unwrap_or(i64::MAX),
+                seq: i64::MAX,
+                block: format!(
+                    "## 草稿 · {}\n状态：草稿\n本场任务：{}\n地点：{}\n价值转折：{}\n动作：{}\n对白：{}\n内心：{}\n\n",
+                    b.intent,
+                    b.intent,
+                    b.place_id.as_deref().unwrap_or("（未标）"),
+                    b.value_shift.as_deref().unwrap_or("（无）"),
+                    b.do_text.as_deref().unwrap_or(""),
+                    b.say_text.as_deref().unwrap_or(""),
+                    b.think_text.as_deref().unwrap_or(""),
+                ),
+            });
+        }
     }
-    for b in beats {
-        md.push_str(&format!("## {}\n状态：正史\n本场任务：{}\n\n", b.id, b.intent));
-    }
-    for d in &sess.drafts {
-        md.push_str(&format!(
-            "## {}\n状态：草稿\n本场任务：{}\n\n",
-            d.title, d.draft.intent
-        ));
-    }
-    Ok(md)
+    Ok(craft::export_markdown(
+        &name,
+        &sess.craft,
+        &canon.columns,
+        rows,
+        sess.reading_order,
+    ))
 }
 
 async fn toggle_ro(State(app): State<App>) -> Json<serde_json::Value> {
@@ -968,12 +1797,12 @@ async fn plant_promise(
                     .filter_map(|x| x.as_str().map(|s| s.to_string()))
                     .collect()
             })
-            .unwrap_or_else(|| vec!["阿莲".into()]),
+            .unwrap_or_else(|| vec!["阿莲".into(), "铜牌".into()]),
         plant_clock: body.get("plant_clock").and_then(|v| v.as_i64()).or(Some(0)),
         deadline_clock: body
             .get("deadline_clock")
             .and_then(|v| v.as_i64())
-            .or(Some(0)),
+            .or(Some(180)),
         red_herring: body
             .get("red_herring")
             .and_then(|v| v.as_bool())
@@ -1014,25 +1843,12 @@ async fn structure_preview(
             target_beat: None,
             target_entity: None,
             target_column: body.column_id.clone(),
+            proposed_clock_to: None,
             impacts: vec![],
         },
-        "invade" => Pending {
-            op: "invade".into(),
-            suggestions: vec![
-                Suggestion { id: "compress".into(), label: "被侵入列压缩".into() },
-                Suggestion { id: "shift".into(), label: "被侵入列整体后移".into() },
-                Suggestion { id: "merge".into(), label: "两列合并".into() },
-                Suggestion { id: "empty".into(), label: "重叠变空场或省略场".into() },
-                Suggestion { id: "parallel".into(), label: "重叠变同列多场".into() },
-                Suggestion { id: "cancel".into(), label: "取消".into() },
-            ],
-            original_columns: original,
-            proposed_columns: None,
-            target_beat: body.column_id.clone(),
-            target_entity: None,
-            target_column: body.column_id,
-            impacts: vec![],
-        },
+        "invade" | "resize" | "shrink" | "extend" => {
+            resize_pending(original, body.column_id.clone(), body.clock_to)?
+        }
         "delete_canon" => {
             if body.fail_refs {
                 return Err((
@@ -1040,32 +1856,25 @@ async fn structure_preview(
                     "影响清单查询失败，不准当无影响".into(),
                 ));
             }
-            let beat_id = body.beat_id.clone().unwrap_or_default();
-            let beat = canon.beats.iter().find(|b| b.id == beat_id);
-            let mut impacts = vec![
-                "故事时间空洞".into(),
-                "后续场规定情境".into(),
-                "知情".into(),
-                "伏笔状态".into(),
-                "在场连续性".into(),
-                "算出这一刻".into(),
-                "第几次写入正史不重编号 / 该次写入作废".into(),
-            ];
-            if beat.is_none() {
-                impacts.insert(0, "无此正史场".into());
-            }
+            let beat_id = body
+                .beat_id
+                .clone()
+                .ok_or((StatusCode::BAD_REQUEST, "没有选中的正史".into()))?;
+            let beat = canon
+                .beats
+                .iter()
+                .find(|b| b.id == beat_id && b.status == STATUS_COMMITTED)
+                .ok_or((StatusCode::BAD_REQUEST, "无此正史场".into()))?;
+            let impacts = delete_canon_impacts(&canon, beat);
             Pending {
                 op: "delete_canon".into(),
-                suggestions: vec![
-                    Suggestion { id: "fill".into(), label: "补洞：后列前移".into() },
-                    Suggestion { id: "leave_hole".into(), label: "留下故事时间空洞".into() },
-                    Suggestion { id: "cancel".into(), label: "取消".into() },
-                ],
+                suggestions: delete_canon_suggestions(),
                 original_columns: original,
                 proposed_columns: None,
-                target_beat: body.beat_id,
+                target_beat: Some(beat_id),
                 target_entity: None,
-                target_column: None,
+                target_column: Some(beat.column_id.clone()),
+                proposed_clock_to: None,
                 impacts,
             }
         }
@@ -1095,6 +1904,7 @@ async fn structure_preview(
                     target_beat: None,
                     target_entity: None,
                     target_column: Some(col),
+                    proposed_clock_to: None,
                     impacts: vec!["禁止只减列丢掉历史".into()],
                 }
             } else if has_draft {
@@ -1110,6 +1920,7 @@ async fn structure_preview(
                     target_beat: None,
                     target_entity: None,
                     target_column: Some(col),
+                    proposed_clock_to: None,
                     impacts: vec!["本列仅草稿".into()],
                 }
             } else {
@@ -1124,6 +1935,7 @@ async fn structure_preview(
                     target_beat: None,
                     target_entity: None,
                     target_column: Some(col),
+                    proposed_clock_to: None,
                     impacts: vec!["空列".into()],
                 }
             }
@@ -1139,6 +1951,7 @@ async fn structure_preview(
             target_beat: None,
             target_entity: None,
             target_column: body.column_id,
+            proposed_clock_to: None,
             impacts: vec![],
         },
         "swap_columns" => Pending {
@@ -1153,6 +1966,7 @@ async fn structure_preview(
             target_beat: None,
             target_entity: None,
             target_column: body.column_id,
+            proposed_clock_to: None,
             impacts: vec![],
         },
         "move_beat" => Pending {
@@ -1166,6 +1980,7 @@ async fn structure_preview(
             target_beat: body.beat_id,
             target_entity: None,
             target_column: body.column_id,
+            proposed_clock_to: None,
             impacts: vec!["算出这一刻".into(), "规定情境轴".into()],
         },
         _ => return Err((StatusCode::BAD_REQUEST, "未知结构操作".into())),
@@ -1288,33 +2103,90 @@ async fn structure_confirm(
                 persist_drafts(&app.data_root, &name, &sess.drafts);
             }
         }
-        "invade" => {
-            let mut cols = pending.original_columns;
+        "invade" | "shrink" | "extend" | "resize" => {
+            let mut cols = pending.original_columns.clone();
             cols.sort_by_key(|c| c.display_ord);
             let i = pending
                 .target_column
                 .as_ref()
                 .and_then(|id| cols.iter().position(|c| &c.id == id))
                 .unwrap_or(0);
-            if i + 1 >= cols.len() {
-                return Err((StatusCode::BAD_REQUEST, "无邻列可侵入".into()));
+            let old_to = cols[i].clock_to;
+            let new_to = pending
+                .proposed_clock_to
+                .unwrap_or(old_to);
+            if new_to <= cols[i].clock_from {
+                return Err((StatusCode::BAD_REQUEST, "时长须大于 0".into()));
             }
-            let j = i + 1;
             match body.choice.as_str() {
+                "accept" => {
+                    cols[i].clock_to = new_to;
+                }
+                "shift_back" => {
+                    let gap = old_to - new_to;
+                    cols[i].clock_to = new_to;
+                    for c in cols.iter_mut().skip(i + 1) {
+                        c.clock_from -= gap;
+                        c.clock_to -= gap;
+                    }
+                }
+                "merge_next" => {
+                    cols[i].clock_to = new_to;
+                    if let Some(n) = cols.get_mut(i + 1) {
+                        n.clock_from = new_to;
+                    }
+                }
+                "spare" => {
+                    cols[i].clock_to = new_to;
+                    if old_to > new_to {
+                        let next = cols.iter().map(|c| c.display_ord).max().unwrap_or(-1) + 1;
+                        let nid = format!("gap{next}");
+                        cols.insert(
+                            i + 1,
+                            Column {
+                                id: nid,
+                                clock_from: new_to,
+                                clock_to: old_to,
+                                display_ord: next,
+                            },
+                        );
+                        for (k, c) in cols.iter_mut().enumerate() {
+                            c.display_ord = k as i64;
+                        }
+                    }
+                }
                 "compress" => {
-                    let eat = (cols[j].clock_to - cols[j].clock_from).max(2) / 2;
-                    cols[i].clock_to = cols[j].clock_from + eat;
+                    let j = i + 1;
+                    if j >= cols.len() {
+                        return Err((StatusCode::BAD_REQUEST, "无邻列可侵入".into()));
+                    }
+                    let max_to = (cols[j].clock_to - 1).max(cols[i].clock_from + 1);
+                    cols[i].clock_to = new_to.min(max_to).max(cols[i].clock_from + 1);
                     cols[j].clock_from = cols[i].clock_to;
                 }
                 "shift" => {
-                    let eat = (cols[j].clock_to - cols[j].clock_from).max(2) / 2;
+                    let j = i + 1;
+                    if j >= cols.len() {
+                        return Err((StatusCode::BAD_REQUEST, "无邻列可侵入".into()));
+                    }
                     let dur = cols[j].clock_to - cols[j].clock_from;
-                    cols[i].clock_to = cols[j].clock_from + eat;
-                    cols[j].clock_from = cols[i].clock_to;
-                    cols[j].clock_to = cols[j].clock_from + dur;
+                    let delta = new_to - cols[j].clock_from;
+                    cols[i].clock_to = new_to;
+                    cols[j].clock_from = new_to;
+                    cols[j].clock_to = new_to + dur;
+                    if delta != 0 {
+                        for c in cols.iter_mut().skip(j + 1) {
+                            c.clock_from += delta;
+                            c.clock_to += delta;
+                        }
+                    }
                 }
                 "merge" | "parallel" => {
-                    cols[i].clock_to = cols[i].clock_to.max(cols[j].clock_to);
+                    let j = i + 1;
+                    if j >= cols.len() {
+                        return Err((StatusCode::BAD_REQUEST, "无邻列可侵入".into()));
+                    }
+                    cols[i].clock_to = new_to.max(cols[j].clock_to);
                     let gone = cols[j].id.clone();
                     cols.remove(j);
                     sess.book
@@ -1335,8 +2207,12 @@ async fn structure_confirm(
                     return Ok(Json(serde_json::json!({"ok": true, "choice": body.choice})));
                 }
                 "empty" => {
-                    let eat = (cols[j].clock_to - cols[j].clock_from).max(2) / 2;
-                    cols[i].clock_to = cols[j].clock_from + eat;
+                    let j = i + 1;
+                    if j >= cols.len() {
+                        return Err((StatusCode::BAD_REQUEST, "无邻列可侵入".into()));
+                    }
+                    let max_to = (cols[j].clock_to - 1).max(cols[i].clock_from + 1);
+                    cols[i].clock_to = new_to.min(max_to).max(cols[i].clock_from + 1);
                     cols[j].clock_from = cols[i].clock_to;
                     let eid = format!(
                         "ovl{}",
@@ -1360,8 +2236,11 @@ async fn structure_confirm(
                     });
                     persist_drafts(&app.data_root, &name, &sess.drafts);
                 }
+                "refuse" => {
+                    return Err((StatusCode::BAD_REQUEST, "未选补洞建议".into()));
+                }
                 _ => {
-                    cols[j].clock_from = cols[i].clock_to;
+                    return Err((StatusCode::BAD_REQUEST, "未知建议".into()));
                 }
             }
             SettingBook::preview_columns(&cols).map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
@@ -1371,11 +2250,187 @@ async fn structure_confirm(
                 .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
         }
         "delete_canon" => {
-            if let Some(id) = &pending.target_beat {
-                sess.book
-                    .supersede(id)
-                    .await
-                    .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+            let id = pending
+                .target_beat
+                .clone()
+                .ok_or((StatusCode::BAD_REQUEST, "没有选中的正史".into()))?;
+            let canon0 = sess
+                .book
+                .load_canon()
+                .await
+                .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+            let col_id = pending
+                .target_column
+                .clone()
+                .or_else(|| {
+                    canon0
+                        .beats
+                        .iter()
+                        .find(|b| b.id == id)
+                        .map(|b| b.column_id.clone())
+                })
+                .unwrap_or_else(|| "col0".into());
+            let still_committed = canon0.beats.iter().any(|b| {
+                b.column_id == col_id && b.status == STATUS_COMMITTED && b.id != id
+            });
+            if matches!(body.choice.as_str(), "shift" | "fill" | "extend_neighbor") && still_committed
+            {
+                return Err((
+                    StatusCode::BAD_REQUEST,
+                    "同列还有正史，不能用前移或邻场盖住。请选停空洞或先处理同列正史。".into(),
+                ));
+            }
+            sess.book
+                .supersede(&id)
+                .await
+                .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+            if sess.selected_canon.as_deref() == Some(id.as_str()) {
+                sess.selected_canon = None;
+            }
+            match body.choice.as_str() {
+                "leave_hole" => {}
+                "empty_beat" | "ellipsis" => {
+                    let col = pending
+                        .original_columns
+                        .iter()
+                        .find(|c| c.id == col_id)
+                        .cloned()
+                        .unwrap_or(Column {
+                            id: col_id.clone(),
+                            clock_from: 0,
+                            clock_to: 60,
+                            display_ord: 0,
+                        });
+                    let kind = if body.choice == "ellipsis" {
+                        "ellipsis"
+                    } else {
+                        "scene"
+                    };
+                    let eid = format!(
+                        "hole{}",
+                        std::time::SystemTime::now()
+                            .duration_since(std::time::UNIX_EPOCH)
+                            .map(|d| d.as_millis())
+                            .unwrap_or(0)
+                    );
+                    sess.drafts.push(UiDraft {
+                        id: eid.clone(),
+                        title: if kind == "ellipsis" { "省略场" } else { "空场" }.into(),
+                        draft: BeatDraft {
+                            id: Some(eid),
+                            kind: kind.into(),
+                            column_id: col.id.clone(),
+                            intent: if kind == "ellipsis" {
+                                "省略".into()
+                            } else {
+                                "待写（空洞）".into()
+                            },
+                            clock_from: col.clock_from,
+                            clock_to: col.clock_to,
+                            ..BeatDraft::default()
+                        },
+                    });
+                    persist_drafts(&app.data_root, &name, &sess.drafts);
+                }
+                "extend_neighbor" => {
+                    if still_committed {
+                        return Err((
+                            StatusCode::BAD_REQUEST,
+                            "同列还有正史，不能用邻场盖住".into(),
+                        ));
+                    }
+                    let mut cols = pending.original_columns.clone();
+                    cols.sort_by_key(|c| c.display_ord);
+                    let idx = cols
+                        .iter()
+                        .position(|c| c.id == col_id)
+                        .ok_or((StatusCode::BAD_REQUEST, "无此列".into()))?;
+                    if idx > 0 {
+                        let to = cols[idx].clock_to;
+                        cols[idx - 1].clock_to = to;
+                    } else if idx + 1 < cols.len() {
+                        let from = cols[idx].clock_from;
+                        cols[idx + 1].clock_from = from;
+                    }
+                    cols.remove(idx);
+                    for (i, c) in cols.iter_mut().enumerate() {
+                        c.display_ord = i as i64;
+                    }
+                    SettingBook::preview_columns(&cols)
+                        .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+                    sess.book
+                        .confirm_columns(cols)
+                        .await
+                        .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+                    sess.book
+                        .delete_column(&col_id)
+                        .await
+                        .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+                }
+                "shift" | "fill" => {
+                    if still_committed {
+                        return Err((
+                            StatusCode::BAD_REQUEST,
+                            "同列还有正史，不能前移合上".into(),
+                        ));
+                    }
+                    let mut cols = pending.original_columns.clone();
+                    cols.sort_by_key(|c| c.display_ord);
+                    let idx = cols
+                        .iter()
+                        .position(|c| c.id == col_id)
+                        .ok_or((StatusCode::BAD_REQUEST, "无此列".into()))?;
+                    let hole_from = cols[idx].clock_from;
+                    let dur = cols[idx].clock_to - cols[idx].clock_from;
+                    cols.remove(idx);
+                    for c in cols.iter_mut() {
+                        if c.clock_from >= hole_from {
+                            c.clock_from -= dur;
+                            c.clock_to -= dur;
+                        }
+                    }
+                    for (i, c) in cols.iter_mut().enumerate() {
+                        c.display_ord = i as i64;
+                    }
+                    SettingBook::preview_columns(&cols)
+                        .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+                    sess.book
+                        .confirm_columns(cols.clone())
+                        .await
+                        .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+                    sess.book
+                        .delete_column(&col_id)
+                        .await
+                        .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+                    let canon2 = sess
+                        .book
+                        .load_canon()
+                        .await
+                        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+                    for b in canon2
+                        .beats
+                        .iter()
+                        .filter(|b| b.status == STATUS_COMMITTED && b.clock_from >= hole_from)
+                    {
+                        sess.book
+                            .set_beat_clocks(&b.id, b.clock_from - dur, b.clock_to - dur)
+                            .await
+                            .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+                    }
+                    for d in sess.drafts.iter_mut() {
+                        if d.draft.clock_from >= hole_from {
+                            d.draft.clock_from -= dur;
+                            d.draft.clock_to -= dur;
+                        }
+                        if d.draft.column_id == col_id && !cols.is_empty() {
+                            d.draft.column_id = cols[0].id.clone();
+                        }
+                    }
+                    persist_drafts(&app.data_root, &name, &sess.drafts);
+                }
+                _ => {
+                    return Err((StatusCode::BAD_REQUEST, "未选补洞建议".into()));
+                }
             }
         }
         "remove_presence" => {
@@ -1548,18 +2603,33 @@ async fn paste_draft(
         .filter(|s| !s.is_empty())
         .collect();
     let chunks = if chunks.is_empty() { vec![text] } else { chunks };
+    let target_draft = sess
+        .selected
+        .clone()
+        .or_else(|| sess.drafts.last().map(|d| d.id.clone()));
+    let target_label = target_draft
+        .as_ref()
+        .and_then(|id| sess.drafts.iter().find(|d| &d.id == id))
+        .map(|d| {
+            let title = if d.title.trim().is_empty() {
+                "未名场"
+            } else {
+                d.title.as_str()
+            };
+            format!("草稿 · {title} · {}", d.draft.column_id)
+        })
+        .unwrap_or_else(|| "没有选中的草稿".into());
     sess.paste_suggestions = chunks
         .into_iter()
         .enumerate()
         .map(|(i, t)| PasteSuggest {
             id: format!("paste{i}"),
-            field: if t.contains('：') || t.contains(':') {
-                "say_text".into()
-            } else {
-                "do_text".into()
-            },
+            field: paste_field_of(t),
             text: t.to_string(),
             applied: false,
+            skipped: false,
+            target_draft: target_draft.clone(),
+            target_label: target_label.clone(),
         })
         .collect();
     Ok(Json(serde_json::json!({
@@ -1577,32 +2647,57 @@ async fn paste_apply(
     let mut g = app.inner.lock().await;
     let name = g.current.clone().ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
     let sess = g.books.get_mut(&name).unwrap();
+    let skip = body.get("skip").and_then(|v| v.as_bool()).unwrap_or(false);
     let sug = sess
         .paste_suggestions
         .iter_mut()
         .find(|s| s.id == sid)
         .ok_or((StatusCode::BAD_REQUEST, "无此建议".into()))?;
+    if skip {
+        sug.skipped = true;
+        sug.applied = true;
+        return Ok(Json(serde_json::json!({
+            "ok": true,
+            "skipped": true,
+            "auto_canon": false,
+        })));
+    }
     sug.applied = true;
     let field = sug.field.clone();
     let text = sug.text.clone();
-    let draft_id = sess.selected.clone();
-    if let Some(id) = draft_id {
-        if let Some(d) = sess.drafts.iter_mut().find(|x| x.id == id) {
-            match field.as_str() {
-                "say_text" => d.draft.say_text = Some(text.clone()),
-                "think_text" => d.draft.think_text = Some(text.clone()),
-                _ => d.draft.do_text = Some(text.clone()),
-            }
-        }
-        persist_drafts(&app.data_root, &name, &sess.drafts);
+    let draft_id = sug
+        .target_draft
+        .clone()
+        .or_else(|| sess.selected.clone());
+    let Some(id) = draft_id else {
+        sug.applied = false;
+        return Err((
+            StatusCode::BAD_REQUEST,
+            "没有选中的草稿，不能写入此框".into(),
+        ));
+    };
+    let d = sess
+        .drafts
+        .iter_mut()
+        .find(|x| x.id == id)
+        .ok_or((StatusCode::BAD_REQUEST, "没有选中的草稿，不能写入此框".into()))?;
+    match field.as_str() {
+        "say_text" => d.draft.say_text = Some(text.clone()),
+        "think_text" => d.draft.think_text = Some(text.clone()),
+        "intent" => d.draft.intent = text.clone(),
+        "title" => d.title = text.clone(),
+        "value_shift" => d.draft.value_shift = Some(text.clone()),
+        _ => d.draft.do_text = Some(text.clone()),
     }
+    sess.selected = Some(id.clone());
+    persist_drafts(&app.data_root, &name, &sess.drafts);
     Ok(Json(serde_json::json!({
         "ok": true,
         "applied": true,
         "field": field,
         "text": text,
         "auto_canon": false,
-        "draft_id": sess.selected,
+        "draft_id": id,
     })))
 }
 
@@ -1691,18 +2786,49 @@ async fn delete_canon(
     State(app): State<App>,
     Json(body): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    // 必须先走确认变更预览
+    let id = body
+        .get("id")
+        .and_then(|v| v.as_str())
+        .filter(|s| !s.is_empty())
+        .ok_or((StatusCode::BAD_REQUEST, "没有选中的正史".into()))?;
     structure_preview(
         State(app.clone()),
         Json(StructPreview {
             op: "delete_canon".into(),
             column_id: None,
-            beat_id: body.get("id").and_then(|v| v.as_str()).map(|s| s.to_string()),
+            beat_id: Some(id.to_string()),
             fail_refs: body.get("fail_refs").and_then(|v| v.as_bool()).unwrap_or(false),
+            clock_to: None,
         }),
     )
     .await?;
     Ok(Json(serde_json::json!({"need_confirm": true})))
+}
+
+async fn revise_beat(
+    State(app): State<App>,
+    Path(id): Path<String>,
+    Json(patch): Json<BeatPatch>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    let mut g = app.inner.lock().await;
+    let name = g.current.clone().ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
+    let sess = g.books.get_mut(&name).unwrap();
+    let (beat, warnings) = sess
+        .book
+        .revise(&id, patch)
+        .await
+        .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+    Ok(Json(serde_json::json!({
+        "ok": true,
+        "id": beat.id,
+        "seq": beat.commit_seq,
+        "commit_seq": beat.commit_seq,
+        "do_text": beat.do_text,
+        "say_text": beat.say_text,
+        "think_text": beat.think_text,
+        "warnings": warnings,
+        "new_seq": false,
+    })))
 }
 
 async fn get_dossier(
@@ -1722,23 +2848,90 @@ async fn get_dossier(
         .iter()
         .find(|x| x.id == id || x.name == id)
         .ok_or((StatusCode::NOT_FOUND, "无此档案".into()))?;
-    let beats: Vec<serde_json::Value> = canon
+    let mut appearances: Vec<serde_json::Value> = canon
         .beats
         .iter()
         .filter(|b| {
             b.status == STATUS_COMMITTED
-                && b.presences.iter().any(|p| p.entity_id == e.id)
+                && (b.presences.iter().any(|p| p.entity_id == e.id)
+                    || b.place_id.as_deref() == Some(e.id.as_str()))
         })
-        .map(|b| serde_json::json!({"id": b.id, "column_id": b.column_id, "intent": b.intent}))
+        .map(|b| {
+            serde_json::json!({
+                "id": b.id,
+                "column_id": b.column_id,
+                "intent": b.intent,
+                "status": "committed",
+            })
+        })
         .collect();
-    let w = sess.book.world_at(0, None).await.ok();
-    let windows: Vec<_> = w
+    for d in &sess.drafts {
+        let on = d.draft.presences.iter().any(|p| p.entity_id == e.id)
+            || d.draft.place_id.as_deref() == Some(e.id.as_str());
+        if on {
+            appearances.push(serde_json::json!({
+                "id": d.id,
+                "column_id": d.draft.column_id,
+                "intent": d.draft.intent,
+                "status": "draft",
+            }));
+        }
+    }
+    let now = max_committed_clock(&canon);
+    let w = sess.book.world_at(now, None).await.ok();
+    let windows: Vec<serde_json::Value> = w
         .as_ref()
         .map(|w| {
             w.states
                 .iter()
                 .filter(|s| s.entity_id == e.id)
-                .cloned()
+                .map(|s| {
+                    serde_json::json!({
+                        "entity_id": s.entity_id,
+                        "attr": s.attr,
+                        "value": s.value,
+                        "clock_from": s.clock_from,
+                        "clock_to": s.clock_to,
+                    })
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    let knows: Vec<String> = w
+        .as_ref()
+        .and_then(|w| w.knows.get(&e.id).cloned())
+        .unwrap_or_default();
+    let wrong: Vec<String> = w
+        .as_ref()
+        .map(|w| {
+            w.beliefs
+                .iter()
+                .filter(|b| b.person_id == e.id && b.is_wrong())
+                .map(|b| {
+                    let actual = b
+                        .truth_value
+                        .as_deref()
+                        .filter(|s| !s.is_empty())
+                        .unwrap_or("未知");
+                    format!("信错「{}」（实际：{actual}）", b.fact)
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    let promises: Vec<serde_json::Value> = w
+        .as_ref()
+        .map(|w| {
+            w.promises
+                .iter()
+                .filter(|p| p.related.iter().any(|r| r == &e.id) || p.id == e.id)
+                .map(|p| {
+                    serde_json::json!({
+                        "id": p.id,
+                        "name": p.name,
+                        "status": p.status,
+                        "deadline_clock": p.deadline_clock,
+                    })
+                })
                 .collect()
         })
         .unwrap_or_default();
@@ -1747,9 +2940,13 @@ async fn get_dossier(
         "kind": e.kind,
         "name": e.name,
         "profile": e.profile,
-        "beats": beats,
+        "appearances": appearances,
+        "beats": appearances,
         "beats_editable": false,
         "windows_readonly": windows,
+        "knows_readonly": knows,
+        "wrong_beliefs_readonly": wrong,
+        "promises_readonly": promises,
     })))
 }
 
@@ -1795,18 +2992,46 @@ async fn occupancy(State(app): State<App>) -> Result<Json<serde_json::Value>, (S
         .load_canon()
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let mut cols = canon.columns.clone();
+    cols.sort_by_key(|c| c.display_ord);
     let mut cells = vec![];
     for e in &canon.entities {
-        for c in &canon.columns {
-            let on = canon.beats.iter().any(|b| {
+        for c in &cols {
+            let canon_on = canon.beats.iter().any(|b| {
                 b.column_id == c.id
-                    && b.status == "committed"
-                    && b.presences.iter().any(|p| p.entity_id == e.id && p.role == ROLE_PRESENT)
+                    && b.status == STATUS_COMMITTED
+                    && (b.presences.iter().any(|p| p.entity_id == e.id && p.role == ROLE_PRESENT)
+                        || b.place_id.as_deref() == Some(e.id.as_str()))
             });
-            cells.push(serde_json::json!({"entity": e.id, "column": c.id, "present": on}));
+            let draft_on = sess.drafts.iter().any(|d| {
+                d.draft.column_id == c.id
+                    && (d.draft.presences.iter().any(|p| p.entity_id == e.id && p.role == ROLE_PRESENT)
+                        || d.draft.place_id.as_deref() == Some(e.id.as_str()))
+            });
+            let status = if canon_on {
+                "canon"
+            } else if draft_on {
+                "draft"
+            } else {
+                "none"
+            };
+            cells.push(serde_json::json!({
+                "entity": e.id,
+                "name": e.name,
+                "kind": e.kind,
+                "column": c.id,
+                "present": canon_on,
+                "draft": draft_on && !canon_on,
+                "status": status,
+            }));
         }
     }
-    Ok(Json(serde_json::json!({"readonly": true, "cells": cells})))
+    Ok(Json(serde_json::json!({
+        "readonly": true,
+        "columns": cols.iter().map(|c| serde_json::json!({"id": c.id, "display_ord": c.display_ord})).collect::<Vec<_>>(),
+        "entities": canon.entities.iter().map(|e| serde_json::json!({"id": e.id, "name": e.name, "kind": e.kind})).collect::<Vec<_>>(),
+        "cells": cells,
+    })))
 }
 
 async fn circumstances(
@@ -1815,31 +3040,142 @@ async fn circumstances(
     let g = app.inner.lock().await;
     let name = g.current.clone().ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
     let sess = g.books.get(&name).unwrap();
-    let Some(sel) = &sess.selected else {
-        return Ok(Json(serde_json::json!({"empty": true})));
-    };
-    let d = sess
-        .drafts
-        .iter()
-        .find(|x| &x.id == sel)
-        .ok_or((StatusCode::BAD_REQUEST, "无选中草稿".into()))?;
-    let pkt = sess
+    let lens = sess.lens_person.clone();
+    let canon = sess
         .book
-        .given_circumstances(&d.draft)
+        .load_canon()
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-    let suggestion = suggest_promise_op(&pkt.open_promises, &d.draft);
+    let t = column_clock(
+        &canon.columns,
+        sess.selected_col.as_deref(),
+        sess.window_start,
+    );
+    let telling_upto = if sess.reading_order {
+        let col = sess.selected_col.as_deref().or_else(|| {
+            canon
+                .columns
+                .get(sess.window_start)
+                .map(|c| c.id.as_str())
+        });
+        col.and_then(|cid| {
+            canon
+                .beats
+                .iter()
+                .filter(|b| b.column_id == cid && b.status == STATUS_COMMITTED)
+                .map(|b| b.telling_ord.unwrap_or(b.commit_seq))
+                .min()
+        })
+    } else {
+        None
+    };
+    let draft = if let Some(sel) = &sess.selected {
+        sess.drafts.iter().find(|x| &x.id == sel).map(|d| d.draft.clone())
+    } else {
+        None
+    };
+    let Some(draft) = draft.or_else(|| {
+        lens.as_ref().map(|p| BeatDraft {
+            intent: "看这一刻".into(),
+            column_id: sess
+                .selected_col
+                .clone()
+                .unwrap_or_else(|| "col0".into()),
+            clock_from: t,
+            clock_to: t + 1,
+            presences: vec![Presence {
+                entity_id: p.clone(),
+                beat_id: String::new(),
+                role: ROLE_PRESENT.into(),
+            }],
+            ..BeatDraft::default()
+        })
+    }) else {
+        return Ok(Json(serde_json::json!({"empty": true})));
+    };
+    let mut pkt = sess
+        .book
+        .given_circumstances(&draft)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    if let Some(upto) = telling_upto {
+        pkt.reader_knows = narra::services::circumstances::reader_facts(&canon, Some(upto))
+            .into_iter()
+            .take(12)
+            .collect();
+        pkt.reader_irony
+            .retain(|s| pkt.reader_knows.iter().any(|f| s.contains(f)));
+    }
+    if let Some(p) = &lens {
+        let world = sess
+            .book
+            .world_at(draft.clock_from, None)
+            .await
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+        pkt = apply_person_lens(pkt, &world, p);
+    }
+    let suggestion = suggest_promise_op(&pkt.open_promises, &draft);
     Ok(Json(serde_json::json!({
         "packet": pkt,
         "suggestion": suggestion,
         "suggestion_in_packet": false,
         "structure_suggestions_in_packet": false,
+        "lens_person": lens,
+        "world_unchanged": true,
     })))
 }
 
 #[derive(Deserialize)]
 struct SearchQ {
     q: Option<String>,
+}
+
+async fn official_bridge(
+    State(app): State<App>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    let g = app.inner.lock().await;
+    let name = g
+        .current
+        .clone()
+        .ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
+    let sess = g.books.get(&name).unwrap();
+    let mut q = sess
+        .book
+        .db()
+        .query("SELECT intent, title, status, commit_seq FROM scene")
+        .query("SELECT name, aliases FROM character")
+        .query("SELECT count() AS n FROM knows GROUP ALL")
+        .query("SELECT count() AS n FROM setting_window GROUP ALL")
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    #[derive(Debug, serde::Deserialize, serde::Serialize)]
+    struct SceneRow {
+        intent: Option<String>,
+        title: Option<String>,
+        status: Option<String>,
+        commit_seq: Option<i64>,
+    }
+    #[derive(Debug, serde::Deserialize, serde::Serialize)]
+    struct CharRow {
+        name: Option<String>,
+        aliases: Option<Vec<String>>,
+    }
+    #[derive(Debug, serde::Deserialize)]
+    struct CountRow {
+        n: Option<i64>,
+    }
+    let scenes: Vec<SceneRow> = q.take(0).unwrap_or_default();
+    let characters: Vec<CharRow> = q.take(1).unwrap_or_default();
+    let knows: Vec<CountRow> = q.take(2).unwrap_or_default();
+    let windows: Vec<CountRow> = q.take(3).unwrap_or_default();
+    Ok(Json(serde_json::json!({
+        "book": name,
+        "world_at_source": "setting_window+knows",
+        "scenes": scenes,
+        "characters": characters,
+        "knows": knows.first().and_then(|r| r.n).unwrap_or(0),
+        "setting_window": windows.first().and_then(|r| r.n).unwrap_or(0),
+    })))
 }
 
 async fn search_entities(
@@ -1855,6 +3191,24 @@ async fn search_entities(
         .search_entities(&needle)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let canon = sess
+        .book
+        .load_canon()
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let page_cols = window_column_ids(&canon.columns, sess.window_start, sess.n);
+    let on_page = appearing_on(&canon.beats, &sess.drafts, &page_cols);
+    let hits: Vec<serde_json::Value> = hits
+        .into_iter()
+        .map(|e| {
+            serde_json::json!({
+                "id": e.id,
+                "kind": e.kind,
+                "name": e.name,
+                "on_page": on_page.contains(&e.id),
+            })
+        })
+        .collect();
     Ok(Json(serde_json::json!({
         "book": name,
         "q": needle,
@@ -1898,7 +3252,7 @@ async fn knows_list(
             .world_at(t, None)
             .await
             .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-        return Ok(Json(serde_json::json!({"knows": w.knows, "t": t, "score": serde_json::Value::Null})));
+        return Ok(Json(serde_json::json!({"knows": w.knows, "beliefs": w.beliefs, "t": t, "score": serde_json::Value::Null})));
     }
     let facts = sess
         .book
@@ -1995,6 +3349,7 @@ async fn fill_live(
     let user = format!(
         "你在写设定图的一场戏。只根据已正史规定情境和本场任务填格子。\n\
 不要指定写哪一场。不要兑现伏笔建议。不要结构建议。不要把内容写成正史。\n\
+不要写中点、高潮、节拍表、英雄之旅，不要说「你现在应该写」。\n\
 本场任务：{}\n规定情境 JSON：{}\n\
 只返回 JSON：{{\"do_text\":\"动作\",\"say_text\":\"对白\",\"think_text\":\"内心\"}}",
         draft0.intent,
@@ -2009,7 +3364,10 @@ async fn fill_live(
         ],
         "temperature": 0.4
     });
-    let resp = reqwest::Client::new()
+    let resp = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(12))
+        .build()
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
         .post(&url)
         .bearer_auth(&key)
         .header("Content-Type", "application/json")
@@ -2036,6 +3394,18 @@ async fn fill_live(
         parse_fill_json(content).map_err(|e| (StatusCode::BAD_GATEWAY, e))?;
     if do_text.is_none() && say_text.is_none() && think_text.is_none() {
         return Err((StatusCode::BAD_GATEWAY, "真调 JSON 无动作/对白/内心".into()));
+    }
+    let blob = format!(
+        "{}{}{}",
+        do_text.as_deref().unwrap_or(""),
+        say_text.as_deref().unwrap_or(""),
+        think_text.as_deref().unwrap_or("")
+    );
+    if craft::contains_beat_advice(&blob) {
+        return Err((
+            StatusCode::BAD_GATEWAY,
+            "模型输出含节拍教条，已丢弃".into(),
+        ));
     }
     let mut g = app.inner.lock().await;
     let name = g.current.clone().ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;

@@ -67,6 +67,29 @@ def main() -> None:
             fail("mode name missing: " + name)
     print("ok seven modes")
 
+    def inner(tag_id: str) -> str:
+        m = re.search(rf'<div id="{tag_id}"[^>]*>(.*?)</div>\s*<div id="mode-', html, re.S)
+        if m:
+            return m.group(1)
+        m = re.search(rf'<div id="{tag_id}"[^>]*>(.*?)</div>\s*</aside>', html, re.S)
+        return m.group(1) if m else ""
+
+    write_inner = inner("mode-write")
+    talk_inner = inner("mode-talk")
+    if 'id="intent"' not in write_inner and 'data-testid="intent"' not in write_inner:
+        fail("本场任务/intent not in 写下一场 panel source")
+    if 'data-testid="write-box"' not in talk_inner and 'id="write-box"' not in talk_inner:
+        fail("写入此框/write-box not in 讨论 panel source")
+    scene_open = html.find('id="mode-scene"')
+    sidebar_at = html.find('data-testid="sidebar"')
+    if sidebar_at < 0:
+        fail("sidebar missing")
+    if sidebar_at > scene_open and html.find('id="mode-about"') > sidebar_at:
+        fail("sidebar still buried in 本场 panel")
+    if "parkSharedFields" not in html:
+        fail("parkSharedFields missing")
+    print("ok intent in write mode, write-box in talk, sidebar visible")
+
     now = re.search(r'<div id="mode-now"[^>]*>', html)
     if not now:
         fail("mode-now missing")

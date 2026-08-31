@@ -212,10 +212,8 @@
     </div>
     <aside id="side">
       <h2 id="side-mode-title">本场</h2>
+      <div id="sidebar" data-testid="sidebar"></div>
       <div id="mode-scene" class="mode-panel" data-mode-name="本场">
-        <label>本场任务 <input id="intent" data-testid="intent" /></label>
-        <button id="talk" data-testid="talk">讨论</button>
-        <button id="write-box" data-testid="write-box">写入此框</button>
         <input id="place-id" data-testid="place-id" placeholder="本场地点" />
         <input id="telling-ord" data-testid="telling-ord" placeholder="读序" style="width:4em" />
         <button id="set-telling" data-testid="set-telling">标读序</button>
@@ -243,7 +241,6 @@
             <section data-testid="group-presence"><h5>在场来源</h5><div id="g-presence"></div></section>
           </div>
         </div>
-        <div id="sidebar" data-testid="sidebar"></div>
         <div id="promise-suggest" data-testid="promise-suggest"></div>
         <button id="ignore-suggest" data-testid="ignore-suggest">忽略建议</button>
         <div id="paste-suggest" data-testid="paste-suggest"></div>
@@ -260,6 +257,10 @@
         <pre id="world" data-testid="world"></pre>
       </div>
       <div id="mode-write" class="mode-panel hidden" data-mode-name="写下一场">
+        <div id="intent-row">
+          <label>本场任务 <input id="intent" data-testid="intent" /></label>
+          <button id="talk" data-testid="talk">讨论</button>
+        </div>
         <p>先写本场任务，再点顶上的「写下一场」。没有本场任务不准写下一场。</p>
         <button id="plan-suggest" data-testid="plan-suggest">铺场建议</button>
         <button id="plan-apply" data-testid="plan-apply">落为预场</button>
@@ -280,6 +281,7 @@
       <div id="mode-talk" class="mode-panel hidden" data-mode-name="讨论">
         <div id="talk-out" data-testid="talk-out"></div>
         <p id="talk-notice" class="hidden" data-testid="talk-notice">讨论不是历史</p>
+        <button id="write-box" data-testid="write-box">写入此框</button>
       </div>
     </aside>
   </div>
@@ -360,6 +362,21 @@ function setMode(key) {
   uiMode = key;
   renderSide();
 }
+function parkSharedFields() {
+  const row = $('intent-row');
+  if (row) {
+    const host = (uiMode === 'scene') ? $('mode-scene') : $('mode-write');
+    if (host && row.parentElement !== host) host.insertBefore(row, host.firstChild);
+  }
+  const box = $('write-box');
+  if (box) {
+    if (uiMode === 'talk') {
+      $('mode-talk').appendChild(box);
+    } else if (uiMode === 'scene' && $('fill-live')) {
+      $('mode-scene').insertBefore(box, $('fill-fake') || $('commit'));
+    }
+  }
+}
 function renderSide() {
   const panels = {
     scene: 'mode-scene',
@@ -370,6 +387,7 @@ function renderSide() {
     create: 'mode-create',
     talk: 'mode-talk'
   };
+  parkSharedFields();
   Object.keys(panels).forEach(k => {
     const el = $(panels[k]);
     if (el) el.classList.toggle('hidden', k !== uiMode);
@@ -839,6 +857,7 @@ $('write-next').onclick = async () => {
     setMode('scene');
     refresh();
   } catch (e) {
+    setMode('write');
     $('sidebar').textContent = String(e.message || e);
   }
 };
@@ -1223,7 +1242,7 @@ async function loadKnows() {
 }
 $('rail-create').onclick = () => setMode('create');
 $('empty-create').onclick = () => setMode('create');
-$('empty-write').onclick = () => { setMode('write'); setMode('scene'); $('intent').focus(); };
+$('empty-write').onclick = () => { setMode('write'); $('intent').focus(); };
 $('ent-search').addEventListener('input', () => { railFilter = $('ent-search').value; renderRail(); });
 $('theme-btn').onclick = () => {
   const next = document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light';

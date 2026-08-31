@@ -2,128 +2,285 @@
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>分场条</title>
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem("stripboard-theme");
+        document.documentElement.setAttribute("data-theme", t === "light" ? "light" : "dark");
+      } catch (e) {
+        document.documentElement.setAttribute("data-theme", "dark");
+      }
+    })();
+  </script>
   <style>
-    body { font-family: sans-serif; margin: 0; display: grid; grid-template-rows: auto auto 1fr; height: 100vh; }
-    header, #minimap { padding: 8px; background: #111; color: #eee; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-    button:disabled { opacity: .4; }
+    :root {
+      color-scheme: dark;
+      --night: #161310;
+      --panel: #1f1b16;
+      --panel-2: #2a241c;
+      --cream: #ede4d4;
+      --mute: #b4aa9e;
+      --line: #3a342c;
+      --brass: #c4a574;
+      --brass-ink: #161310;
+      --warn: #e0b56a;
+      --warn-bg: #3a2f18;
+      --lib: 220px;
+      --side: 360px;
+      --focus: 2px solid var(--brass);
+      --ent-person: #c45c26;
+      --ent-place: #6d6875;
+      --ent-thing: #e9c46a;
+      --ent-faction: #bc6c25;
+      --ent-promise: #e76f51;
+      --ent-rule: #a98467;
+      --serif: "Songti SC", "Noto Serif SC", "PingFang SC", serif;
+      --sans: "PingFang SC", "Noto Sans SC", "Source Han Sans SC", sans-serif;
+      --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    }
+    html[data-theme="light"] {
+      color-scheme: light;
+      --night: #f3eee4;
+      --panel: #faf7f0;
+      --panel-2: #efe8dc;
+      --cream: #2c261e;
+      --mute: #6f675c;
+      --line: #d8cfc0;
+      --brass: #8b6430;
+      --brass-ink: #faf7f0;
+      --warn: #9a6a10;
+      --warn-bg: #f6e6c4;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body {
+      background: var(--night);
+      color: var(--cream);
+      font-family: var(--sans);
+      font-size: 13.5px;
+      line-height: 1.45;
+      display: grid;
+      grid-template-rows: auto auto 1fr;
+    }
+    .skip { position: absolute; left: -999px; }
+    .skip:focus { left: 8px; top: 8px; z-index: 50; background: var(--panel); padding: 6px 10px; }
+    header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 14px;
+      background: var(--panel);
+      border-bottom: 1px solid var(--line);
+      flex-wrap: wrap;
+    }
+    .brand { font-family: var(--serif); font-size: 20px; font-weight: 600; }
+    .spacer { flex: 1; }
+    .win { display: flex; align-items: center; gap: 4px; }
+    button {
+      font: inherit;
+      background: transparent;
+      color: var(--cream);
+      border: 1px solid var(--line);
+      padding: 5px 10px;
+      cursor: pointer;
+    }
+    button:hover { border-color: var(--brass); color: var(--brass); }
+    button:focus-visible, .card:focus-visible, .chip:focus-visible { outline: var(--focus); outline-offset: 2px; }
+    button.primary { background: var(--brass); color: var(--brass-ink); border-color: var(--brass); }
+    button:disabled { opacity: .35; cursor: not-allowed; }
+    #more-menu { position: relative; }
+    #more-menu summary { cursor: pointer; list-style: none; border: 1px solid var(--line); padding: 5px 10px; }
+    #more-panel {
+      position: absolute;
+      right: 0;
+      top: 100%;
+      z-index: 20;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      padding: 8px;
+      min-width: 220px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    #minimap { padding: 6px 14px; background: var(--panel); border-bottom: 1px solid var(--line); }
     #board { display: flex; flex: 1; min-height: 0; }
-    #rail { width: 200px; border-right: 1px solid #ccc; padding: 8px; overflow: auto; }
+    #rail { width: var(--lib); border-right: 1px solid var(--line); padding: 12px; overflow: auto; background: var(--panel); }
+    #stage { flex: 1; display: flex; flex-direction: column; min-width: 0; position: relative; }
     #cols { display: flex; flex: 1; overflow: hidden; }
-    .col { flex: 1; border-right: 1px solid #ddd; padding: 8px; min-width: 0; position: relative; }
-    .col-handle { position: absolute; right: 0; top: 0; bottom: 0; width: 8px; cursor: ew-resize; background: #ccc; }
-    .card { border: 1px solid #888; padding: 8px; margin: 8px 0; }
-    .card.canon { background: #e8f5e9; }
-    .card.draft { background: #fff8e1; }
-    .card.warn { outline: 2px solid #f9a825; background: #fff3cd; }
-    #warn-list { background: #fff59d; color: #5d4037; padding: 8px; margin: 8px 0; white-space: pre-wrap; min-height: 1em; }
-    .chip { display: inline-block; background: #ddd; margin: 2px; padding: 2px 6px; cursor: grab; }
-    #side { width: 300px; border-left: 1px solid #ccc; padding: 8px; overflow: auto; }
-    .tooth { width: 12px; height: 16px; display: inline-block; margin: 0 2px; cursor: pointer; position: relative; }
+    .col { flex: 1; border-right: 1px solid var(--line); padding: 8px; min-width: 0; position: relative; }
+    .col-head { font-family: var(--serif); font-size: 18px; margin: 0 0 4px; cursor: pointer; }
+    .col-clock { font-family: var(--mono); font-size: 11px; color: var(--mute); }
+    .col-handle { position: absolute; right: 0; top: 0; bottom: 0; width: 8px; cursor: ew-resize; background: var(--line); }
+    .card { border: 2px solid var(--line); padding: 8px; margin: 8px 0; background: var(--panel); }
+    .card.canon { border-style: solid; }
+    .card.draft { border-style: dashed; background: transparent; }
+    .card.warn { outline: 2px solid var(--warn); background: var(--warn-bg); }
+    #warn-list { background: var(--warn-bg); color: var(--warn); padding: 8px; margin: 8px 0; white-space: pre-wrap; min-height: 1em; }
+    .chip { display: inline-flex; align-items: center; gap: 4px; background: var(--panel-2); margin: 2px; padding: 2px 6px; cursor: grab; }
+    .chip .dot { width: 8px; height: 8px; border-radius: 50%; }
+    #side { width: var(--side); border-left: 1px solid var(--line); padding: 12px; overflow: auto; background: var(--panel); }
+    .tooth { width: 12px; height: 20px; display: inline-block; margin: 0 2px; cursor: pointer; position: relative; }
     .tooth.canon { background: #2e7d32; }
-    .tooth.draft { background: #f9a825; }
-    .tooth.empty { background: #bbb; }
+    .tooth.draft { background: var(--warn); }
+    .tooth.empty { background: #555; }
     .tooth.telling-diff::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: #1565c0; }
-    .hidden { display: none; }
+    .hidden { display: none !important; }
     #book-label { min-width: 4em; min-height: 1em; display: inline-block; }
-    dialog { max-width: 480px; }
-    #ent-list li { cursor: grab; padding: 4px; }
-    textarea { width: 100%; }
-    #inspector section { border: 1px solid #eee; margin: 4px 0; padding: 4px; }
+    dialog { max-width: 480px; background: var(--panel); color: var(--cream); border: 1px solid var(--line); }
+    #ent-list li, .lib-item { cursor: grab; padding: 4px; list-style: none; display: flex; align-items: center; gap: 6px; }
+    #ent-list { padding: 0; margin: 0; }
+    textarea, input, select { width: 100%; font: inherit; background: var(--night); color: var(--cream); border: 1px solid var(--line); padding: 6px; }
+    header input, header select { width: auto; }
+    #inspector section { border: 1px solid var(--line); margin: 4px 0; padding: 4px; }
     #source-groups { margin-top: 8px; }
-    .impact { color: #b71c1c; font-size: 12px; }
+    .impact { color: #e07070; font-size: 12px; }
+    #empty-book { margin: auto; text-align: center; padding: 48px 16px; color: var(--mute); }
+    #empty-book p { color: var(--cream); font-family: var(--serif); font-size: 18px; }
+    .mode-panel { display: block; }
+    #side h2 { font-family: var(--mono); font-size: 11px; letter-spacing: .12em; color: var(--mute); }
+    .lib-meta { font-size: 11px; color: var(--mute); }
+    .kind-person { background: var(--ent-person); }
+    .kind-place { background: var(--ent-place); }
+    .kind-thing { background: var(--ent-thing); }
+    .kind-faction { background: var(--ent-faction); }
+    .kind-promise { background: var(--ent-promise); }
+    .kind-rule { background: var(--ent-rule); }
+    @media (prefers-reduced-motion: reduce) {
+      * { animation: none !important; transition: none !important; }
+    }
   </style>
 </head>
 <body>
+  <a class="skip" href="#cols">跳到分场条</a>
   <header>
-    <strong>分场条</strong>
+    <strong class="brand">分场条</strong>
     <input id="book-name" data-testid="book-name" placeholder="书名" value="渡口" />
     <button id="create-book" data-testid="create-book">创建书</button>
     <button id="open-book" data-testid="open-book">打开书</button>
     <span id="book-label" data-testid="book-label"></span>
-    <button id="sparse" data-testid="density-sparse">疏</button>
-    <button id="mid" data-testid="density-mid">中</button>
-    <button id="dense" data-testid="density-dense">密</button>
-    <button id="minus" data-testid="minus">−</button>
-    <span id="col-count" data-testid="col-count">1</span>
-    <button id="plus" data-testid="plus">+</button>
-    <button id="prev" data-testid="prev">‹</button>
-    <button id="next" data-testid="next">›</button>
-    <button id="add-column" data-testid="add-column">中间➕加列</button>
-    <button id="remove-column" data-testid="remove-column">减列</button>
-    <button id="merge-columns" data-testid="merge-columns">合并列</button>
-    <button id="swap-columns" data-testid="swap-columns">换列位置</button>
-    <button id="reading-order" data-testid="reading-order">按读序排</button>
-    <button id="write-next" data-testid="write-next">写下一场</button>
-    <button id="add-parallel" data-testid="add-parallel">在本列再写一场</button>
-    <button id="ellipsis" data-testid="ellipsis">省略场</button>
-    <button id="occupancy" data-testid="occupancy">出场</button>
-    <button id="export" data-testid="export">导出</button>
-    <button id="paste" data-testid="paste">丢一段草稿</button>
-    <button id="plant-promise" data-testid="plant-promise">埋伏笔</button>
-    <input id="place-id" data-testid="place-id" placeholder="本场地点" />
-    <input id="telling-ord" data-testid="telling-ord" placeholder="读序" style="width:4em" />
-    <button id="set-telling" data-testid="set-telling">标读序</button>
+    <span class="spacer"></span>
+    <span class="win">
+      <button id="prev" data-testid="prev">‹</button>
+      <button id="minus" data-testid="minus">−</button>
+      <span id="col-count" data-testid="col-count">1</span>
+      <button id="plus" data-testid="plus">+</button>
+      <button id="next" data-testid="next">›</button>
+      <button id="sparse" data-testid="density-sparse">疏</button>
+      <button id="mid" data-testid="density-mid">中</button>
+      <button id="dense" data-testid="density-dense">密</button>
+    </span>
+    <button id="write-next" data-testid="write-next" class="primary">写下一场</button>
+    <details id="more-menu">
+      <summary>更多</summary>
+      <div id="more-panel">
+        <button id="add-column" data-testid="add-column">中间➕加列</button>
+        <button id="remove-column" data-testid="remove-column">减列</button>
+        <button id="merge-columns" data-testid="merge-columns">合并列</button>
+        <button id="swap-columns" data-testid="swap-columns">换列位置</button>
+        <button id="add-parallel" data-testid="add-parallel">在本列再写一场</button>
+        <button id="ellipsis" data-testid="ellipsis">省略场</button>
+        <button id="occupancy" data-testid="occupancy">出场</button>
+        <button id="export" data-testid="export">导出</button>
+        <button id="paste" data-testid="paste">丢一段草稿</button>
+        <button id="plant-promise" data-testid="plant-promise">埋伏笔</button>
+        <button id="reading-order" data-testid="reading-order">按读序排</button>
+        <button id="theme-btn" type="button">主题</button>
+      </div>
+    </details>
   </header>
   <div id="minimap" data-testid="minimap"></div>
   <div id="board">
     <aside id="rail" data-testid="left-rail">
-      <div>设定</div>
-      <input id="ent-name" data-testid="ent-name" placeholder="名字" />
-      <select id="ent-kind" data-testid="ent-kind">
-        <option value="person">人物</option>
-        <option value="place">地点</option>
-        <option value="thing">道具</option>
-        <option value="faction">组织</option>
-        <option value="rule">规则</option>
-      </select>
-      <button id="new-entity" data-testid="new-entity">新建</button>
-      <button id="delete-entity" data-testid="delete-entity">删设定</button>
+      <h2>设定</h2>
       <input id="ent-search" data-testid="ent-search" placeholder="搜全书" />
       <button id="do-search" data-testid="do-search">搜</button>
       <ul id="search-hits" data-testid="search-hits"></ul>
+      <p id="lib-meta" class="lib-meta"></p>
       <ul id="ent-list" data-testid="ent-list"></ul>
+      <button id="rail-create" type="button">新建</button>
     </aside>
-    <div id="cols" data-testid="stripboard"></div>
-    <aside id="side">
-      <label>本场任务 <input id="intent" data-testid="intent" /></label>
-      <button id="talk" data-testid="talk">讨论</button>
-      <div id="talk-out" data-testid="talk-out"></div>
-      <p id="talk-notice" class="hidden" data-testid="talk-notice">讨论不是历史</p>
-      <button id="plan-suggest" data-testid="plan-suggest">铺场建议</button>
-      <button id="plan-apply" data-testid="plan-apply">落为预场</button>
-      <pre id="plan-out" data-testid="plan-out"></pre>
-      <button id="write-box" data-testid="write-box">写入此框</button>
-      <textarea id="do-text" data-testid="do-text" placeholder="动作"></textarea>
-      <textarea id="say-text" data-testid="say-text" placeholder="对白"></textarea>
-      <textarea id="think-text" data-testid="think-text" placeholder="内心"></textarea>
-      <button id="fill-fake" data-testid="fill-fake">假模型填场</button>
-      <button id="fill-live" data-testid="fill-live">模型填下一场</button>
-      <div id="warn-list" class="hidden" data-testid="knowledge-warn"></div>
-      <label>当众 <input type="radio" name="vis" id="vis-public" data-testid="vis-public" checked /></label>
-      <label>私下 <input type="radio" name="vis" id="vis-private" data-testid="vis-private" /></label>
-      <input id="visible-to" data-testid="visible-to" placeholder="私下谁会看见，逗号分隔" />
-      <button id="commit" data-testid="commit">写入正史</button>
-      <button id="delete-draft" data-testid="delete-draft">删草稿场</button>
-      <button id="delete-canon" data-testid="delete-canon">删已正史</button>
-      <div id="light-delete-error" data-testid="light-delete-error"></div>
-      <div id="inspector" data-testid="inspector">
-        <h4>本场按来源分组</h4>
-        <div id="filter-entity" data-testid="filter-entity"></div>
-        <div id="source-groups" data-testid="source-groups">
-          <section data-testid="group-intent"><h5>本场任务</h5><div id="g-intent"></div></section>
-          <section data-testid="group-do"><h5>动作</h5><div id="g-do"></div></section>
-          <section data-testid="group-say"><h5>对白</h5><div id="g-say"></div></section>
-          <section data-testid="group-think"><h5>内心</h5><div id="g-think"></div></section>
-          <section data-testid="group-presence"><h5>在场来源</h5><div id="g-presence"></div></section>
-        </div>
+    <div id="stage">
+      <div id="empty-book" class="hidden">
+        <p>还没有一场戏。可以先只写人物、地点、规则。</p>
+        <button id="empty-create" type="button">去设定里新建</button>
+        <button id="empty-write" type="button">写下一场</button>
       </div>
-      <div id="sidebar" data-testid="sidebar"></div>
-      <div id="knows-list" data-testid="knows-list"></div>
-      <div id="promise-suggest" data-testid="promise-suggest"></div>
-      <button id="ignore-suggest" data-testid="ignore-suggest">忽略建议</button>
-      <div id="paste-suggest" data-testid="paste-suggest"></div>
-      <pre id="world" data-testid="world"></pre>
+      <div id="cols" data-testid="stripboard"></div>
+    </div>
+    <aside id="side">
+      <h2 id="side-mode-title">本场</h2>
+      <div id="mode-scene" class="mode-panel" data-mode-name="本场">
+        <label>本场任务 <input id="intent" data-testid="intent" /></label>
+        <button id="talk" data-testid="talk">讨论</button>
+        <button id="write-box" data-testid="write-box">写入此框</button>
+        <input id="place-id" data-testid="place-id" placeholder="本场地点" />
+        <input id="telling-ord" data-testid="telling-ord" placeholder="读序" style="width:4em" />
+        <button id="set-telling" data-testid="set-telling">标读序</button>
+        <textarea id="do-text" data-testid="do-text" placeholder="动作"></textarea>
+        <textarea id="say-text" data-testid="say-text" placeholder="对白"></textarea>
+        <textarea id="think-text" data-testid="think-text" placeholder="内心"></textarea>
+        <button id="fill-fake" data-testid="fill-fake">假模型填场</button>
+        <button id="fill-live" data-testid="fill-live">模型填下一场</button>
+        <div id="warn-list" class="hidden" data-testid="knowledge-warn"></div>
+        <label>当众 <input type="radio" name="vis" id="vis-public" data-testid="vis-public" checked /></label>
+        <label>私下 <input type="radio" name="vis" id="vis-private" data-testid="vis-private" /></label>
+        <input id="visible-to" data-testid="visible-to" placeholder="私下谁会看见，逗号分隔" />
+        <button id="commit" data-testid="commit">写入正史</button>
+        <button id="delete-draft" data-testid="delete-draft">删草稿场</button>
+        <button id="delete-canon" data-testid="delete-canon">删已正史</button>
+        <div id="light-delete-error" data-testid="light-delete-error"></div>
+        <div id="inspector" data-testid="inspector">
+          <h4>本场按来源分组</h4>
+          <div id="filter-entity" data-testid="filter-entity"></div>
+          <div id="source-groups" data-testid="source-groups">
+            <section data-testid="group-intent"><h5>本场任务</h5><div id="g-intent"></div></section>
+            <section data-testid="group-do"><h5>动作</h5><div id="g-do"></div></section>
+            <section data-testid="group-say"><h5>对白</h5><div id="g-say"></div></section>
+            <section data-testid="group-think"><h5>内心</h5><div id="g-think"></div></section>
+            <section data-testid="group-presence"><h5>在场来源</h5><div id="g-presence"></div></section>
+          </div>
+        </div>
+        <div id="sidebar" data-testid="sidebar"></div>
+        <div id="promise-suggest" data-testid="promise-suggest"></div>
+        <button id="ignore-suggest" data-testid="ignore-suggest">忽略建议</button>
+        <div id="paste-suggest" data-testid="paste-suggest"></div>
+      </div>
+      <div id="mode-about" class="mode-panel hidden" data-mode-name="这场·它">
+        <p id="about-why"></p>
+        <div id="knows-list" data-testid="knows-list"></div>
+      </div>
+      <div id="mode-dossier" class="mode-panel hidden" data-mode-name="档案">
+        <p id="dossier-inline"></p>
+      </div>
+      <div id="mode-now" class="mode-panel hidden" data-mode-name="这一刻">
+        <p id="now-copy"></p>
+        <pre id="world" data-testid="world"></pre>
+      </div>
+      <div id="mode-write" class="mode-panel hidden" data-mode-name="写下一场">
+        <p>先写本场任务，再点顶上的「写下一场」。没有本场任务不准写下一场。</p>
+        <button id="plan-suggest" data-testid="plan-suggest">铺场建议</button>
+        <button id="plan-apply" data-testid="plan-apply">落为预场</button>
+        <pre id="plan-out" data-testid="plan-out"></pre>
+      </div>
+      <div id="mode-create" class="mode-panel hidden" data-mode-name="新建">
+        <input id="ent-name" data-testid="ent-name" placeholder="名字" />
+        <select id="ent-kind" data-testid="ent-kind">
+          <option value="person">人物</option>
+          <option value="place">地点</option>
+          <option value="thing">道具</option>
+          <option value="faction">组织</option>
+          <option value="rule">规则</option>
+        </select>
+        <button id="new-entity" data-testid="new-entity">新建</button>
+        <button id="delete-entity" data-testid="delete-entity">删设定</button>
+      </div>
+      <div id="mode-talk" class="mode-panel hidden" data-mode-name="讨论">
+        <div id="talk-out" data-testid="talk-out"></div>
+        <p id="talk-notice" class="hidden" data-testid="talk-notice">讨论不是历史</p>
+      </div>
     </aside>
   </div>
   <dialog id="confirm-dlg" data-testid="confirm-change">
@@ -176,6 +333,80 @@ let ignoreSuggestion = false;
 let pendingDeleteDraft = null;
 let lastFindings = [];
 let persistWarn = '';
+let uiMode = 'scene';
+let railFilter = '';
+const SIDE_MODES = {
+  scene: '本场',
+  about: '这场·它',
+  dossier: '档案',
+  now: '这一刻',
+  write: '写下一场',
+  create: '新建',
+  talk: '讨论'
+};
+function selectionToMode(selection) {
+  const map = {
+    'field-card': '本场',
+    'presence-mark': '这场·它',
+    'left-rail-name': '档案',
+    'column-header': '这一刻',
+    'write-next': '写下一场',
+    'new-entity': '新建',
+    'field-discuss': '讨论'
+  };
+  return map[selection];
+}
+function setMode(key) {
+  uiMode = key;
+  renderSide();
+}
+function renderSide() {
+  const panels = {
+    scene: 'mode-scene',
+    about: 'mode-about',
+    dossier: 'mode-dossier',
+    now: 'mode-now',
+    write: 'mode-write',
+    create: 'mode-create',
+    talk: 'mode-talk'
+  };
+  Object.keys(panels).forEach(k => {
+    const el = $(panels[k]);
+    if (el) el.classList.toggle('hidden', k !== uiMode);
+  });
+  const title = $('side-mode-title');
+  if (title) title.textContent = SIDE_MODES[uiMode] || '本场';
+  if (uiMode === 'now') {
+    const col = (state.columns || [])[state.window_start || 0];
+    const now = $('now-copy');
+    if (now) {
+      now.textContent = col
+        ? ('这一列故事时间 ' + col.clock_from + '–' + col.clock_to + '。')
+        : '还没有列。';
+    }
+    if ($('world')) {
+      $('world').textContent = state.world
+        ? JSON.stringify({ playing: state.world.playing, where: state.world.where }, null, 0)
+        : '';
+    }
+  }
+}
+function kindColor(kind) {
+  return ({ person: '#c45c26', place: '#6d6875', thing: '#e9c46a', faction: '#bc6c25', promise: '#e76f51', rule: '#a98467' })[kind] || '#8a817c';
+}
+function kindLabel(kind) {
+  return ({ person: '人', place: '地', thing: '物', faction: '组织', promise: '伏笔', rule: '规则' })[kind] || kind;
+}
+function windowEntityIds() {
+  const cols = (state.columns || []).slice(state.window_start || 0, (state.window_start || 0) + (state.n || 1));
+  const ids = new Set();
+  const take = (pres) => (pres || []).forEach(p => ids.add(p.entity_id));
+  cols.forEach(c => {
+    (state.committed || []).filter(b => b.column_id === c.id).forEach(b => take(b.presences));
+    (state.drafts || []).filter(d => d.draft.column_id === c.id).forEach(d => take(d.draft.presences));
+  });
+  return ids;
+}
 
 async function api(path, opt={}) {
   const r = await fetch(path, Object.assign({ headers: { 'Content-Type': 'application/json' } }, opt));
@@ -239,13 +470,23 @@ function render() {
   const start = state.window_start || 0;
   const n = state.n || 1;
   const view = cols.slice(start, start + n);
+  const emptyBoard = !(state.committed || []).length && !(state.drafts || []).length;
+  $('empty-book').classList.toggle('hidden', !emptyBoard);
   $('cols').innerHTML = '';
   view.forEach((c, i) => {
     const div = document.createElement('div');
     div.className = 'col';
     div.dataset.testid = 'column-' + i;
     div.dataset.colId = c.id;
-    div.innerHTML = `<h4>列 ${c.id} ${c.clock_from}–${c.clock_to}</h4>`;
+    const head = document.createElement('h4');
+    head.className = 'col-head';
+    head.textContent = String((state.window_start || 0) + i + 1);
+    head.onclick = () => { setMode('now'); };
+    const clock = document.createElement('div');
+    clock.className = 'col-clock';
+    clock.textContent = c.clock_from + '–' + c.clock_to;
+    div.appendChild(head);
+    div.appendChild(clock);
     const handle = document.createElement('div');
     handle.className = 'col-handle';
     handle.dataset.testid = 'col-handle-' + i;
@@ -262,17 +503,7 @@ function render() {
     div.addEventListener('drop', e => onDropOnCol(e, c.id));
     $('cols').appendChild(div);
   });
-  $('ent-list').innerHTML = '';
-  (state.entities || []).forEach(e => {
-    const li = document.createElement('li');
-    li.textContent = e.name;
-    li.draggable = true;
-    li.dataset.id = e.id;
-    li.dataset.testid = 'ent-' + e.id;
-    li.ondragstart = ev => ev.dataTransfer.setData('text/plain', JSON.stringify({type:'entity', id: e.id}));
-    li.onclick = () => openDossier(e.id);
-    $('ent-list').appendChild(li);
-  });
+  renderRail();
   $('minimap').innerHTML = (state.columns||[]).map((c, i) => {
     const beats = (state.committed||[]).filter(b => b.column_id === c.id);
     const hasC = beats.length > 0;
@@ -281,16 +512,54 @@ function render() {
     const tellingDiff = beats.some(b => b.telling_ord != null && b.telling_ord !== c.display_ord);
     return `<span class="tooth ${cls}${tellingDiff ? ' telling-diff' : ''}" data-testid="tooth-${i}" onclick="jump(${i})"></span>`;
   }).join('');
-  $('world').textContent = state.world ? JSON.stringify({playing: state.world.playing, where: state.world.where}, null, 0) : '';
   const beat = currentBeat() || {};
   const intentVal = ($('intent').value || beat.intent || '').trim();
   $('talk').disabled = !currentDraft || !intentVal;
   $('plan-suggest').disabled = !(currentDraft || currentCanon) || !intentVal;
   $('plan-apply').disabled = !lastBones.length;
+  $('write-box').disabled = !pendingTalk && !pendingFill;
   renderInspector();
   renderPaste();
   loadCircumstances();
   loadKnows();
+  renderSide();
+}
+function renderRail() {
+  const q = ($('ent-search').value || railFilter || '').trim();
+  const inWin = windowEntityIds();
+  let list = state.entities || [];
+  $('search-hits').innerHTML = '';
+  if (q) {
+    list = list.filter(e => (e.name || e.id || '').indexOf(q) >= 0);
+    if (!list.length) {
+      $('search-hits').innerHTML = '<li data-testid="search-empty">无</li>';
+    }
+  } else {
+    list = list.filter(e => inWin.has(e.id) || inWin.has(e.name));
+  }
+  $('ent-list').innerHTML = '';
+  list.forEach(e => {
+    const li = document.createElement('li');
+    li.className = 'lib-item';
+    li.draggable = true;
+    li.dataset.id = e.id;
+    li.dataset.testid = 'ent-' + e.id;
+    const dot = document.createElement('span');
+    dot.className = 'dot kind-' + (e.kind || 'person');
+    dot.style.background = kindColor(e.kind);
+    const name = document.createElement('span');
+    name.textContent = e.name + (q && !inWin.has(e.id) && !inWin.has(e.name) ? ' 不在本页' : '');
+    li.appendChild(dot);
+    li.appendChild(name);
+    li.ondragstart = ev => ev.dataTransfer.setData('text/plain', JSON.stringify({type:'entity', id: e.id}));
+    li.onclick = () => {
+      setMode('dossier');
+      openDossier(e.id);
+    };
+    $('ent-list').appendChild(li);
+  });
+  const total = (state.entities || []).length;
+  $('lib-meta').textContent = '本页 ' + list.length + ' 项 · 设定共 ' + total + ' 项';
 }
 function renderCard(obj, canon) {
   const b = canon ? obj : obj.draft;
@@ -345,7 +614,12 @@ function renderCard(obj, canon) {
     const ch = document.createElement('span');
     ch.className = 'chip';
     ch.draggable = true;
-    ch.textContent = p.entity_id;
+    const ent = (state.entities || []).find(e => e.id === p.entity_id || e.name === p.entity_id) || {};
+    const dot = document.createElement('span');
+    dot.className = 'dot kind-' + (ent.kind || 'person');
+    dot.style.background = kindColor(ent.kind);
+    ch.appendChild(dot);
+    ch.appendChild(document.createTextNode(kindLabel(ent.kind) + ' ' + p.entity_id));
     ch.dataset.testid = 'chip-' + p.entity_id;
     ch.ondragstart = ev => {
       ev.stopPropagation();
@@ -360,6 +634,8 @@ function renderCard(obj, canon) {
       ev.stopPropagation();
       inspectFilter = p.entity_id;
       selectBeat(id, canon);
+      $('about-why').textContent = '「' + p.entity_id + '」在这张卡上，因为这场在场里有它。';
+      setMode('about');
       renderInspector();
     };
     chips.appendChild(ch);
@@ -374,6 +650,7 @@ function renderCard(obj, canon) {
       $('say-text').value = b.say_text || '';
       $('think-text').value = b.think_text || '';
     }
+    setMode('scene');
     renderInspector();
   };
   card.addEventListener('dragover', e => e.preventDefault());
@@ -554,10 +831,12 @@ $('delete-entity').onclick = async () => {
   try { await tryDeleteEntity($('ent-name').value); refresh(); } catch (e) {}
 };
 $('write-next').onclick = async () => {
+  setMode('write');
   try {
     const r = await api('/api/write-next', { method: 'POST', body: JSON.stringify({ intent: $('intent').value, place_id: $('place-id').value.trim() || undefined }) });
     currentDraft = r.id;
     currentCanon = null;
+    setMode('scene');
     refresh();
   } catch (e) {
     $('sidebar').textContent = String(e.message || e);
@@ -595,6 +874,7 @@ $('talk').onclick = async () => {
     pendingTalk = (opt && opt.message) || r.reply || '';
     pendingTalkField = 'intent';
     $('sidebar').textContent = r.notice || '讨论不是历史';
+    setMode('talk');
     await refresh();
   } catch (e) {
     $('sidebar').textContent = String(e.message || e);
@@ -901,6 +1181,7 @@ async function openDossier(id) {
   $('dossier-windows').innerHTML = '';
   $('dossier-windows').appendChild(ro);
   $('dossier-windows').appendChild(win);
+  $('dossier-inline').textContent = '档案 ' + d.name + ' · 场 ' + (d.beats || []).length;
   $('dossier').showModal();
 }
 $('dossier-save').onclick = async () => {
@@ -940,6 +1221,16 @@ async function loadKnows() {
     $('knows-list').textContent = '';
   }
 }
+$('rail-create').onclick = () => setMode('create');
+$('empty-create').onclick = () => setMode('create');
+$('empty-write').onclick = () => { setMode('write'); setMode('scene'); $('intent').focus(); };
+$('ent-search').addEventListener('input', () => { railFilter = $('ent-search').value; renderRail(); });
+$('theme-btn').onclick = () => {
+  const next = document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+  document.documentElement.setAttribute('data-theme', next);
+  try { localStorage.setItem('stripboard-theme', next); } catch (e) {}
+};
+$('new-entity').addEventListener('click', () => setMode('create'));
 document.addEventListener('DOMContentLoaded', refresh);
 </script>
 </body>

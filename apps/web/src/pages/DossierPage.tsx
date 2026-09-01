@@ -112,6 +112,7 @@ export function DossierPage({ mode = "dialog" }: { mode?: "dialog" | "side" | "f
             key={a.id}
             type="button"
             className="ghost"
+            data-testid={`dossier-beat-${a.id}`}
             onClick={() => {
               s.setDossierOpen(false);
               s.selectScene(a.id, a.status === "draft");
@@ -119,6 +120,21 @@ export function DossierPage({ mode = "dialog" }: { mode?: "dialog" | "side" | "f
             }}
           >{a.intent || a.id} · {a.status === "draft" ? "草稿" : "正史"}</button>
         ))}
+      </section>
+      <section>
+        <h3>删设定</h3>
+        {(payload?.appearances || payload?.beats || []).length > 0 ? (
+          <p className="err" data-testid="dossier-del-block">已挂在场上，不能从设定里删。先从分场条拿掉。上面每场可跳。</p>
+        ) : (
+          <button
+            type="button"
+            data-testid="dossier-del"
+            onClick={() => {
+              const name = s.dossierName || payload?.name;
+              if (name) s.deleteEntity(name).catch((e: Error) => setRelErr(e.message || "删不了"));
+            }}
+          >删设定</button>
+        )}
       </section>
       <section>
         <h3>情状 / 他知道什么 / 相关伏笔（只读）</h3>

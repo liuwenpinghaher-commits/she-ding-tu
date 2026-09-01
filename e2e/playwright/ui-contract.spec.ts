@@ -401,6 +401,7 @@ test("5 改已正史、删正史补洞、导出", async ({ page }) => {
   await expect(page.getByTestId("revise")).toBeVisible();
   await expect(page.getByTestId("delete-canon")).toBeEnabled();
   await expect(page.getByTestId("say-text")).toHaveValue(/在这儿/);
+  await page.getByTestId("revise").click();
   await page.getByTestId("say-text").fill("不在这儿。");
   await page.getByTestId("revise").click();
   await expect(page.getByTestId("revise-msg")).toContainText("第几次写入正史仍是 1");

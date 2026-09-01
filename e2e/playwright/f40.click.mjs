@@ -238,6 +238,7 @@ const oldSay = s1.say_text;
 const oldDo = s1.do_text;
 await page.locator(`[data-testid="card-${s1.id}"]`).click();
 await page.getByTestId("revise").waitFor();
+await page.getByTestId("revise").click();
 await page.getByTestId("delta-ent").fill("刀");
 await page.getByTestId("delta-attr").fill("where");
 await page.getByTestId("delta-val").fill("抽屉");

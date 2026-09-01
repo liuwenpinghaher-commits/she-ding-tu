@@ -120,6 +120,7 @@ test("方案第9节九条：建书到删正史", async ({ page }) => {
   const st2 = await page.evaluate(async () => (await (await fetch("/api/state")).json()));
   const b2 = (st2.committed || []).find((b: { intent: string }) => b.intent.includes("岸上"));
   await page.locator(`[data-testid="card-${b2.id}"]`).click();
+  await page.getByTestId("revise").click();
   await page.getByTestId("delta-ent").fill("密信");
   await page.getByTestId("delta-attr").fill("holder");
   await page.getByTestId("delta-val").fill("船娘");

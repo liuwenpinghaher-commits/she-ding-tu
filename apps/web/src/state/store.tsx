@@ -83,6 +83,13 @@ export interface Store {
   presencePicker: string | null;
   cmdOpen: boolean;
   setCmdOpen: (v: boolean) => void;
+  editingCanon: boolean;
+  setEditingCanon: (v: boolean) => void;
+  planBones: Array<{ serial?: boolean; intent: string; presence?: string[]; necessity?: string }>;
+  planNotice: string;
+  deleteEntity: (id: string) => Promise<void>;
+  planSuggest: () => Promise<void>;
+  planApply: (mode: "tail" | "mid") => Promise<void>;
   setIntent: (v: string) => void;
   setPlaceId: (v: string) => void;
   setSceneTitle: (v: string) => void;
@@ -230,6 +237,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [fillChunks, setFillChunks] = useState<{ do_text?: string; say_text?: string; think_text?: string } | null>(null);
   const [presencePicker, setPresencePicker] = useState<string | null>(null);
   const [cmdOpen, setCmdOpen] = useState(false);
+  const [editingCanon, setEditingCanon] = useState(false);
+  const [planBones, setPlanBones] = useState<Array<{ serial?: boolean; intent: string; presence?: string[]; necessity?: string }>>([]);
+  const [planNotice, setPlanNotice] = useState("");
   const refreshGen = useRef(0);
   const editorSel = useRef<string | null>(null);
   const dirty = useRef<Set<string>>(new Set());
@@ -572,6 +582,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       body: JSON.stringify(draft ? { draft_id: id } : { canon_id: id }),
     });
     setReviseMsg("");
+    setEditingCanon(false);
+    setPlanBones([]);
+    setPlanNotice("");
     await refresh();
     try {
       const sc = await api<{ caused?: { intent?: string }[] }>(`/api/scenes/${encodeURIComponent(id)}`);
@@ -645,6 +658,61 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
   }, [state?.selected, intent, doText, sayText, thinkText, valueShift, placeId, sceneTitle, causeBeat, visPrivate, visibleTo, refresh]);
 
+  const deleteEntity = useCallback(async (id: string) => {
+    await api("/api/entities/delete", { method: "POST", body: JSON.stringify({ id }) });
+    setDossierOpen(false);
+    setToast(`已删掉设定 ${id}`);
+    await refresh();
+  }, [refresh]);
+
+  const planSuggest = useCallback(async () => {
+    const id = state?.selected || state?.selected_canon;
+    if (!id) return;
+    if (!intent.trim()) {
+      setPlanNotice("目标场没有本场任务，不能给铺场建议");
+      return;
+    }
+    setPlanNotice("正在想…");
+    try {
+      const r = await api<{
+        bones?: Array<{ serial?: boolean; intent: string; presence?: string[]; necessity?: string }>;
+        notice?: string;
+        need_structure?: boolean;
+        summary?: string;
+      }>("/api/plan-suggest", { method: "POST", body: JSON.stringify({ goal_id: id }) });
+      if (r.need_structure) {
+        setPlanBones([]);
+        setPlanNotice(r.notice || "这一段没有空，先加列或把前面那列拉长，确认变更后再铺。");
+        return;
+      }
+      setPlanBones(r.bones || []);
+      setPlanNotice((r.summary ? r.summary + "。" : "") + (r.notice || "建议不进历史，不算进算出这一刻。"));
+    } catch (e) {
+      setPlanNotice(e instanceof Error ? e.message : "铺场建议失败");
+    }
+  }, [state?.selected, state?.selected_canon, intent]);
+
+  const planApply = useCallback(async (mode: "tail" | "mid") => {
+    const id = state?.selected || state?.selected_canon;
+    if (!id || !planBones.length) return;
+    try {
+      await api("/api/plan-apply", {
+        method: "POST",
+        body: JSON.stringify({
+          goal_id: id,
+          mode,
+          bones: planBones,
+          structure_confirmed: mode === "mid" ? false : undefined,
+        }),
+      });
+      setToast("已落成预场草稿，须一场一场写入正史");
+      setPlanBones([]);
+      await refresh();
+    } catch (e) {
+      setPlanNotice(e instanceof Error ? e.message : "落下失败");
+    }
+  }, [state?.selected, state?.selected_canon, planBones, refresh]);
+
   const revise = useCallback(async () => {
     const id = state?.selected_canon;
     if (!id) return;
@@ -664,6 +732,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     });
     const seq = state.committed.find((b) => b.id === id)?.commit_seq;
     setReviseMsg(`第几次写入正史仍是 ${seq}`);
+    setEditingCanon(false);
     await refresh();
   }, [state, doText, sayText, thinkText, intent, valueShift, placeId, causeBeat, refresh]);
 
@@ -1147,6 +1216,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     presencePicker,
     cmdOpen,
     setCmdOpen,
+    editingCanon,
+    setEditingCanon,
+    planBones,
+    planNotice,
+    deleteEntity,
+    planSuggest,
+    planApply,
     setIntent: (v) => { dirty.current.add("intent"); setIntent(v); },
     setPlaceId: (v) => { dirty.current.add("place"); setPlaceId(v); },
     setSceneTitle: (v) => { dirty.current.add("title"); setSceneTitle(v); },

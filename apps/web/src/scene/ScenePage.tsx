@@ -42,6 +42,7 @@ export function ScenePage() {
           : "点了才进历史。不能撤销。";
 
   const commitDisabled = !draft || !s.intent.trim() || blocking.length > 0 || s.committing;
+  const locked = canon && !s.editingCanon;
 
   return (
     <aside className={`right-rail scene-${chrome}`}>
@@ -59,7 +60,8 @@ export function ScenePage() {
         <button type="button" data-testid="scene-full" onClick={() => s.setOpen("full")}>整页</button>
       </div>
       <div className="field">
-        <label>场次 <input data-testid="scene-title" value={s.sceneTitle} onChange={(e) => s.setSceneTitle(e.target.value)} /></label>
+        {locked && <p className="muted">这场已是正史。要点「改这一场」才动。第几次写入正史不会重编号。</p>}
+        <label>场次 <input data-testid="scene-title" value={s.sceneTitle} readOnly={locked} onChange={(e) => s.setSceneTitle(e.target.value)} /></label>
         <label>因为哪一场
           <input list="cause-list" data-testid="cause-beat" value={s.causeBeat} onChange={(e) => s.setCauseBeat(e.target.value)} />
           <datalist id="cause-list">
@@ -79,12 +81,12 @@ export function ScenePage() {
       <ThreadBlock />
       <div className="field">
         <div className="field-head"><span>价值转折</span><button type="button" data-testid="talk-shift" onClick={() => s.runTalk("value_shift", s.valueShift)}>讨论</button></div>
-        <input data-testid="value-shift" value={s.valueShift} onChange={(e) => s.setValueShift(e.target.value)} placeholder="价值转折" />
+        <input data-testid="value-shift" value={s.valueShift} readOnly={locked} onChange={(e) => s.setValueShift(e.target.value)} placeholder="价值转折" />
       </div>
       <div data-testid="tracks" />
-      <GrowField label="动作" testid="do-text" talkId="talk-do" field="do_text" value={s.doText} onChange={s.setDoText} ents={ents} />
-      <GrowField label="对白" testid="say-text" talkId="talk-say" field="say_text" value={s.sayText} onChange={s.setSayText} ents={ents} />
-      <GrowField label="内心" testid="think-text" talkId="talk-think" field="think_text" value={s.thinkText} onChange={s.setThinkText} ents={ents} />
+      <GrowField label="动作" testid="do-text" talkId="talk-do" field="do_text" value={s.doText} onChange={s.setDoText} ents={ents} locked={locked} />
+      <GrowField label="对白" testid="say-text" talkId="talk-say" field="say_text" value={s.sayText} onChange={s.setSayText} ents={ents} locked={locked} />
+      <GrowField label="内心" testid="think-text" talkId="talk-think" field="think_text" value={s.thinkText} onChange={s.setThinkText} ents={ents} locked={locked} />
       <span className={`save-dot${s.saveStatus === "保存中" ? " saving" : s.saveStatus === "已存" ? " saved" : ""}`} data-testid="save-dot">{s.saveStatus}</span>
       <div data-testid="knowledge-warn" className={yellow ? "" : "hidden"}>{yellow ? "有标黄，仍可写入正史" : ""}</div>
 
@@ -108,6 +110,7 @@ export function ScenePage() {
         </div>
       )}
       <button data-testid="talk" type="button" onClick={() => s.runTalk("intent", s.intent)}>讨论</button>
+      <PlanBlock />
       <button data-testid="fill-fake" type="button" disabled={!s.intent.trim()} title={!s.intent.trim() ? "先写一行本场任务" : "模型填这一场"} onClick={s.fillFake}>假模型填场</button>
       <p className="muted" data-testid="commit-why">{s.committing ? "正在写入…" : commitWhy}</p>
       <button
@@ -118,7 +121,12 @@ export function ScenePage() {
         title={commitWhy}
         onClick={s.commit}
       >{s.committing ? "正在写入…" : "写入正史"}</button>
-      <button data-testid="revise" type="button" disabled={!canon} onClick={s.revise}>改这一场</button>
+      <button
+        data-testid="revise"
+        type="button"
+        disabled={!canon}
+        onClick={() => { if (s.editingCanon) s.revise(); else s.setEditingCanon(true); }}
+      >{s.editingCanon ? "写入这次改动" : "改这一场"}</button>
       <div data-testid="revise-msg">{s.reviseMsg}</div>
       <button data-testid="delete-canon" type="button" disabled={!canon} onClick={s.deleteCanon}>删已正史</button>
       {s.presencePicker && (
@@ -137,6 +145,30 @@ function presentOn(scene: { presences: { entity_id: string }[]; place_id?: strin
   const ids = new Set(scene.presences.map((p) => p.entity_id));
   if (scene.place_id) ids.add(scene.place_id);
   return ents.filter((e) => ids.has(e.id) || ids.has(e.name));
+}
+
+function PlanBlock() {
+  const s = useStore();
+  return (
+    <section data-testid="plan-block">
+      <button type="button" data-testid="plan-suggest" disabled={!s.intent.trim()} onClick={s.planSuggest}>建议这一段怎么铺</button>
+      {s.planNotice && <p className="muted" data-testid="plan-notice">{s.planNotice}</p>}
+      {(s.planBones || []).map((b, i) => (
+        <article key={i} className="book-card" data-testid={`plan-bone-${i}`}>
+          <p>{b.serial ? "串" : "并"} · {b.intent}</p>
+          {b.presence?.length ? <p className="muted">谁在：{b.presence.join("、")}</p> : null}
+          {b.necessity ? <p>{b.necessity}</p> : null}
+        </article>
+      ))}
+      {s.planBones.length > 0 && (
+        <div>
+          <button type="button" data-testid="plan-apply-tail" onClick={() => s.planApply("tail")}>落在最后（预场草稿）</button>
+          <button type="button" data-testid="plan-apply-mid" onClick={() => s.planApply("mid")}>落在中间</button>
+          <p className="muted">插在中间须先确认变更。建议不进模型填下一场。</p>
+        </div>
+      )}
+    </section>
+  );
 }
 
 function ThreadBlock() {
@@ -188,9 +220,9 @@ function ThreadBlock() {
 }
 
 function GrowField({
-  label, testid, talkId, field, value, onChange, ents,
+  label, testid, talkId, field, value, onChange, ents, locked,
 }: {
-  label: string; testid: string; talkId: string; field: string; value: string; onChange: (v: string) => void; ents: Entity[];
+  label: string; testid: string; talkId: string; field: string; value: string; onChange: (v: string) => void; ents: Entity[]; locked?: boolean;
 }) {
   const s = useStore();
   const rows = Math.max(3, value.split("\n").length);
@@ -205,6 +237,7 @@ function GrowField({
         className="grow"
         rows={rows}
         value={value}
+        readOnly={!!locked}
         placeholder={label}
         onChange={(e) => {
           const v = e.target.value;

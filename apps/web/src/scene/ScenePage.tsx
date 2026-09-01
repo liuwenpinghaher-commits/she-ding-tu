@@ -310,7 +310,7 @@ function DeltaBlock({
     <section data-testid="delta-block">
       <h3>本场变化</h3>
       {deltas.length === 0 && <p className="muted">还没有本场变化</p>}
-      <div data-testid="delta-list">
+      <div data-testid="delta-list" tabIndex={0}>
         {deltas.map((d, i) => (
           <div key={i}>{deltaLine(d, ents, originLabel, originMinute, format)} · {d.entity_id} {d.attr} {d.value}</div>
         ))}

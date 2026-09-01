@@ -23,6 +23,7 @@ test("删书须打书名；草稿撤销；总表；键盘改本页列数", async
   await page.getByTestId("delta-val").fill("船娘");
   await page.getByTestId("add-delta").click();
   await expect(page.getByTestId("delta-list")).toContainText("密信");
+  await expect(page.getByTestId("undo")).toBeVisible();
   await pressUndo(page);
   await expect(page.getByTestId("delta-list")).not.toContainText("密信");
 

@@ -82,6 +82,8 @@ await Promise.all([
   page.getByTestId("create-book").click(),
 ]);
 await page.getByTestId("book-label").filter({ hasText: book }).waitFor({ timeout: 20000 });
+await page.getByTestId("tab-add").locator("summary").click();
+await page.getByTestId("tab-add-分场条").click();
 await page.getByTestId("column-0").waitFor();
 const n0 = await page.getByTestId("col-count").innerText();
 note("2 创建书进入分场条 N=1", { book, n: n0 });

@@ -1,9 +1,8 @@
 import { StoreProvider, useStore } from "./state/store";
 import { Topbar } from "./shell/Topbar";
 import { LeftRail } from "./shell/LeftRail";
-import { Stripboard } from "./board/Stripboard";
+import { Workspace } from "./board/Workspace";
 import { ScenePage } from "./scene/ScenePage";
-import { LookRail } from "./looks/LookRail";
 import { ShelfPage } from "./pages/ShelfPage";
 import { NewBookPage } from "./pages/NewBookPage";
 import { LibraryPage } from "./pages/LibraryPage";
@@ -33,13 +32,8 @@ function Shell() {
       {showBoard && s.state?.book && r.kind !== "dossier" && (
         <div className="work">
           <LeftRail />
-          <div className="board-wrap">
-            <Stripboard />
-          </div>
+          <Workspace />
           <ScenePage />
-          <div className="look-host">
-            <LookRail />
-          </div>
         </div>
       )}
       <CommandPalette open={s.cmdOpen} onClose={() => s.setCmdOpen(false)} />

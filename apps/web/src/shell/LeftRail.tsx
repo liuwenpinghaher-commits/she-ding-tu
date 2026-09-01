@@ -18,11 +18,16 @@ export function LeftRail() {
   const [desire, setDesire] = useState("");
   const [secret, setSecret] = useState("");
   const [speech, setSpeech] = useState("");
-  const pageIds = new Set((s.state?.entities || []).map((e) => e.id));
+  const [compact, setCompact] = useState(false);
+  const pageEntities = s.state?.entities || [];
+  const bookEntities = s.state?.all_entities || s.state?.people || pageEntities;
+  const pool = s.workspaceTab === "时间轴" ? bookEntities : pageEntities;
+  const pageIds = new Set(pageEntities.map((e) => e.id));
+  const shown = pool.filter((e) => !s.leftKind || e.kind === s.leftKind);
   return (
     <aside
       id="rail"
-      className="left-rail"
+      className={`left-rail${compact ? " compact" : ""}`}
       data-testid="left-rail"
       onDragOver={(e) => e.preventDefault()}
       onDrop={(e) => {
@@ -33,12 +38,35 @@ export function LeftRail() {
         if (entityId) s.removePresence(entityId, sceneId, draftFlag === "1");
       }}
     >
+      <div className="kind-rail" data-testid="kind-rail">
+        {KINDS.map(([k, lab]) => (
+          <button
+            key={k}
+            type="button"
+            data-testid={`kind-${k}`}
+            className={s.leftKind === k ? "on" : ""}
+            title={lab}
+            onClick={() => s.setLeftKind(s.leftKind === k ? null : k)}
+          >{lab.slice(0, 1)}</button>
+        ))}
+        <button type="button" data-testid="rail-compact" className={compact ? "on" : ""} onClick={() => setCompact((v) => !v)} title="收成图标条">≡</button>
+      </div>
       <input data-testid="ent-search" type="search" placeholder="搜全书人物、地点、规则…" value={s.searchQ} onChange={(e) => s.setSearchQ(e.target.value)} aria-label="搜全书" />
       <div>
         <button id="rail-create" type="button" data-testid="rail-create" onClick={() => setExpand((v) => !v)}>新建</button>
         <button data-testid="do-search" type="button" onClick={s.search}>搜</button>
       </div>
-      <input data-testid="ent-name" placeholder="名字" value={name} onChange={(e) => setName(e.target.value)} />
+      <input
+        data-testid="ent-name"
+        placeholder="名字"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key !== "Enter" || !name.trim()) return;
+          s.addEntity(kind, name.trim());
+          setName("");
+        }}
+      />
       <select data-testid="ent-kind" value={kind} onChange={(e) => setKind(e.target.value)}>
         {KINDS.map(([k, lab]) => <option key={k} value={k}>{lab}</option>)}
       </select>
@@ -74,7 +102,7 @@ export function LeftRail() {
         ))}
       </ul>
       <ul data-testid="ent-list">
-        {(s.state?.entities || []).map((e) => (
+        {shown.map((e) => (
           <li
             key={e.id}
             className="ent"

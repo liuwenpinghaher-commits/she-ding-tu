@@ -1,7 +1,43 @@
 import { expect, test as base, type Page } from "@playwright/test";
 
+/** 打开某一枚工作区页签。没有就从「+」再开。 */
+export async function openWorkspaceTab(page: Page, kind: string) {
+  await page.getByTestId("tab-bar").waitFor();
+  const special = kind === "时间轴" ? page.getByTestId("open-timeline") : page.getByTestId(`tab-${kind}`);
+  if (await special.count()) {
+    await special.first().click();
+    return;
+  }
+  const named = page.getByRole("button", { name: kind, exact: true });
+  if (await named.count()) {
+    await named.first().click();
+    return;
+  }
+  const overflow = page.getByTestId("tab-overflow");
+  if (await overflow.count()) {
+    await overflow.locator("summary").click();
+    if (await special.count()) {
+      await special.first().click();
+      return;
+    }
+    if (await named.count()) {
+      await named.first().click();
+      return;
+    }
+  }
+  await page.getByTestId("tab-add").locator("summary").click();
+  await page.getByTestId(`tab-add-${kind}`).click();
+}
+
+/** 切到分场条页签。写厚、列数、细条仍在这里。关掉了就从「+」再开一枚。 */
+export async function openStripboard(page: Page) {
+  await openWorkspaceTab(page, "分场条");
+  await expect(page.getByTestId("stripboard")).toBeVisible();
+}
+
 /** 点开刚写下的草稿卡，右边栏才能填。拖人不代替点选。 */
 export async function selectDraftCard(page: Page) {
+  await openStripboard(page);
   const draft = page.locator(".card.draft").first();
   await draft.waitFor();
   await draft.click();

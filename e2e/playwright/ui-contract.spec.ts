@@ -1,5 +1,5 @@
 import { expect, type Page } from "@playwright/test";
-import { test, selectDraftCard } from "./helpers";
+import { test, selectDraftCard, openStripboard } from "./helpers";
 
 async function openMore(page: Page) {
   await page.locator("#more-menu").evaluate((el: HTMLDetailsElement) => { el.open = true; });
@@ -14,6 +14,7 @@ test("1 场卡密度、细轨、点列看这一刻", async ({ page }) => {
   await page.getByTestId("book-name").fill(book);
   await page.getByTestId("create-book").click();
   await expect(page.getByTestId("book-label")).toHaveText(book);
+  await openStripboard(page);
 
   await page.getByTestId("ent-name").fill("阿福");
   await page.getByTestId("new-entity").click();
@@ -144,6 +145,7 @@ test("3 真拖列、空出建议、细条窗口、顶栏+不加列", async ({ pa
   await page.getByTestId("book-name").fill(book);
   await page.getByTestId("create-book").click();
   await expect(page.getByTestId("book-label")).toHaveText(book);
+  await openStripboard(page);
   await page.getByTestId("intent").fill("第一场");
   await expect(page.getByTestId("write-next")).toBeEnabled();
   await page.getByTestId("write-next").click();
@@ -221,6 +223,7 @@ test("4 左栏、飞出层、多书、丢一段草稿", async ({ page }) => {
   await page.getByTestId("book-name").fill(bookA);
   await page.getByTestId("create-book").click();
   await expect(page.getByTestId("book-label")).toHaveText(bookA);
+  await openStripboard(page);
   await expect(page.getByTestId("book-list")).toHaveValue(bookA);
 
   await page.getByTestId("ent-name").fill("阿福");
@@ -355,6 +358,7 @@ test("5 改已正史、删正史补洞、导出", async ({ page }) => {
   await page.getByTestId("book-name").fill(book);
   await page.getByTestId("create-book").click();
   await expect(page.getByTestId("book-label")).toHaveText(book);
+  await openStripboard(page);
   await expect(page.getByTestId("delete-canon")).toBeDisabled();
 
   await page.getByTestId("ent-name").fill("阿福");

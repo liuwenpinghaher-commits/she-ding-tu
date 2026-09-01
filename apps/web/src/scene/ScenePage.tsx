@@ -12,11 +12,25 @@ import {
   promiseIllegal,
   promiseLine,
 } from "./human";
+import { formatClock } from "../lenses/window";
+import { ageAtClock, parseBornClock } from "../board/ages";
+import { AEON_SWATCHES } from "../lenses/threads";
+import {
+  addCustomColor,
+  customColors,
+  isLocked,
+  itemColor,
+  loadConstraints,
+  setConstraint,
+  setItemColor,
+  toggleLock,
+} from "../shell/localPrefs";
 import type { Entity } from "../canon/types";
 
 export function ScenePage() {
   const s = useStore();
   const [ignoreSug, setIgnoreSug] = useState(false);
+  const [, setLockTick] = useState(0);
   const draft = !!s.state?.selected;
   const canonId = s.state?.selected_canon || "";
   const canon = !draft && !!(s.state?.committed || []).some((b) => b.id === canonId);
@@ -53,6 +67,8 @@ export function ScenePage() {
       <div data-testid="moment-col" className="muted">{s.sidebar.includes("t=") ? s.sidebar : (s.state?.world ? `t=${s.state.world.t}` : "")}</div>
       <div data-testid="moment-body">{s.sidebar.includes("t=") ? s.sidebar : (s.state?.world ? `t=${s.state.world.t}` : s.sidebar)}</div>
       <div data-testid="knows-list">{JSON.stringify(s.state?.world?.knows || {})}</div>
+      <details open>
+        <summary>本场规定情境</summary>
       <section data-testid="sit-blocks" className="sit-blocks">
         <div data-testid="sit-task"><strong>本场任务</strong> {s.intent || sit.intent || "还没有"}</div>
         <div data-testid="sit-shift"><strong>上场转折</strong> {sit.last_value_shift || "还没有"}</div>
@@ -61,6 +77,39 @@ export function ScenePage() {
         <div data-testid="sit-reader"><strong>读者账</strong> {[...sit.reader_knows, ...sit.reader_irony].slice(0, 8).join("；") || "还没有"}</div>
         <div data-testid="sit-promises"><strong>未收伏笔</strong> {sit.open_promises.length ? sit.open_promises.map((p) => p.name).join("、") : "没有未收的"}</div>
       </section>
+      {scene && (
+        <div data-testid="scene-clock" className="muted">
+          {formatClock(scene.clock_from, craft?.clock_origin_label, craft?.clock_origin_minute, craft?.clock_format)}
+          {" – "}
+          {formatClock(scene.clock_to, craft?.clock_origin_label, craft?.clock_origin_minute, craft?.clock_format)}
+          <label className="follow-toggle">
+            <input
+              type="checkbox"
+              data-testid="clock-lock"
+              checked={isLocked(s.state?.book || "", scene.id)}
+              onChange={() => { toggleLock(s.state?.book || "", scene.id); setLockTick((n) => n + 1); }}
+            />
+            日期锁定
+          </label>
+        </div>
+      )}
+      {scene && <ColorBlock book={s.state?.book || ""} sceneId={scene.id} onChange={() => setLockTick((n) => n + 1)} />}
+      {scene && (
+        <GapBlock
+          book={s.state?.book || ""}
+          sceneId={scene.id}
+          others={s.scenes.filter((x) => x.id !== scene.id)}
+          onChange={() => setLockTick((n) => n + 1)}
+        />
+      )}
+      <div data-testid="scene-ages">
+        {peopleHere.map((p) => {
+          const born = parseBornClock(p.profile?.born_clock);
+          if (born == null || !scene) return null;
+          return <span key={p.id}>{p.name}这场{ageAtClock(scene.clock_from, born)} </span>;
+        })}
+      </div>
+      </details>
       {!ignoreSug && (
         <div data-testid="promise-suggest">
           建议本场对伏笔做哪一件
@@ -158,6 +207,84 @@ function presentOn(scene: { presences: { entity_id: string }[]; place_id?: strin
   const ids = new Set(scene.presences.map((p) => p.entity_id));
   if (scene.place_id) ids.add(scene.place_id);
   return ents.filter((e) => ids.has(e.id) || ids.has(e.name));
+}
+
+function ColorBlock({ book, sceneId, onChange }: { book: string; sceneId: string; onChange: () => void }) {
+  const current = itemColor(book, sceneId);
+  const extra = customColors(book);
+  return (
+    <div className="swatches" data-testid="item-colors">
+      <span className="muted">条目色</span>
+      {AEON_SWATCHES.map((c) => (
+        <button
+          key={c.hex}
+          type="button"
+          title={c.name}
+          data-testid={`swatch-${c.name}`}
+          className={`swatch${current === c.hex ? " on" : ""}`}
+          style={{ background: c.hex }}
+          onClick={() => { setItemColor(book, sceneId, c.hex); onChange(); }}
+        />
+      ))}
+      {extra.map((hex) => (
+        <button
+          key={hex}
+          type="button"
+          className={`swatch${current === hex ? " on" : ""}`}
+          style={{ background: hex }}
+          onClick={() => { setItemColor(book, sceneId, hex); onChange(); }}
+        />
+      ))}
+      <input
+        type="color"
+        data-testid="swatch-custom"
+        aria-label="自定义色"
+        onChange={(e) => {
+          addCustomColor(book, e.target.value);
+          setItemColor(book, sceneId, e.target.value);
+          onChange();
+        }}
+      />
+    </div>
+  );
+}
+
+function GapBlock({
+  book,
+  sceneId,
+  others,
+  onChange,
+}: {
+  book: string;
+  sceneId: string;
+  others: { id: string; intent: string }[];
+  onChange: () => void;
+}) {
+  const row = loadConstraints(book).find((c) => c.laterId === sceneId);
+  return (
+    <label className="muted">
+      在上场结束后隔
+      <select
+        data-testid="clock-gap-earlier"
+        value={row?.earlierId || ""}
+        onChange={(e) => { setConstraint(book, sceneId, e.target.value || null, row?.gap || 1440); onChange(); }}
+      >
+        <option value="">无约束</option>
+        {others.map((x) => (
+          <option key={x.id} value={x.id}>{x.intent || x.id}</option>
+        ))}
+      </select>
+      <input
+        data-testid="clock-gap-min"
+        type="number"
+        min={0}
+        style={{ width: 72 }}
+        value={row?.gap ?? 0}
+        onChange={(e) => { setConstraint(book, sceneId, row?.earlierId || others[0]?.id || null, Number(e.target.value) || 0); onChange(); }}
+      />
+      分钟
+    </label>
+  );
 }
 
 function PlanBlock() {

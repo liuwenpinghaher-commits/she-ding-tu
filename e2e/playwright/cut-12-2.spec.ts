@@ -1,5 +1,5 @@
 import { expect } from "@playwright/test";
-import { test } from "./helpers";
+import { openStripboard, test } from "./helpers";
 
 test.describe.configure({ timeout: 120000 });
 
@@ -14,8 +14,7 @@ test("12.2 色带、窗口件、缺页面、看法", async ({ page }) => {
   await page.getByTestId("nb-clock").fill("第一天 20:00");
   await page.getByTestId("nb-create").click();
   await expect(page.getByTestId("book-label")).toHaveText(book);
-
-  await expect(page.getByTestId("window-widget")).toBeVisible();
+  await openStripboard(page);
   await page.getByTestId("plus").click();
   await expect(page.getByTestId("col-count")).toHaveText("2");
   await page.getByTestId("density-mid").click();
@@ -43,10 +42,9 @@ test("12.2 色带、窗口件、缺页面、看法", async ({ page }) => {
 
   await page.getByTestId("open-timeline").click();
   await expect(page.getByTestId("timeline")).toBeVisible();
-  await expect(page.getByTestId("stripboard")).toBeVisible();
   await expect(page.getByTestId("tl-scale-book")).toBeVisible();
-  await expect(page.getByTestId("tl-block")).toContainText("分场条");
-  await page.getByTestId("tl-back").click();
+  await page.getByTestId("tab-分场条").click();
+  await expect(page.getByTestId("stripboard")).toBeVisible();
 
   await page.locator("#more-menu").evaluate((el: HTMLDetailsElement) => { el.open = true; });
   await page.getByTestId("occupancy").click();

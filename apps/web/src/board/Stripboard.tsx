@@ -8,7 +8,6 @@ import {
   isThinCard,
   threadColor,
   threadSpan,
-  UNLINED,
 } from "../lenses/threads";
 import { formatClock, windowSlice } from "../lenses/window";
 import type { SceneCard, StoryThread } from "../canon/types";
@@ -211,7 +210,7 @@ function SceneCardView({
   const th = bandThread(sc, catalog, line);
   const extra = extraCount(sc);
   const unlined = !sc.story_threads?.length;
-  const color = th ? threadColor(th) : UNLINED;
+  const color = threadColor(th);
   const span = th ? threadSpan(scenes, th.id) : null;
   const enter = !!span && span.first === sc.id;
   const exit = !!span && span.last === sc.id;

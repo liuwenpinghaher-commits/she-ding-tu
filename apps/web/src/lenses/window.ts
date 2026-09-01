@@ -1,15 +1,24 @@
 export const N_MIN = 1;
+/** 疏/中/密仍是 2/4/6；上限按卡上标题还能读，不再写死 6。 */
 export const N_MAX = 6;
+export const N_CEILING = 24;
 export const N_DEFAULT = 4;
+export const TITLE_MIN_PX = 104;
 
-export function clampN(n: number): number {
+export function readableColMax(boardWidth: number): number {
+  if (!Number.isFinite(boardWidth) || boardWidth <= 0) return N_MAX;
+  return Math.min(N_CEILING, Math.max(N_MIN, Math.floor(boardWidth / TITLE_MIN_PX)));
+}
+
+export function clampN(n: number, max = N_MAX): number {
   if (!Number.isFinite(n)) return N_DEFAULT;
-  return Math.min(N_MAX, Math.max(N_MIN, Math.round(n)));
+  const hi = Math.min(N_CEILING, Math.max(N_MIN, max));
+  return Math.min(hi, Math.max(N_MIN, Math.round(n)));
 }
 
 export function windowSlice<T>(cols: T[], start: number, n: number): T[] {
   const s = Math.max(0, Math.min(start, Math.max(0, cols.length - 1)));
-  return cols.slice(s, s + clampN(n));
+  return cols.slice(s, s + clampN(n, N_CEILING));
 }
 
 export function formatClock(t: number, originLabel?: string, originMinute?: number, format?: string): string {

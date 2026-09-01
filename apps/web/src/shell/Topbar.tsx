@@ -1,6 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useStore } from "../state/store";
 import { threadColor, unlinedCount } from "../lenses/threads";
+import { readableColMax } from "../lenses/window";
+import { ThemeToggle } from "./ThemeToggle";
 
 export function Topbar() {
   const s = useStore();
@@ -9,6 +11,16 @@ export function Topbar() {
   const start = s.state?.window_start || 0;
   const total = s.state?.columns.length || 1;
   const [name, setName] = useState("");
+  const [maxN, setMaxN] = useState(6);
+  useEffect(() => {
+    const measure = () => {
+      const el = document.querySelector(".board-wrap") as HTMLElement | null;
+      setMaxN(readableColMax(el?.clientWidth || 800));
+    };
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [s.state?.book, n]);
   const atStart = start <= 0;
   const atEnd = start + n >= total;
   const catalog = s.state?.threads || [];
@@ -18,6 +30,7 @@ export function Topbar() {
   return (
     <header className="topbar">
       <span className="brand">设定图</span>
+      <ThemeToggle />
       <span>›</span>
       <select
         data-testid="book-list"
@@ -47,7 +60,7 @@ export function Topbar() {
             <span data-testid="col-count">{n}</span> 列
             <span className="muted"> / {total}</span>
           </summary>
-          {[1, 2, 3, 4, 5, 6].map((k) => (
+          {Array.from({ length: maxN }, (_, i) => i + 1).map((k) => (
             <button
               key={k}
               type="button"
@@ -56,7 +69,7 @@ export function Topbar() {
             >{k}{k === 2 ? " 疏" : k === 4 ? " 中" : k === 6 ? " 密" : ""}</button>
           ))}
         </details>
-        <button data-testid="plus" type="button" aria-label="本页多显示一列" disabled={n >= 6} onClick={() => s.setWindow({ n: n + 1 })}>+</button>
+        <button data-testid="plus" type="button" aria-label="本页多显示一列" disabled={n >= maxN} onClick={() => s.setWindow({ n: n + 1 })}>+</button>
         <button data-testid="next" type="button" aria-label="窗口往右一列" disabled={atEnd} onClick={() => s.setWindow({ start: start + 1 })}>›</button>
         <button data-testid="density-sparse" type="button" className={n === 2 ? "on" : ""} onClick={() => s.setWindow({ density: "sparse" })}>疏</button>
         <button data-testid="density-mid" type="button" className={n === 4 ? "on" : ""} onClick={() => s.setWindow({ density: "mid" })}>中</button>
@@ -83,7 +96,6 @@ export function Topbar() {
         <button type="button" data-look="关系" data-testid="look-relations" onClick={() => s.setLook("关系")}>关系</button>
         <button type="button" data-testid="open-whiteboard" onClick={() => s.setLook("白板")}>白板</button>
       </details>
-      <button data-testid="open-timeline" type="button" onClick={() => s.setLook(s.look === "时间轴" ? null : "时间轴")}>时间轴</button>
       <button data-testid="open-library" type="button" onClick={s.goLibrary}>设定库</button>
       <button data-testid="open-cmd" type="button" title="命令面板 ⌘K" onClick={() => s.setCmdOpen(true)}>/</button>
       <select

@@ -1,5 +1,5 @@
 import { expect } from "@playwright/test";
-import { test, pressUndo } from "./helpers";
+import { openStripboard, pressUndo, test } from "./helpers";
 
 test("删书须打书名；草稿撤销；总表；键盘改本页列数", async ({ page }) => {
   test.setTimeout(90000);
@@ -13,6 +13,7 @@ test("删书须打书名；草稿撤销；总表；键盘改本页列数", async
   await page.getByTestId("nb-clock").fill("第一天 20:00");
   await page.getByTestId("nb-create").click();
   await expect(page.getByTestId("book-label")).toHaveText(book);
+  await openStripboard(page);
 
   await page.getByTestId("intent").fill("把信交出去");
   await page.getByTestId("write-next").click();
@@ -33,7 +34,7 @@ test("删书须打书名；草稿撤销；总表；键盘改本页列数", async
   await expect(page.getByTestId("table-body")).toContainText("把信交出去");
   await expect(page.getByTestId("table-body")).toContainText("草稿");
   await page.getByTestId("table-back").click();
-  await expect(page.getByTestId("table-view")).not.toHaveClass(/show/);
+  await expect(page.getByTestId("table-view")).toHaveCount(0);
 
   await page.keyboard.press("Alt+6");
   await expect(page.getByTestId("col-count")).toHaveText("6");

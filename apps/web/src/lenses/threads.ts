@@ -1,13 +1,19 @@
 import type { SceneCard, StoryThread } from "../canon/types";
 
-export const MAIN_COLOR = "#C4A46A";
-export const BRANCH_COLORS = ["#3D8A8A", "#4A6FA5", "#B56A3C", "#7A5A8A", "#5A7A42", "#A85A6A"];
-export const UNLINED = "#6E6A64";
+export const AEON_SWATCHES: { name: string; hex: string }[] = [
+  { name: "天蓝", hex: "#70B0F0" },
+  { name: "叶绿", hex: "#90C080" },
+  { name: "玫粉", hex: "#D06090" },
+  { name: "藕紫", hex: "#B090F0" },
+  { name: "青灰", hex: "#89B558" },
+  { name: "珊瑚", hex: "#DF627A" },
+];
+
+export const BRANCH_COLORS = AEON_SWATCHES.map((s) => s.hex);
 
 export function threadColor(t: StoryThread | undefined): string {
-  if (!t) return UNLINED;
-  if (t.type === "主线") return MAIN_COLOR;
-  const slot = ((t.color ?? 0) % 6 + 6) % 6;
+  if (!t) return "var(--unlined)";
+  const slot = ((t.color ?? 0) % BRANCH_COLORS.length + BRANCH_COLORS.length) % BRANCH_COLORS.length;
   return BRANCH_COLORS[slot];
 }
 

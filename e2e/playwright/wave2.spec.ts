@@ -1,7 +1,7 @@
 import { expect } from "@playwright/test";
-import { test } from "./helpers";
+import { openStripboard, test } from "./helpers";
 
-test("2.1 创建书进入分场条 N=1", async ({ page }) => {
+test("2.1 创建书进入时间轴，能切分场条 N=1", async ({ page }) => {
   const errs: string[] = [];
   page.on("pageerror", (e) => errs.push(String(e)));
   const book = "渡口书-" + Date.now();
@@ -10,7 +10,8 @@ test("2.1 创建书进入分场条 N=1", async ({ page }) => {
   await page.getByTestId("create-book").click();
   await expect(page.getByTestId("book-label")).toHaveText(book);
   await expect(page.getByTestId("col-count")).toHaveText("1");
-  await expect(page.getByTestId("stripboard")).toBeVisible();
+  await expect(page.getByTestId("timeline")).toBeVisible();
+  await openStripboard(page);
   expect(errs).toEqual([]);
 });
 
@@ -20,6 +21,7 @@ test("2.2 新建设定身份层", async ({ page }) => {
   await page.getByTestId("book-name").fill(book);
   await page.getByTestId("create-book").click();
   await expect(page.getByTestId("book-label")).toHaveText(book);
+  await openStripboard(page);
   await page.getByTestId("ent-name").fill("阿禾");
   await page.getByTestId("new-entity").click();
   await expect(page.getByTestId("ent-list")).toContainText("阿禾");
@@ -31,6 +33,7 @@ test("2.4 本页列数 1-6", async ({ page }) => {
   await page.getByTestId("book-name").fill(book);
   await page.getByTestId("create-book").click();
   await expect(page.getByTestId("book-label")).toHaveText(book);
+  await openStripboard(page);
   await page.getByTestId("density-dense").click();
   await expect(page.getByTestId("col-count")).toHaveText("6");
   await expect(page.getByTestId("plus")).toBeDisabled();

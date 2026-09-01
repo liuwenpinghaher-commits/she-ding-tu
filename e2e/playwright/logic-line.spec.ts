@@ -1,5 +1,5 @@
 import { expect } from "@playwright/test";
-import { test } from "./helpers";
+import { openStripboard, test } from "./helpers";
 
 test.describe.configure({ timeout: 120000 });
 
@@ -9,7 +9,7 @@ test("逻辑线看法：贴线不改算出这一刻，过滤不藏场，看法�
   await page.getByTestId("book-name").fill(book);
   await page.getByTestId("create-book").click();
   await expect(page.getByTestId("book-label")).toHaveText(book);
-  await expect(page.getByTestId("stripboard")).toBeVisible();
+  await openStripboard(page);
 
   await page.getByTestId("ent-kind").selectOption("person");
   await page.getByTestId("ent-name").fill("阿禾");
@@ -71,23 +71,20 @@ test("逻辑线看法：贴线不改算出这一刻，过滤不藏场，看法�
 
   await page.getByTestId("open-timeline").click();
   await expect(page.getByTestId("timeline")).toBeVisible();
-  await expect(page.getByTestId("stripboard")).toBeVisible();
-  await expect(page.getByTestId("timeline")).toHaveClass(/look-rail/);
-  await page.getByTestId("tl-back").click();
-  await expect(page.getByTestId("timeline")).not.toHaveClass(/show/);
+  await expect(page.getByTestId("stripboard")).toHaveCount(0);
+  await expect(page.getByTestId("tl-ruler")).toBeVisible();
+  await page.getByTestId("tab-分场条").click();
   await expect(page.getByTestId("stripboard")).toBeVisible();
 
   await page.locator("#more-menu").evaluate((el: HTMLDetailsElement) => { el.open = true; });
   await page.getByTestId("open-table").click();
   await expect(page.getByTestId("table-view")).toBeVisible();
-  await expect(page.getByTestId("stripboard")).toBeVisible();
   await expect(page.getByTestId("commit")).toBeVisible();
   await page.getByTestId("table-back").click();
 
   await page.getByTestId("look-menu").locator("summary").click();
   await page.getByTestId("open-progress").click();
   await expect(page.getByTestId("look-progress")).toBeVisible();
-  await expect(page.getByTestId("stripboard")).toBeVisible();
   await expect(page.getByTestId("look-progress").getByTestId("commit")).toHaveCount(0);
   await page.getByTestId("progress-back").click();
 

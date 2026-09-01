@@ -16,6 +16,7 @@ export interface BoardQuery {
   start: number | null;
   who: string | null;
   open: string | null;
+  split: string | null;
 }
 
 export function parseHash(hash: string): { route: Route; q: BoardQuery } {
@@ -31,6 +32,7 @@ export function parseHash(hash: string): { route: Route; q: BoardQuery } {
     start: q.get("start") ? Number(q.get("start")) : null,
     who: q.get("who"),
     open: q.get("open"),
+    split: q.get("split"),
   };
   if (parts.length === 0) return { route: { kind: "shelf" }, q: boardQ };
   if (parts[0] === "new") return { route: { kind: "new" }, q: boardQ };
@@ -63,6 +65,7 @@ export function boardHash(
   if (q.start != null) p.set("start", String(q.start));
   if (q.who) p.set("who", q.who);
   if (q.open) p.set("open", q.open);
+  if (q.split) p.set("split", q.split);
   const qs = p.toString();
   return `#/b/${encodeURIComponent(book)}/board${qs ? `?${qs}` : ""}`;
 }

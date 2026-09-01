@@ -216,6 +216,15 @@ struct PatchDraft {
 }
 
 #[derive(Deserialize)]
+struct ClockReq {
+    id: String,
+    draft: bool,
+    clock_from: i64,
+    clock_to: i64,
+    follow: Option<bool>,
+}
+
+#[derive(Deserialize)]
 struct PresenceReq {
     draft_id: Option<String>,
     canon_id: Option<String>,
@@ -779,6 +788,7 @@ async fn main() {
         .route("/api/entities/delete", post(delete_entity))
         .route("/api/window", post(set_window))
         .route("/api/drafts/patch", post(patch_draft))
+        .route("/api/clocks", post(set_clocks))
         .route("/api/presence", post(set_presence))
         .route("/api/commit", post(do_commit))
         .route("/api/constrain", post(do_constrain))
@@ -1857,7 +1867,7 @@ async fn set_window(
         };
     }
     if let Some(n) = body.n {
-        sess.n = n.clamp(1, 6);
+        sess.n = n.clamp(1, 24);
     }
     if let Some(s) = body.start {
         let canon = sess
@@ -1967,6 +1977,89 @@ async fn patch_draft(
     let out = d.draft.clone();
     persist_drafts(&app.data_root, &name, &sess.drafts);
     Ok(Json(out))
+}
+
+async fn set_clocks(
+    State(app): State<App>,
+    Json(body): Json<ClockReq>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    if body.clock_to <= body.clock_from {
+        return Err((StatusCode::BAD_REQUEST, "时长须大于 0".into()));
+    }
+    let follow = body.follow.unwrap_or(true);
+    let mut g = app.inner.lock().await;
+    let name = g
+        .current
+        .clone()
+        .ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
+    let sess = g.books.get_mut(&name).unwrap();
+    if body.draft {
+        let old_to = {
+            let d = sess
+                .drafts
+                .iter()
+                .find(|x| x.id == body.id)
+                .ok_or((StatusCode::BAD_REQUEST, "无此草稿".into()))?;
+            d.draft.clock_to
+        };
+        let delta = {
+            let d = sess.drafts.iter_mut().find(|x| x.id == body.id).unwrap();
+            let delta = body.clock_from - d.draft.clock_from;
+            d.draft.clock_from = body.clock_from;
+            d.draft.clock_to = body.clock_to;
+            delta
+        };
+        if follow && delta != 0 {
+            for o in sess.drafts.iter_mut() {
+                if o.id != body.id && o.draft.clock_from >= old_to {
+                    o.draft.clock_from += delta;
+                    o.draft.clock_to += delta;
+                }
+            }
+        }
+        persist_drafts(&app.data_root, &name, &sess.drafts);
+    } else {
+        let canon = sess
+            .book
+            .load_canon()
+            .await
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+        let beat = canon
+            .beats
+            .iter()
+            .find(|b| b.id == body.id && b.status == STATUS_COMMITTED)
+            .ok_or((StatusCode::BAD_REQUEST, "无此正史".into()))?;
+        let old_to = beat.clock_to;
+        let delta = body.clock_from - beat.clock_from;
+        sess.book
+            .set_beat_clocks(&body.id, body.clock_from, body.clock_to)
+            .await
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+        if follow && delta != 0 {
+            let later: Vec<(String, i64, i64)> = canon
+                .beats
+                .iter()
+                .filter(|b| {
+                    b.id != body.id && b.status == STATUS_COMMITTED && b.clock_from >= old_to
+                })
+                .map(|b| (b.id.clone(), b.clock_from + delta, b.clock_to + delta))
+                .collect();
+            for (id, a, b) in later {
+                sess.book
+                    .set_beat_clocks(&id, a, b)
+                    .await
+                    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+            }
+            for o in sess.drafts.iter_mut() {
+                if o.draft.clock_from >= old_to {
+                    o.draft.clock_from += delta;
+                    o.draft.clock_to += delta;
+                }
+            }
+            persist_drafts(&app.data_root, &name, &sess.drafts);
+        }
+    }
+    Ok(Json(serde_json::json!({ "ok": true })))
 }
 
 async fn set_presence(

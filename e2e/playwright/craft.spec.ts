@@ -1,5 +1,5 @@
 import { expect } from "@playwright/test";
-import { test, selectDraftCard } from "./helpers";
+import { test, selectDraftCard, openStripboard } from "./helpers";
 
 const FORBIDDEN = "你现在应该写中点";
 
@@ -10,6 +10,7 @@ test("书级章法：主脑、导出按章、写下一场无节拍教条", async
   await page.getByTestId("book-name").fill(book);
   await page.getByTestId("create-book").click();
   await expect(page.getByTestId("book-label")).toHaveText(book);
+  await openStripboard(page);
   await expect(page.getByTestId("open-craft")).toBeEnabled();
 
   await page.getByTestId("ent-kind").selectOption("person");

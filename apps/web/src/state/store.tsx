@@ -23,6 +23,9 @@ import type {
 } from "../canon/types";
 import { asDraftScene, asScene } from "../canon/types";
 import { boardHash, parseHash, writeHash, type BoardQuery, type Route } from "../shell/hash";
+import { DEFAULT_TAB, EXTRA_LOOKS, isWorkspaceTab, loadStoredTab, persistTab, readExtraLook, readTab, type AnyLook, type TabFilter, type WorkspaceTab } from "../shell/workspaceTabs";
+import { loadConstraints } from "../shell/localPrefs";
+import { clockDiffs, resolveDependencyClocks } from "../board/timelineGeom";
 
 type TalkPending = { field: string; text: string } | null;
 
@@ -79,6 +82,19 @@ export interface Store {
   undoStack: Array<{ kind: string; payload: unknown }>;
   toast: string;
   look: string | null;
+  workspaceTab: AnyLook;
+  splitTab: WorkspaceTab | null;
+  followDependents: boolean;
+  tabFilter: TabFilter | null;
+  setTabFilter: (f: TabFilter | null) => void;
+  splitLock: boolean;
+  setSplitLock: (v: boolean) => void;
+  leftKind: string | null;
+  setLeftKind: (k: string | null) => void;
+  setSplit: (tab: WorkspaceTab | null) => void;
+  setFollowDependents: (v: boolean) => void;
+  createNear: (id: string, where: "copy" | "above" | "below") => Promise<void>;
+  patchSceneField: (id: string, draft: boolean, body: Record<string, unknown>) => Promise<void>;
   line: string | null;
   craftOpen: boolean;
   exportOpen: boolean;
@@ -176,6 +192,10 @@ export interface Store {
   cancelChange: () => Promise<void>;
   invade: (columnId: string, clockTo: number) => Promise<void>;
   jumpTooth: (i: number) => Promise<void>;
+  shiftSceneClock: (id: string, draft: boolean, clockFrom: number, clockTo: number) => Promise<void>;
+  createAtClock: (t: number) => Promise<string | undefined>;
+  resolveAllClocks: () => Promise<void>;
+  reorderTelling: (fromId: string, toIndex: number) => Promise<void>;
   search: () => Promise<void>;
   openDossier: (name: string) => Promise<void>;
   saveDossier: (fields: Record<string, string>) => Promise<void>;
@@ -212,6 +232,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     start: null,
     who: null,
     open: null,
+    split: null,
   });
   const [books, setBooks] = useState<BookList>({ books: [], items: [], current: null });
   const [state, setState] = useState<UiState | null>(null);
@@ -241,6 +262,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     undoStackRef.current = [];
     setUndoStack([]);
   };
+  const pushUndo = (entry: { kind: string; payload: unknown }) => {
+    const next = [...undoStackRef.current, entry];
+    undoStackRef.current = next;
+    setUndoStack(next);
+  };
+  const [followDependents, setFollowDependentsState] = useState(true);
+  const [tabFilter, setTabFilter] = useState<TabFilter | null>(null);
+  const [splitLock, setSplitLock] = useState(false);
+  const [leftKind, setLeftKind] = useState<string | null>(null);
   const [toast, setToast] = useState("");
   const [craftOpen, setCraftOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
@@ -276,6 +306,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const refreshGen = useRef(0);
   const booksGen = useRef(0);
   const editorSel = useRef<string | null>(null);
+  const lastDraftId = useRef<string | null>(null);
   const dirty = useRef<Set<string>>(new Set());
   const syncHash = useCallback(() => {
     const { route: r, q: nq } = parseHash(location.hash);
@@ -419,6 +450,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           start: st.window_start,
           who: live.who,
           open: live.open,
+          split: live.split,
         };
         writeHash(boardHash(st.book, extra));
       }
@@ -432,6 +464,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     refreshBooks().catch(() => {});
   }, [refreshBooks]);
+
+  useEffect(() => {
+    const book = state?.book;
+    if (!book) return;
+    try {
+      setFollowDependentsState(localStorage.getItem(`setting-follow:${book}`) !== "0");
+    } catch {
+      setFollowDependentsState(true);
+    }
+  }, [state?.book]);
 
   useEffect(() => {
     if (route.kind === "board" || route.kind === "library" || route.kind === "settings" || route.kind === "dossier" || route.kind === "scene" || route.kind === "export") {
@@ -527,8 +569,37 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const setLook = useCallback((look: string | null) => {
     const name = state?.book;
     if (!name) return;
-    writeHash(boardHash(name, { ...q, look, n: state.n, start: state.window_start, s: q.s || state.selected || state.selected_canon }));
+    if (look && (EXTRA_LOOKS as readonly string[]).includes(look)) {
+      writeHash(boardHash(name, { ...q, look, n: state.n, start: state.window_start, s: q.s || state.selected || state.selected_canon }));
+      return;
+    }
+    const tab = isWorkspaceTab(look) ? look : DEFAULT_TAB;
+    persistTab(name, tab);
+    writeHash(boardHash(name, { ...q, look: tab, n: state.n, start: state.window_start, s: q.s || state.selected || state.selected_canon }));
   }, [state, q]);
+
+  const setSplit = useCallback((tab: WorkspaceTab | null) => {
+    const name = state?.book;
+    if (!name) return;
+    writeHash(boardHash(name, {
+      ...q,
+      split: tab,
+      n: state.n,
+      start: state.window_start,
+      s: q.s || state.selected || state.selected_canon,
+    }));
+  }, [state, q]);
+
+  const setFollowDependents = useCallback((v: boolean) => {
+    setFollowDependentsState(v);
+    const book = state?.book;
+    if (!book) return;
+    try {
+      localStorage.setItem(`setting-follow:${book}`, v ? "1" : "0");
+    } catch {
+      /* 无痕 */
+    }
+  }, [state?.book]);
 
   const setLine = useCallback((line: string | null) => {
     const name = state?.book;
@@ -574,7 +645,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       }).catch(() => {});
     }
     resetUndo();
-    writeHash(boardHash(name, { n: 1, start: 0 }));
+    writeHash(boardHash(name, { n: 1, start: 0, look: DEFAULT_TAB }));
     await refresh();
     void refreshBooks();
   }, [refresh, refreshBooks]);
@@ -599,7 +670,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const openBook = useCallback(async (name: string) => {
     await api(`/api/books/${encodeURIComponent(name)}/open`, { method: "POST", body: "{}" });
     resetUndo();
-    writeHash(boardHash(name));
+    const tab = readTab(name, loadStoredTab(name), null);
+    writeHash(boardHash(name, { look: tab }));
     await refresh();
   }, [refresh]);
 
@@ -616,16 +688,21 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const writeNext = useCallback(async () => {
     const typed = (document.querySelector<HTMLInputElement>("[data-testid=intent]")?.value ?? intent).trim();
     if (!typed) return;
+    if (state?.book && readExtraLook(q.look)) {
+      const tab = readTab(state.book, loadStoredTab(state.book), null);
+      writeHash(boardHash(state.book, { ...q, look: tab, n: state.n, start: state.window_start, s: q.s || state.selected || state.selected_canon }));
+    }
     const r = await api<{ id?: string }>("/api/write-next", {
       method: "POST",
       body: JSON.stringify({ intent: typed, place_id: placeId || undefined }),
     });
     await refresh();
     if (r.id) {
+      lastDraftId.current = r.id;
       await api("/api/select", { method: "POST", body: JSON.stringify({ draft_id: r.id }) });
       await refresh();
     }
-  }, [intent, placeId, refresh]);
+  }, [intent, placeId, refresh, state, q]);
 
   const writeParallel = useCallback(async () => {
     const selectedId = state?.selected || state?.selected_canon;
@@ -656,6 +733,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [refresh]);
 
   const selectScene = useCallback(async (id: string, draft: boolean) => {
+    if (draft) lastDraftId.current = id;
     await api("/api/select", {
       method: "POST",
       body: JSON.stringify(draft ? { draft_id: id } : { canon_id: id }),
@@ -683,14 +761,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [refresh]);
 
   const addPresence = useCallback(async (entityId: string, sceneId?: string) => {
-    const id = sceneId || state?.selected;
+    const id = sceneId || state?.selected || state?.selected_canon;
     if (!id) return;
+    const isDraft = !!state?.drafts?.some((d) => d.id === id);
     await api("/api/presence", {
       method: "POST",
-      body: JSON.stringify({ draft_id: id, entity_id: entityId, action: "add" }),
+      body: JSON.stringify(isDraft
+        ? { draft_id: id, entity_id: entityId, action: "add" }
+        : { canon_id: id, entity_id: entityId, action: "add" }),
     });
     void refresh({ skipSit: true });
-  }, [refresh, state?.selected]);
+  }, [refresh, state?.selected, state?.selected_canon, state?.drafts]);
 
   const removePresence = useCallback(async (entityId: string, sceneId?: string, draft?: boolean) => {
     const id = sceneId || state?.selected || state?.selected_canon;
@@ -716,6 +797,38 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     await api("/api/drafts/patch", { method: "POST", body: JSON.stringify({ id, ...body }) });
     await refresh();
   }, [refresh, state?.selected]);
+
+  const patchSceneField = useCallback(async (id: string, draft: boolean, body: Record<string, unknown>) => {
+    if (body.telling_ord != null) {
+      const all = [...(state?.committed || []).map(asScene), ...(state?.drafts || []).map(asDraftScene)];
+      const sc = all.find((x) => x.id === id);
+      if (sc) {
+        pushUndo({ kind: "telling", payload: { id, draft, telling_ord: sc.telling_ord ?? null } });
+      }
+      if (draft) {
+        await api("/api/drafts/patch", { method: "POST", body: JSON.stringify({ id, telling_ord: body.telling_ord }) });
+      } else {
+        await api("/api/telling", { method: "POST", body: JSON.stringify({ beat_id: id, telling_ord: body.telling_ord }) });
+      }
+      const rest = { ...body };
+      delete rest.telling_ord;
+      if (Object.keys(rest).length === 0) {
+        setToast("已改读序");
+        await refresh();
+        return;
+      }
+      body = rest;
+    }
+    if (draft) {
+      await api("/api/drafts/patch", { method: "POST", body: JSON.stringify({ id, ...body }) });
+    } else {
+      await api(`/api/beats/${encodeURIComponent(id)}/revise`, {
+        method: "POST",
+        body: JSON.stringify(body),
+      });
+    }
+    await refresh();
+  }, [refresh, state]);
 
   const commit = useCallback(async () => {
     const id = state?.selected;
@@ -1072,6 +1185,104 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     await setWindow({ start: i });
   }, [setWindow]);
 
+  const resolveAllClocks = useCallback(async () => {
+    const all = [...(state?.committed || []).map(asScene), ...(state?.drafts || []).map(asDraftScene)];
+    const book = state?.book || "";
+    const after = resolveDependencyClocks(
+      all.map((s) => ({ id: s.id, clock_from: s.clock_from, clock_to: s.clock_to, cause_beat: s.cause_beat })),
+      loadConstraints(book),
+    );
+    const diffs = clockDiffs(
+      all.map((s) => ({ id: s.id, clock_from: s.clock_from, clock_to: s.clock_to })),
+      after,
+    );
+    if (!diffs.length) return;
+    const snaps = diffs.map((d) => {
+      const sc = all.find((x) => x.id === d.id)!;
+      return { id: sc.id, draft: sc.draft, clock_from: sc.clock_from, clock_to: sc.clock_to };
+    });
+    pushUndo({ kind: "clocks", payload: snaps });
+    for (const d of diffs) {
+      const sc = all.find((x) => x.id === d.id);
+      if (!sc) continue;
+      await api("/api/clocks", {
+        method: "POST",
+        body: JSON.stringify({ id: d.id, draft: sc.draft, clock_from: d.from, clock_to: d.to, follow: false }),
+      });
+    }
+    setToast(`已按依赖排好 ${diffs.length} 场`);
+    await refresh();
+  }, [state, refresh]);
+
+  const shiftSceneClock = useCallback(async (id: string, draft: boolean, clockFrom: number, clockTo: number) => {
+    const all = [...(state?.committed || []).map(asScene), ...(state?.drafts || []).map(asDraftScene)];
+    const sc = all.find((x) => x.id === id);
+    if (sc) {
+      const snaps = [{ id: sc.id, draft: sc.draft, clock_from: sc.clock_from, clock_to: sc.clock_to }];
+      if (followDependents) {
+        for (const x of all) {
+          if (x.id !== id && x.clock_from >= sc.clock_to) {
+            snaps.push({ id: x.id, draft: x.draft, clock_from: x.clock_from, clock_to: x.clock_to });
+          }
+        }
+      }
+      pushUndo({ kind: "clocks", payload: snaps });
+    }
+    await api("/api/clocks", {
+      method: "POST",
+      body: JSON.stringify({ id, draft, clock_from: clockFrom, clock_to: clockTo, follow: followDependents }),
+    });
+    const moved = followDependents ? all.filter((x) => x.id !== id && x.clock_from >= (sc?.clock_to ?? 0)).length : 0;
+    setToast(moved > 0 ? `已改钟，带着 ${moved} 场` : "已改钟");
+    await refresh();
+  }, [refresh, state, followDependents]);
+
+  const createNear = useCallback(async (id: string, where: "copy" | "above" | "below") => {
+    const all = [...(state?.committed || []).map(asScene), ...(state?.drafts || []).map(asDraftScene)];
+    const sc = all.find((x) => x.id === id);
+    const dur = Math.max(30, (sc?.clock_to ?? 60) - (sc?.clock_from ?? 0));
+    const label = where === "copy" ? `${sc?.intent || "新场"}（副本）` : (sc?.intent || "新场");
+    const t = where === "above"
+      ? Math.max(0, (sc?.clock_from ?? 0) - dur)
+      : where === "below"
+        ? (sc?.clock_to ?? 0)
+        : (sc?.clock_from ?? 0);
+    const r = await api<{ id?: string }>("/api/write-next", {
+      method: "POST",
+      body: JSON.stringify({ intent: label, place_id: sc?.place_id || placeId || undefined }),
+    });
+    if (r.id) {
+      await api("/api/clocks", {
+        method: "POST",
+        body: JSON.stringify({ id: r.id, draft: true, clock_from: t, clock_to: t + dur, follow: false }),
+      });
+      await api("/api/select", { method: "POST", body: JSON.stringify({ draft_id: r.id }) });
+    }
+    await refresh();
+  }, [state, placeId, refresh]);
+
+  const createAtClock = useCallback(async (t: number) => {
+    const label = intent.trim() || "新场";
+    const r = await api<{ id?: string }>("/api/write-next", {
+      method: "POST",
+      body: JSON.stringify({ intent: label, place_id: placeId || undefined }),
+    });
+    if (r.id) {
+      await api("/api/clocks", {
+        method: "POST",
+        body: JSON.stringify({ id: r.id, draft: true, clock_from: Math.max(0, t), clock_to: Math.max(0, t) + 60, follow: false }),
+      });
+      await api("/api/select", { method: "POST", body: JSON.stringify({ draft_id: r.id }) });
+    }
+    await refresh();
+    return r.id;
+  }, [intent, placeId, refresh]);
+
+  const reorderTelling = useCallback(async (fromId: string, toIndex: number) => {
+    await api("/api/telling", { method: "POST", body: JSON.stringify({ beat_id: fromId, telling_ord: toIndex + 1 }) });
+    await refresh();
+  }, [refresh]);
+
   const search = useCallback(async () => {
     if (!searchQ.trim()) return;
     try {
@@ -1150,9 +1361,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const runPaste = useCallback(async () => {
+    const draftId = state?.selected || lastDraftId.current || state?.drafts.at(-1)?.id;
     await api("/api/paste", { method: "POST", body: JSON.stringify({ text: pasteText }) });
     await refresh();
-  }, [pasteText, refresh]);
+    if (draftId) {
+      lastDraftId.current = draftId;
+      await api("/api/select", { method: "POST", body: JSON.stringify({ draft_id: draftId }) });
+      await refresh();
+    }
+  }, [pasteText, refresh, state?.selected, state?.drafts]);
 
   const applyPaste = useCallback(async (id: string) => {
     await api("/api/paste/apply", { method: "POST", body: JSON.stringify({ id }) });
@@ -1183,16 +1400,51 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     undoStackRef.current = rest;
     setUndoStack(rest);
     try {
+      if (last.kind === "clocks") {
+        const snaps = last.payload as Array<{ id: string; draft: boolean; clock_from: number; clock_to: number }>;
+        for (const p of snaps) {
+          await api("/api/clocks", {
+            method: "POST",
+            body: JSON.stringify({ id: p.id, draft: p.draft, clock_from: p.clock_from, clock_to: p.clock_to, follow: false }),
+          });
+        }
+        await refresh();
+        return;
+      }
+      if (last.kind === "clock") {
+        const p = last.payload as { id: string; draft: boolean; clock_from: number; clock_to: number };
+        await api("/api/clocks", { method: "POST", body: JSON.stringify({ id: p.id, draft: p.draft, clock_from: p.clock_from, clock_to: p.clock_to, follow: false }) });
+        await refresh();
+        return;
+      }
+      if (last.kind === "telling") {
+        const p = last.payload as { id: string; draft: boolean; telling_ord: number | null };
+        if (p.draft) {
+          await api("/api/drafts/patch", { method: "POST", body: JSON.stringify({ id: p.id, telling_ord: p.telling_ord }) });
+        } else if (p.telling_ord != null) {
+          await api("/api/telling", { method: "POST", body: JSON.stringify({ beat_id: p.id, telling_ord: p.telling_ord }) });
+        }
+        await refresh();
+        return;
+      }
       if (last.kind === "delta") {
         const p = last.payload as { id: string; deltas: unknown };
-        await api("/api/drafts/patch", { method: "POST", body: JSON.stringify({ id: p.id, deltas: p.deltas }) });
+        const draft = !!(state?.drafts || []).some((d) => d.id === p.id);
+        if (draft) {
+          await api("/api/drafts/patch", { method: "POST", body: JSON.stringify({ id: p.id, deltas: p.deltas }) });
+        } else {
+          await api(`/api/beats/${encodeURIComponent(p.id)}/revise`, {
+            method: "POST",
+            body: JSON.stringify({ deltas: p.deltas }),
+          });
+        }
         await refresh();
       }
     } catch {
       undoStackRef.current = stack;
       setUndoStack(stack);
     }
-  }, [refresh]);
+  }, [refresh, state]);
   const undoRef = useRef(undo);
   undoRef.current = undo;
 
@@ -1271,7 +1523,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         setPresencePicker("open");
       }
       if (e.key.toLowerCase() === "t" && !["INPUT", "TEXTAREA", "SELECT"].includes((e.target as HTMLElement)?.tagName)) {
-        setLook(q.look === "时间轴" ? null : "时间轴");
+        setLook("时间轴");
       }
       if (e.key === "/" && !["INPUT", "TEXTAREA", "SELECT"].includes((e.target as HTMLElement)?.tagName)) {
         e.preventDefault();
@@ -1353,6 +1605,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     undoStack,
     toast,
     look: q.look,
+    workspaceTab: readTab(state?.book || "", loadStoredTab(state?.book || ""), q.look),
+    splitTab: isWorkspaceTab(q.split) ? q.split : null,
+    followDependents,
+    tabFilter,
+    splitLock,
+    leftKind,
     line: q.line,
     sceneChrome: (route.kind === "scene" || q.open === "full" ? "full" : q.open === "side" ? "side" : "dock") as "dock" | "side" | "full",
     craftOpen,
@@ -1423,6 +1681,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setExportIncludeDrafts,
     setDelBookType,
     setLook,
+    setSplit,
+    setFollowDependents,
+    setTabFilter,
+    setSplitLock,
+    setLeftKind,
     setLine,
     setWho,
     setOpen,
@@ -1449,6 +1712,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     addPresence,
     removePresence,
     patchScene,
+    patchSceneField,
     commit,
     revise,
     createThread,
@@ -1468,6 +1732,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     cancelChange,
     invade,
     jumpTooth,
+    shiftSceneClock,
+    createAtClock,
+    createNear,
+    resolveAllClocks,
+    reorderTelling,
     search,
     openDossier,
     saveDossier,

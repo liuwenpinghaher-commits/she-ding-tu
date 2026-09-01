@@ -1,5 +1,5 @@
 import { expect, type Page } from "@playwright/test";
-import { test, selectDraftCard } from "./helpers";
+import { test, selectDraftCard, openStripboard } from "./helpers";
 
 test.describe.configure({ timeout: 120000 });
 
@@ -8,6 +8,7 @@ async function boot(page: Page, book: string) {
   await page.getByTestId("book-name").fill(book);
   await page.getByTestId("create-book").click();
   await expect(page.getByTestId("book-label")).toHaveText(book);
+  await openStripboard(page);
 }
 
 test("命令面板：空态、键盘走、回车", async ({ page }) => {

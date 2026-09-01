@@ -1,5 +1,5 @@
 import { expect } from "@playwright/test";
-import { test } from "./helpers";
+import { openStripboard, test } from "./helpers";
 
 test.describe.configure({ timeout: 120000 });
 
@@ -16,6 +16,7 @@ test("方案第9节九条：建书到删正史", async ({ page }) => {
   await page.getByTestId("nb-create").click();
   await expect(page.getByTestId("book-label")).toHaveText(book);
   await expect(page.getByTestId("new-book-page")).not.toHaveClass(/show/);
+  await openStripboard(page);
 
   const craft = await page.evaluate(async () => (await (await fetch("/api/craft")).json()));
   expect(craft.clock_origin_label).toContain("20:00");
@@ -143,8 +144,8 @@ test("方案第9节九条：建书到删正史", async ({ page }) => {
 
   await page.getByTestId("open-timeline").click();
   await expect(page.getByTestId("timeline")).toBeVisible();
-  await expect(page.getByTestId("tl-span")).toContainText("第");
-  await page.getByTestId("tl-back").click();
+  await expect(page.getByTestId("tl-ruler")).toBeVisible();
+  await page.getByTestId("tab-分场条").click();
 
   await page.locator(`[data-testid="card-${b1.id}"]`).click();
   await page.getByTestId("delete-canon").click();
@@ -164,6 +165,7 @@ test("键盘走完写场、并列、本场变化", async ({ page }) => {
   await page.getByTestId("book-name").fill(book);
   await page.getByTestId("create-book").click();
   await expect(page.getByTestId("book-label")).toHaveText(book);
+  await openStripboard(page);
   await page.getByTestId("ent-name").fill("阿禾");
   await page.getByTestId("new-entity").click();
   await page.getByTestId("ent-kind").selectOption("place");

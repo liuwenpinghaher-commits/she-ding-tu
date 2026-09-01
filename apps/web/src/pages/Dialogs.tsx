@@ -13,7 +13,12 @@ export function Dialogs() {
   return (
     <>
       {s.banner && <div className="banner">{s.banner}</div>}
-      {s.toast && <div className="toast">{s.toast}</div>}
+      {s.toast && (
+        <div className="toast" data-testid="undo-toast">
+          {s.toast}
+          <button type="button" data-testid="toast-undo" onClick={() => s.undo()}>撤销</button>
+        </div>
+      )}
 
       <dialog id="confirm-dlg" data-testid="confirm-change" open={!!pending}>
         <h3>确认变更</h3>

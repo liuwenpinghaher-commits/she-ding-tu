@@ -1,5 +1,5 @@
 import { expect, Page } from "@playwright/test";
-import { test, selectDraftCard } from "./helpers";
+import { test, selectDraftCard, openStripboard } from "./helpers";
 
 test("渡口六条戏能在分场条上点出来", async ({ page }) => {
   test.setTimeout(180000);
@@ -8,10 +8,10 @@ test("渡口六条戏能在分场条上点出来", async ({ page }) => {
   await page.getByTestId("book-name").fill(book);
   await page.getByTestId("create-book").click();
   await expect(page.getByTestId("book-label")).toHaveText(book);
-
-  await addEntity(page, "person", "阿福");
+  await openStripboard(page);
   await addEntity(page, "person", "阿莲");
   await addEntity(page, "person", "阿禾");
+  await addEntity(page, "person", "阿福");
   await addEntity(page, "place", "渡口");
   await addEntity(page, "place", "城里");
   await addEntity(page, "thing", "刀");

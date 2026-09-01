@@ -35,7 +35,7 @@ export function Whiteboard({ open }: { open: boolean }) {
       <div>
         <strong>白板</strong>
         <span className="muted"> 灵感层，不进正史，不算进算出这一刻。</span>
-        <button type="button" data-testid="wb-back" onClick={() => s.setLook(null)}>收起</button>
+        <button type="button" data-testid="wb-back" onClick={() => s.setLook("时间轴")}>回时间轴</button>
         <button
           type="button"
           data-testid="wb-add"
@@ -90,7 +90,7 @@ export function Whiteboard({ open }: { open: boolean }) {
               const sc = s.scenes.find((x) => x.id === c.beatId);
               if (sc) {
                 s.selectScene(sc.id, sc.draft);
-                s.setLook(null);
+                s.setLook("时间轴");
               }
             }}
           >

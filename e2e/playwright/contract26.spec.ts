@@ -1,5 +1,5 @@
 import { expect, type Page } from "@playwright/test";
-import { test } from "./helpers";
+import { openStripboard, test } from "./helpers";
 
 test.describe.configure({ timeout: 180000 });
 
@@ -8,6 +8,7 @@ async function boot(page: Page, book: string) {
   await page.getByTestId("book-name").fill(book);
   await page.getByTestId("create-book").click();
   await expect(page.getByTestId("book-label")).toHaveText(book);
+  await openStripboard(page);
 }
 
 async function makeEnt(page: Page, kind: string, name: string) {
@@ -73,7 +74,7 @@ async function writeCommit(page: Page, intent: string, doText = "演") {
   await expect.poll(async () => ((await st(page)).committed || []).some((b: { intent: string }) => b.intent.includes(intent)), { timeout: 20000 }).toBeTruthy();
 }
 
-test("1 建书落分场条", async ({ page }) => {
+test("1 建书落时间轴，能切分场条", async ({ page }) => {
   const book = "c26-1-" + Date.now();
   await page.goto("/");
   await page.getByTestId("open-shelf").click();
@@ -83,10 +84,13 @@ test("1 建书落分场条", async ({ page }) => {
   await page.getByTestId("nb-create").click();
   await expect(page.getByTestId("book-label")).toHaveText(book);
   await expect(page).toHaveURL(/\/board/);
-  await expect(page.getByTestId("stripboard")).toBeVisible();
+  await expect(page.getByTestId("timeline")).toBeVisible();
+  await expect(page.getByTestId("stripboard")).toHaveCount(0);
   await expect(page.getByTestId("col-count")).toHaveText("1");
   await expect(page.locator("body")).not.toContainText("请先选一个视图");
   await expect(page.getByTestId("sidebar")).toBeVisible();
+  await openStripboard(page);
+  await expect(page.getByTestId("stripboard")).toBeVisible();
   await page.screenshot({ path: "evidence/contract26/01-board.png" });
 });
 
@@ -221,19 +225,21 @@ test("8 本场变化与知情是人话", async ({ page }) => {
   await expect(page.getByTestId("know-write-list")).toContainText("信错");
 });
 
-test("9 时间轴不卸分场条", async ({ page }) => {
+test("9 时间轴是默认主面，分场条同级可切", async ({ page }) => {
   const book = "c26-9-" + Date.now();
   await boot(page, book);
   await writeCommit(page, "第一场");
   const before = await st(page);
   await page.getByTestId("open-timeline").click();
   await expect(page.getByTestId("timeline")).toBeVisible();
-  await expect(page.getByTestId("stripboard")).toBeVisible();
+  await expect(page.getByTestId("stripboard")).toHaveCount(0);
   await expect(page).toHaveURL(/\/board/);
-  await expect(page.getByTestId("tl-span")).toContainText(/空场次|没有戏|第/);
-  await expect(page.getByTestId("tl-block")).toContainText("分场条");
+  await expect(page.getByTestId("tl-ruler")).toBeVisible();
+  await expect(page.getByTestId("tab-分场条")).toBeVisible();
   const after = await st(page);
   expect(after.columns.map((c: { clock_from: number }) => c.clock_from)).toEqual(before.columns.map((c: { clock_from: number }) => c.clock_from));
+  await page.getByTestId("tab-分场条").click();
+  await expect(page.getByTestId("stripboard")).toBeVisible();
 });
 
 test("10 删已正史有因果", async ({ page }) => {
@@ -497,32 +503,29 @@ test("20 刷新回原处", async ({ page }) => {
   await expect(page.getByTestId("book-label")).toHaveText(book);
   await expect(page.getByTestId("col-count")).toHaveText("4");
   await expect(page.getByTestId("look-progress")).toBeVisible();
+  await openStripboard(page);
   await expect(page.getByTestId("stripboard")).toBeVisible();
 });
 
-test("21 看法不卸分场条", async ({ page }) => {
+test("21 看法是页签，切走中栏换画布，正史钟不变", async ({ page }) => {
   const book = "c26-21-" + Date.now();
   await boot(page, book);
   await writeCommit(page, "一场");
   const start = (await st(page)).window_start;
   await page.getByTestId("open-timeline").click();
   await expect(page.getByTestId("timeline")).toBeVisible();
-  await expect(page.getByTestId("stripboard")).toBeVisible();
-  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("stripboard")).toHaveCount(0);
   await page.locator("#more-menu").evaluate((el: HTMLDetailsElement) => { el.open = true; });
   await page.getByTestId("occupancy").click();
   await expect(page.getByTestId("flyout")).toBeVisible();
-  await expect(page.getByTestId("stripboard")).toBeVisible();
-  await page.keyboard.press("Escape");
-  await page.locator("#look-menu").evaluate((el: HTMLDetailsElement) => { el.open = true; });
+  await page.getByTestId("look-menu").locator("summary").click();
   await page.getByTestId("open-progress").click();
   await expect(page.getByTestId("look-progress")).toBeVisible();
-  await expect(page.getByTestId("stripboard")).toBeVisible();
   await page.locator("#more-menu").evaluate((el: HTMLDetailsElement) => { el.open = true; });
   await page.getByTestId("open-table").click();
   await expect(page.getByTestId("table-view")).toBeVisible();
+  await openStripboard(page);
   await expect(page.getByTestId("stripboard")).toBeVisible();
-  await page.keyboard.press("Escape");
   expect((await st(page)).window_start).toBe(start);
 });
 

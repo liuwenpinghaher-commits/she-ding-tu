@@ -27,6 +27,8 @@ export const F10: Record<string, F10Key[]> = {
     { key: "contradiction", label: "矛盾" },
     { key: "ties", label: "关系摘要" },
     { key: "capability", label: "能力与限制" },
+    { key: "born_clock", label: "出生故事时" },
+    { key: "died_clock", label: "去世故事时" },
   ],
   place: [
     { key: "setup", label: "小传" },

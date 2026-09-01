@@ -141,7 +141,7 @@ export interface Store {
   goSettings: () => void;
   openBookTo: (name: string, dest: "board" | "settings" | "library" | "export") => Promise<void>;
   refreshBooks: () => Promise<void>;
-  refresh: () => Promise<void>;
+  refresh: (opts?: { skipSit?: boolean }) => Promise<void>;
   createBook: (name: string, extra?: { premise?: string; clock?: string; minute?: number; tick?: number; format?: string }) => Promise<void>;
   openBook: (name: string) => Promise<void>;
   deleteBook: (name: string, confirm: string) => Promise<void>;
@@ -269,6 +269,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [sit, setSit] = useState<SitPacket>(EMPTY_SIT);
   const [selectedChip, setSelectedChip] = useState<{ entityId: string; sceneId: string; draft: boolean } | null>(null);
   const refreshGen = useRef(0);
+  const booksGen = useRef(0);
   const editorSel = useRef<string | null>(null);
   const dirty = useRef<Set<string>>(new Set());
   const syncHash = useCallback(() => {
@@ -284,7 +285,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [syncHash]);
 
   const refreshBooks = useCallback(async () => {
+    const mine = ++booksGen.current;
     const list = await api<BookList>("/api/books");
+    if (mine !== booksGen.current) return;
     setBooks(list);
   }, []);
 
@@ -377,14 +380,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (opts?: { skipSit?: boolean }) => {
     const mine = ++refreshGen.current;
     try {
       const st = await api<UiState>("/api/state");
       if (mine !== refreshGen.current) return;
       applyState(st);
       setBanner("");
-      if (st.selected) {
+      if (st.selected && !opts?.skipSit) {
         loadSit(st).catch(() => {});
       }
       if (st.book) {
@@ -482,7 +485,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const goShelf = useCallback(() => {
     writeHash("#/");
-  }, []);
+    void refreshBooks();
+  }, [refreshBooks]);
   const goNew = useCallback(() => writeHash("#/new"), []);
   const goBoard = useCallback((book?: string, extra?: Partial<BoardQuery>) => {
     const name = book || state?.book || books.current;
@@ -588,10 +592,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [refreshBooks]);
 
   const writeNext = useCallback(async () => {
-    if (!intent.trim()) return;
+    const typed = (document.querySelector<HTMLInputElement>("[data-testid=intent]")?.value ?? intent).trim();
+    if (!typed) return;
     const r = await api<{ id?: string }>("/api/write-next", {
       method: "POST",
-      body: JSON.stringify({ intent, place_id: placeId || undefined }),
+      body: JSON.stringify({ intent: typed, place_id: placeId || undefined }),
     });
     await refresh();
     if (r.id) {
@@ -605,10 +610,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const fromScene = [...(state?.drafts || []).map((d) => ({ id: d.id, column_id: d.draft.column_id })), ...(state?.committed || []).map((b) => ({ id: b.id, column_id: b.column_id }))].find((x) => x.id === selectedId);
     const col = fromScene?.column_id || state?.selected_col || state?.columns[state.window_start]?.id;
     const c = (state?.columns || []).find((x) => x.id === col);
+    const typed = (document.querySelector<HTMLInputElement>("[data-testid=intent]")?.value ?? intent).trim();
     const r = await api<{ id?: string }>("/api/write-parallel", {
       method: "POST",
       body: JSON.stringify({
-        intent,
+        intent: typed || intent,
         column_id: col,
         place_id: placeId || undefined,
         clock_from: c?.clock_from,
@@ -661,7 +667,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       method: "POST",
       body: JSON.stringify({ draft_id: id, entity_id: entityId, action: "add" }),
     });
-    await refresh();
+    void refresh({ skipSit: true });
   }, [refresh, state?.selected]);
 
   const removePresence = useCallback(async (entityId: string, sceneId?: string, draft?: boolean) => {
@@ -676,7 +682,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           : { canon_id: id, entity_id: entityId, action: "remove" }),
       });
       setSelectedChip(null);
-      await refresh();
+      void refresh({ skipSit: true });
     } catch (e) {
       setToast(e instanceof Error ? e.message : "拿不掉");
     }
@@ -695,13 +701,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setSidebar("没有选中的草稿，不能写入正史");
       return;
     }
-    if (!intent.trim()) {
+    const typed = (document.querySelector<HTMLInputElement>("[data-testid=intent]")?.value ?? intent).trim();
+    if (!typed) {
       setSidebar("没有本场任务，不能写入正史");
       return;
     }
     const body: Record<string, unknown> = {
       id,
-      intent,
+      intent: typed,
       do_text: doText,
       say_text: sayText,
       think_text: thinkText,
@@ -1158,6 +1165,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         return;
       }
       if (cmdOpen) return;
+      if (document.querySelector(".dialog-back, dialog[open]")) return;
       const typing = ["INPUT", "TEXTAREA", "SELECT"].includes((e.target as HTMLElement)?.tagName);
       if (e.altKey && e.key >= "1" && e.key <= "6") {
         e.preventDefault();
@@ -1229,6 +1237,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const id = state?.selected;
     if (!id) return;
+    if (!state?.drafts?.some((d) => d.id === id)) return;
+    if (craftOpen || exportOpen || cmdOpen) return;
     if (![...dirty.current].some((k) => ["do", "say", "think", "intent", "shift", "title", "cause"].includes(k))) return;
     const t = window.setTimeout(() => {
       const body: Record<string, unknown> = { id };
@@ -1245,7 +1255,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         .catch(() => setSaveStatus("没存上"));
     }, 800);
     return () => window.clearTimeout(t);
-  }, [doText, sayText, thinkText, intent, valueShift, sceneTitle, causeBeat, state?.selected]);
+  }, [doText, sayText, thinkText, intent, valueShift, sceneTitle, causeBeat, state?.selected, state?.drafts, craftOpen, exportOpen, cmdOpen]);
 
   const value: Store = {
     route,

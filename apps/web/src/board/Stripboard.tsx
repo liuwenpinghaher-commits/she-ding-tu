@@ -161,9 +161,9 @@ export function Stripboard() {
                   scenes={s.scenes}
                   labelOf={(id) => ents.find((e) => e.id === id || e.name === id)?.name || id}
                   onSelect={() => s.selectScene(sc.id, sc.draft)}
-                  onDrop={(id) => {
+                  onDrop={async (id) => {
                     if (id.startsWith("presence:")) return;
-                    s.addPresence(id, sc.draft ? sc.id : undefined);
+                    await s.addPresence(id, sc.draft ? sc.id : undefined);
                   }}
                 />
               ))}
@@ -205,7 +205,7 @@ function SceneCardView({
   scenes: SceneCard[];
   labelOf: (id: string) => string;
   onSelect: () => void;
-  onDrop: (id: string) => void;
+  onDrop: (id: string) => void | Promise<void>;
 }) {
   const thin = isThinCard(sc, line, who, catalog, ents);
   const th = bandThread(sc, catalog, line);
@@ -220,6 +220,7 @@ function SceneCardView({
   const [tip, setTip] = useState(false);
   const tri = density >= 5;
   const store = useStore();
+  const chipDrag = useRef(false);
 
   return (
     <article
@@ -227,10 +228,10 @@ function SceneCardView({
       data-testid={sc.draft ? `draft-${sc.id}` : `card-${sc.id}`}
       onClick={onSelect}
       onDragOver={(e) => e.preventDefault()}
-      onDrop={(e) => {
+      onDrop={async (e) => {
         e.preventDefault();
         const id = e.dataTransfer.getData("text/plain");
-        if (id) onDrop(id);
+        if (id) await onDrop(id);
       }}
     >
       <span
@@ -290,13 +291,16 @@ function SceneCardView({
                   draggable
                   onClick={(e) => {
                     e.stopPropagation();
+                    if (chipDrag.current) { chipDrag.current = false; return; }
                     store.setSelectedChip({ entityId: p.entity_id, sceneId: sc.id, draft: sc.draft });
                     store.openDossier(name);
                   }}
                   onDragStart={(e) => {
                     e.stopPropagation();
+                    chipDrag.current = true;
                     e.dataTransfer.setData("text/plain", `presence:${p.entity_id}:${sc.id}:${sc.draft ? "1" : "0"}`);
                   }}
+                  onDragEnd={() => { window.setTimeout(() => { chipDrag.current = false; }, 0); }}
                 >{name}</span>
               );
             })}

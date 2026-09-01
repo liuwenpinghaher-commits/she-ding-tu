@@ -7,39 +7,53 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
   const s = useStore();
   const [q, setQ] = useState("");
   const [hi, setHi] = useState(0);
+  const goShelf = s.goShelf;
+  const goLibrary = s.goLibrary;
+  const goSettings = s.goSettings;
+  const setLook = s.setLook;
+  const addColumn = s.addColumn;
+  const removeColumn = s.removeColumn;
+  const setExportOpen = s.setExportOpen;
+  const loadExport = s.loadExport;
+  const setPasteOpen = s.setPasteOpen;
+  const setLine = s.setLine;
+  const openDossier = s.openDossier;
+  const threads = s.state?.threads;
+  const promises = s.state?.promises;
+  const allEntities = s.state?.all_entities;
   const items = useMemo<Item[]>(() => {
     const out: Item[] = [
-      { group: "跳", label: "书架", kw: "书单 列表 回家", hint: "G", run: () => s.goShelf() },
-      { group: "跳", label: "设定库", kw: "档案 全书", run: () => s.goLibrary() },
-      { group: "跳", label: "书的设定", kw: "主脑 回目", run: () => s.goSettings() },
+      { group: "跳", label: "书架", kw: "书单 列表 回家", hint: "G", run: () => goShelf() },
+      { group: "跳", label: "设定库", kw: "档案 全书", run: () => goLibrary() },
+      { group: "跳", label: "书的设定", kw: "主脑 回目", run: () => goSettings() },
       { group: "写", label: "写下一场", kw: "n 本场任务", hint: "N", run: () => document.querySelector<HTMLInputElement>("[data-testid=intent]")?.focus() },
-      { group: "看", label: "时间轴", kw: "t 标尺", hint: "T", run: () => s.setLook("时间轴") },
-      { group: "看", label: "出场", kw: "矩阵", run: () => s.setLook("出场") },
-      { group: "看", label: "关系", kw: "连线", run: () => s.setLook("关系") },
-      { group: "看", label: "进度", kw: "支线", run: () => s.setLook("进度") },
-      { group: "看", label: "总表", run: () => s.setLook("总表") },
-      { group: "看", label: "白板", run: () => s.setLook("白板") },
-      { group: "结构", label: "加列", kw: "加一场 往后", run: () => s.addColumn() },
-      { group: "结构", label: "减列", run: () => s.removeColumn() },
-      { group: "书", label: "导出", kw: "markdown md", run: () => { s.setExportOpen(true); s.loadExport(true); } },
-      { group: "书", label: "丢一段草稿", kw: "粘贴 拆开", run: () => s.setPasteOpen(true) },
+      { group: "看", label: "时间轴", kw: "t 标尺", hint: "T", run: () => setLook("时间轴") },
+      { group: "看", label: "出场", kw: "矩阵", run: () => setLook("出场") },
+      { group: "看", label: "关系", kw: "连线", run: () => setLook("关系") },
+      { group: "看", label: "进度", kw: "支线", run: () => setLook("进度") },
+      { group: "看", label: "总表", run: () => setLook("总表") },
+      { group: "看", label: "白板", run: () => setLook("白板") },
+      { group: "结构", label: "加列", kw: "加一场 往后", run: () => addColumn() },
+      { group: "结构", label: "减列", run: () => removeColumn() },
+      { group: "书", label: "导出", kw: "markdown md", run: () => { setExportOpen(true); loadExport(true); } },
+      { group: "书", label: "丢一段草稿", kw: "粘贴 拆开", run: () => setPasteOpen(true) },
     ];
-    for (const t of s.state?.threads || []) {
-      out.push({ group: "跳", label: `过滤「${t.name}」`, hint: "只改看法，不是写下一场", kw: "逻辑线 支线", run: () => s.setLine(t.name) });
+    for (const t of threads || []) {
+      out.push({ group: "跳", label: `过滤「${t.name}」`, hint: "只改看法，不是写下一场", kw: "逻辑线 支线", run: () => setLine(t.name) });
     }
     const seen = new Set<string>();
-    for (const p of (s.state?.promises || [])) {
+    for (const p of (promises || [])) {
       if (seen.has(p.name)) continue;
       seen.add(p.name);
-      out.push({ group: "跳", label: `伏笔「${p.name}」`, hint: "不是逻辑线", kw: "埋 兑", run: () => s.openDossier(p.name) });
+      out.push({ group: "跳", label: `伏笔「${p.name}」`, hint: "不是逻辑线", kw: "埋 兑", run: () => openDossier(p.name) });
     }
-    for (const e of (s.state?.all_entities || []).filter((x) => x.kind === "promise")) {
+    for (const e of (allEntities || []).filter((x) => x.kind === "promise")) {
       if (seen.has(e.name)) continue;
       seen.add(e.name);
-      out.push({ group: "跳", label: `伏笔「${e.name}」`, hint: "不是逻辑线", kw: "埋 兑", run: () => s.openDossier(e.name) });
+      out.push({ group: "跳", label: `伏笔「${e.name}」`, hint: "不是逻辑线", kw: "埋 兑", run: () => openDossier(e.name) });
     }
     return out;
-  }, [s]);
+  }, [goShelf, goLibrary, goSettings, setLook, addColumn, removeColumn, setExportOpen, loadExport, setPasteOpen, setLine, openDossier, threads, promises, allEntities]);
   const shown = items.filter((it) => {
     const needle = q.trim();
     if (!needle) return true;
@@ -52,13 +66,18 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement)?.tagName;
+      const inPalette = !!(e.target as HTMLElement)?.closest?.("[data-testid=cmd-palette]");
       if (e.key === "ArrowDown" || (e.key === "n" && e.ctrlKey)) {
+        if (tag === "INPUT" && !inPalette) return;
         e.preventDefault();
         setHi((i) => (shown.length ? (i + 1) % shown.length : 0));
       } else if (e.key === "ArrowUp" || (e.key === "p" && e.ctrlKey)) {
+        if (tag === "INPUT" && !inPalette) return;
         e.preventDefault();
         setHi((i) => (shown.length ? (i - 1 + shown.length) % shown.length : 0));
       } else if (e.key === "Enter") {
+        if (!inPalette) return;
         e.preventDefault();
         const it = shown[hi];
         if (it) { it.run(); onClose(); }

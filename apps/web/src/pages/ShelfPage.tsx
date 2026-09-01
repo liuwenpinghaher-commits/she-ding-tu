@@ -4,9 +4,13 @@ import { formatOpened } from "../lenses/window";
 
 export function ShelfPage() {
   const s = useStore();
-  const items = [...(s.books.items || s.books.books.map((name) => ({
+  const fallback = (s.books.books || []).map((name) => ({
     name, premise: "", columns: 1, committed: 0, drafts: 0, opened_at: 0, last_intent: "",
-  })))].sort((a, b) => (b.opened_at || 0) - (a.opened_at || 0) || b.name.localeCompare(a.name));
+  }));
+  const byName = new Map<string, (typeof fallback)[number]>();
+  for (const b of fallback) byName.set(b.name, b);
+  for (const b of s.books.items || []) byName.set(b.name, b);
+  const items = [...byName.values()].sort((a, b) => (b.opened_at || 0) - (a.opened_at || 0) || b.name.localeCompare(a.name));
   const [menu, setMenu] = useState<string | null>(null);
   const [q, setQ] = useState("");
   const shown = items.filter((b) => {
@@ -26,7 +30,7 @@ export function ShelfPage() {
       {items.length > 0 && (
         <>
           <button type="button" data-testid="shelf-new" onClick={s.goNew}>新建书</button>
-          <input data-testid="shelf-q" type="search" placeholder="搜书名、主脑、最后一场" value={q} onChange={(e) => setQ(e.target.value)} aria-label="搜书架" />
+          <input data-testid="shelf-q" name="she-ding-tu-shelf-q" type="text" autoComplete="off" placeholder="搜书名、主脑、最后一场" value={q} onChange={(e) => setQ(e.target.value)} aria-label="搜书架" />
           {q.trim() && shown.length === 0 && <p className="muted" data-testid="shelf-empty">没有这本书</p>}
           <div className="grid" data-testid="shelf-grid">
             {shown.map((b) => (

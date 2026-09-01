@@ -1,5 +1,5 @@
 import { expect, Page } from "@playwright/test";
-import { test } from "./helpers";
+import { test, selectDraftCard } from "./helpers";
 
 test("渡口六条戏能在分场条上点出来", async ({ page }) => {
   test.setTimeout(180000);
@@ -52,7 +52,7 @@ test("渡口六条戏能在分场条上点出来", async ({ page }) => {
   await page.getByTestId("intent").fill("阿莲翻柜面");
   await page.getByTestId("place-id").fill("渡口");
   await page.getByTestId("write-next").click();
-  await page.locator(".card.draft").first().waitFor();
+  await selectDraftCard(page);
   await page.locator('[data-testid="ent-阿福"]').dragTo(page.locator(".card.draft").first());
   await page.locator('[data-testid="ent-阿莲"]').dragTo(page.locator(".card.draft").first());
   await page.getByTestId("do-text").fill("阿莲翻柜面，翻不到铜牌");
@@ -74,7 +74,7 @@ test("渡口六条戏能在分场条上点出来", async ({ page }) => {
   await page.getByTestId("intent").fill("阿莲还在翻");
   await page.getByTestId("place-id").fill("渡口");
   await page.getByTestId("write-next").click();
-  await page.locator(".card.draft").first().waitFor();
+  await selectDraftCard(page);
   await page.locator('[data-testid="ent-阿莲"]').dragTo(page.locator(".card.draft").first());
   const sit1b = await page.evaluate(async () => await (await fetch("/api/circumstances")).json());
   const pkt1b = sit1b.packet || sit1b;
@@ -259,7 +259,7 @@ async function commitScene(
   await page.getByTestId("intent").fill(opts.intent);
   await page.getByTestId("place-id").fill(opts.place || "渡口");
   await page.getByTestId("write-next").click();
-  await page.locator(".card.draft").first().waitFor();
+  await selectDraftCard(page);
   for (const name of opts.people) {
     await page.locator(`[data-testid="ent-${name}"]`).dragTo(page.locator(".card.draft").first());
   }

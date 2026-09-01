@@ -40,6 +40,10 @@ test("删书须打书名；草稿撤销；总表；键盘改本页列数", async
   await expect(page.getByTestId("col-count")).toHaveText("4");
 
   await page.getByTestId("open-shelf").click();
+  await expect(page.getByTestId("shelf-progress-" + book)).toBeVisible();
+  const card = page.locator("article").filter({ has: page.getByTestId("shelf-progress-" + book) });
+  await card.scrollIntoViewIfNeeded();
+  await card.locator("summary").click();
   await page.getByTestId("shelf-del-" + book).click();
   await expect(page.getByTestId("del-book")).toBeVisible();
   await expect(page.getByTestId("del-book-ok")).toBeDisabled();

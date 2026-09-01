@@ -1,4 +1,13 @@
-import { test as base, type Page } from "@playwright/test";
+import { expect, test as base, type Page } from "@playwright/test";
+
+/** 点开刚写下的草稿卡，右边栏才能填。拖人不代替点选。 */
+export async function selectDraftCard(page: Page) {
+  const draft = page.locator(".card.draft").first();
+  await draft.waitFor();
+  await draft.click();
+  await expect(page.getByTestId("commit")).toBeEnabled();
+  await expect(page.getByTestId("do-text")).toBeEditable();
+}
 
 /** 关掉确认变更浮层并取消服务端未确认结构改动，避免上一测泄漏挡住创建书。reload 后要看见确认变更时不要走这条。 */
 export async function dismissPending(page: Page) {

@@ -424,7 +424,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           });
         }
         if (needS && sceneId) {
-          const isDraft = (state.drafts || []).some((d) => d.id === sceneId);
+          const isDraft = (state.drafts || []).some((d) => d.id === sceneId)
+            || !(state.committed || []).some((b) => b.id === sceneId);
           await api("/api/select", {
             method: "POST",
             body: JSON.stringify(isDraft ? { draft_id: sceneId } : { canon_id: sceneId }),
@@ -546,11 +547,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const writeNext = useCallback(async () => {
     if (!intent.trim()) return;
-    await api("/api/write-next", {
+    const r = await api<{ id?: string }>("/api/write-next", {
       method: "POST",
       body: JSON.stringify({ intent, place_id: placeId || undefined }),
     });
     await refresh();
+    if (r.id) {
+      await api("/api/select", { method: "POST", body: JSON.stringify({ draft_id: r.id }) });
+      await refresh();
+    }
   }, [intent, placeId, refresh]);
 
   const writeParallel = useCallback(async () => {
@@ -558,7 +563,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const fromScene = [...(state?.drafts || []).map((d) => ({ id: d.id, column_id: d.draft.column_id })), ...(state?.committed || []).map((b) => ({ id: b.id, column_id: b.column_id }))].find((x) => x.id === selectedId);
     const col = fromScene?.column_id || state?.selected_col || state?.columns[state.window_start]?.id;
     const c = (state?.columns || []).find((x) => x.id === col);
-    await api("/api/write-parallel", {
+    const r = await api<{ id?: string }>("/api/write-parallel", {
       method: "POST",
       body: JSON.stringify({
         intent,
@@ -569,6 +574,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       }),
     });
     await refresh();
+    if (r.id) {
+      await api("/api/select", { method: "POST", body: JSON.stringify({ draft_id: r.id }) });
+      await refresh();
+    }
   }, [intent, placeId, refresh, state]);
 
   const setWindow = useCallback(async (patch: { n?: number; start?: number; density?: string }) => {

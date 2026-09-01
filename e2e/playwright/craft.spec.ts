@@ -1,5 +1,5 @@
 import { expect } from "@playwright/test";
-import { test } from "./helpers";
+import { test, selectDraftCard } from "./helpers";
 
 const FORBIDDEN = "你现在应该写中点";
 
@@ -24,7 +24,7 @@ test("书级章法：主脑、导出按章、写下一场无节拍教条", async
   await page.getByTestId("place-id").fill("渡口");
   await page.getByTestId("intent").fill("阿福发现刀");
   await page.getByTestId("write-next").click();
-  await page.locator(".card.draft").first().waitFor();
+  await selectDraftCard(page);
   await page.locator('[data-testid="ent-阿福"]').dragTo(page.locator(".card.draft").first());
   await page.getByTestId("do-text").fill("阿福打开抽屉看见刀");
   await page.getByTestId("commit").click();
@@ -35,7 +35,7 @@ test("书级章法：主脑、导出按章、写下一场无节拍教条", async
   await page.getByTestId("intent").fill("阿莲来找东西");
   await page.getByTestId("place-id").fill("渡口");
   await page.getByTestId("write-next").click();
-  await page.locator(".card.draft").first().waitFor();
+  await selectDraftCard(page);
   await page.getByTestId("do-text").fill("阿莲进门");
   const committed = page.waitForResponse((r) => r.url().includes("/api/commit") && r.request().method() === "POST");
   await page.getByTestId("commit").click();

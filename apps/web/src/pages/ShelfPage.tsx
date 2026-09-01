@@ -4,9 +4,9 @@ import { formatOpened } from "../lenses/window";
 
 export function ShelfPage() {
   const s = useStore();
-  const items = s.books.items || s.books.books.map((name) => ({
+  const items = [...(s.books.items || s.books.books.map((name) => ({
     name, premise: "", columns: 1, committed: 0, drafts: 0, opened_at: 0, last_intent: "",
-  }));
+  })))].sort((a, b) => (b.opened_at || 0) - (a.opened_at || 0) || b.name.localeCompare(a.name));
   const [menu, setMenu] = useState<string | null>(null);
   return (
     <div className="page" data-testid="shelf">

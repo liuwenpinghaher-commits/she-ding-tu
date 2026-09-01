@@ -176,6 +176,8 @@ test("键盘走完写场、并列、本场变化", async ({ page }) => {
   await page.getByTestId("write-next").focus();
   await page.keyboard.press("Enter");
   await page.locator(".card.draft").first().waitFor();
+  await page.locator(".card.draft").first().click();
+  await expect(page.getByTestId("commit")).toBeEnabled();
   await page.keyboard.press("a");
   await page.getByTestId("presence-阿禾").press("Enter");
   await page.getByTestId("do-text").focus();
@@ -190,6 +192,7 @@ test("键盘走完写场、并列、本场变化", async ({ page }) => {
   await page.getByTestId("add-parallel").focus();
   await page.keyboard.press("Enter");
   await page.locator(".card.draft").first().waitFor();
+  await page.locator(".card.draft").first().click();
   await page.getByTestId("delta-ent").focus();
   await page.keyboard.type("密信");
   await page.getByTestId("delta-attr").focus();

@@ -17,7 +17,8 @@ import type { Entity } from "../canon/types";
 export function ScenePage() {
   const s = useStore();
   const draft = !!s.state?.selected;
-  const canon = !!s.state?.selected_canon;
+  const canonId = s.state?.selected_canon || "";
+  const canon = !draft && !!(s.state?.committed || []).some((b) => b.id === canonId);
   const chrome = s.sceneChrome;
   const scene = s.selectedScene;
   const deltas = scene?.deltas || [];

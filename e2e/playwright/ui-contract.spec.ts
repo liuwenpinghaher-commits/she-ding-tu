@@ -1,5 +1,5 @@
 import { expect, type Page } from "@playwright/test";
-import { test } from "./helpers";
+import { test, selectDraftCard } from "./helpers";
 
 async function openMore(page: Page) {
   await page.locator("#more-menu").evaluate((el: HTMLDetailsElement) => { el.open = true; });
@@ -26,7 +26,7 @@ test("1 场卡密度、细轨、点列看这一刻", async ({ page }) => {
   await page.getByTestId("place-id").fill("渡口");
   await page.getByTestId("intent").fill("阿福发现刀");
   await page.getByTestId("write-next").click();
-  await page.locator(".card.draft").first().waitFor();
+  await selectDraftCard(page);
   await page.locator('[data-testid="ent-阿福"]').dragTo(page.locator(".card.draft").first());
   await page.getByTestId("do-text").fill("阿福打开抽屉看见刀");
   await page.getByTestId("say-text").fill("在这儿。");
@@ -77,7 +77,7 @@ test("1 场卡密度、细轨、点列看这一刻", async ({ page }) => {
 
   await page.getByTestId("intent").fill("还没写的一场");
   await page.getByTestId("write-next").click();
-  await page.locator(".card.draft").first().waitFor();
+  await selectDraftCard(page);
   await page.locator('[data-testid="ent-阿莲"]').dragTo(page.locator(".card.draft").first());
   const st2 = await page.evaluate(async () => (await (await fetch("/api/state")).json()));
   const draftCol = st2.drafts[0].draft.column_id;

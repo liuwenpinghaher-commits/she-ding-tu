@@ -574,9 +574,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       }).catch(() => {});
     }
     resetUndo();
-    await refreshBooks();
     writeHash(boardHash(name, { n: 1, start: 0 }));
     await refresh();
+    void refreshBooks();
   }, [refresh, refreshBooks]);
 
   const openBookTo = useCallback(async (name: string, dest: "board" | "settings" | "library" | "export") => {
@@ -589,7 +589,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setExportOpen(true);
     } else writeHash(boardHash(name));
     await refresh();
-    await refreshBooks();
+    void refreshBooks();
     if (dest === "export") {
       const md = await apiText("/api/export");
       setExportOut(md);

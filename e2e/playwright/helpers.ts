@@ -90,6 +90,17 @@ export async function pressUndo(page: Page) {
 
 export const test = base.extend({
   page: async ({ page }, use) => {
+    const created: string[] = [];
+    page.on("request", (req) => {
+      if (req.method() !== "POST") return;
+      let path = "";
+      try { path = new URL(req.url()).pathname; } catch { return; }
+      if (path !== "/api/books") return;
+      try {
+        const name = (req.postDataJSON() as { name?: string } | null)?.name;
+        if (name && name !== "渡口") created.push(name);
+      } catch { /* 无 JSON 体时忽略 */ }
+    });
     const origGoto = page.goto.bind(page);
     page.goto = (async (url, options) => {
       const res = await origGoto(url, options);
@@ -99,5 +110,15 @@ export const test = base.extend({
     await use(page);
     await page.keyboard.press("Escape").catch(() => {});
     await dismissPending(page).catch(() => {});
+    if (!page.isClosed() && created.length) {
+      await page.evaluate(async (names: string[]) => {
+        for (const name of names) {
+          if (!name || name === "渡口") continue;
+          try {
+            await fetch(`/api/books/${encodeURIComponent(name)}?confirm=${encodeURIComponent(name)}`, { method: "DELETE" });
+          } catch { /* 已删或没开服务 */ }
+        }
+      }, created).catch(() => {});
+    }
   },
 });

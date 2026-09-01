@@ -762,12 +762,25 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const attachThread = useCallback(async (nameOrId: string, role = "推进") => {
     const t = (state?.threads || []).find((x) => x.id === nameOrId || x.name === nameOrId);
     if (!t) return;
+    const apply = (cur: { id: string; role?: string }[]) => {
+      const next = [...cur];
+      const i = next.findIndex((x) => x.id === t.id);
+      if (i >= 0) next[i] = { ...next[i], id: t.id, role };
+      else next.push({ id: t.id, role });
+      return next;
+    };
     const id = state?.selected;
     if (id) {
       const d = state?.drafts.find((x) => x.id === id);
-      const cur = [...(d?.draft.story_threads || [])];
-      if (!cur.some((x) => x.id === t.id)) cur.push({ id: t.id, role });
+      const cur = apply(d?.draft.story_threads || []);
       await api("/api/drafts/patch", { method: "POST", body: JSON.stringify({ id, story_threads: cur }) });
+    } else if (state?.selected_canon) {
+      const b = state.committed.find((x) => x.id === state.selected_canon);
+      const cur = apply(b?.story_threads || []);
+      await api(`/api/beats/${encodeURIComponent(state.selected_canon)}/revise`, {
+        method: "POST",
+        body: JSON.stringify({ story_threads: cur }),
+      });
     }
     await refresh();
   }, [state, refresh]);

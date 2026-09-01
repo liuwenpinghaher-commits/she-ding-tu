@@ -1,0 +1,30 @@
+
+Running 26 tests using 1 worker
+
+[1/26] playwright/contract26.spec.ts:76:1 › 1 建书落分场条
+[2/26] playwright/contract26.spec.ts:93:1 › 2 档案能填 F10
+[3/26] playwright/contract26.spec.ts:110:1 › 3 设定关系双边出现
+[4/26] playwright/contract26.spec.ts:130:1 › 4 写下一场必须有任务
+[5/26] playwright/contract26.spec.ts:140:1 › 5 @ 与写入正史
+[6/26] playwright/contract26.spec.ts:166:1 › 6 单列多场用当前列
+[7/26] playwright/contract26.spec.ts:181:1 › 7 因果双边
+[8/26] playwright/contract26.spec.ts:199:1 › 8 本场变化与知情是人话
+[9/26] playwright/contract26.spec.ts:224:1 › 9 时间轴不卸分场条
+[10/26] playwright/contract26.spec.ts:239:1 › 10 删已正史有因果
+[11/26] playwright/contract26.spec.ts:267:1 › 11 没贴线能写场
+[12/26] playwright/contract26.spec.ts:282:1 › 12 贴线只改看法
+[13/26] playwright/contract26.spec.ts:301:1 › 13 过滤不藏
+[14/26] playwright/contract26.spec.ts:322:1 › 14 一场多线
+[15/26] playwright/contract26.spec.ts:349:1 › 15 入线出线是推的
+[16/26] playwright/contract26.spec.ts:389:1 › 16 讲述序正交
+[17/26] playwright/contract26.spec.ts:409:1 › 17 进度只跳不写
+[18/26] playwright/contract26.spec.ts:441:1 › 18 人物透镜不当算出这一刻
+[19/26] playwright/contract26.spec.ts:457:1 › 19 伏笔不是线
+[20/26] playwright/contract26.spec.ts:477:1 › 20 刷新回原处
+[21/26] playwright/contract26.spec.ts:503:1 › 21 看法不卸分场条
+[22/26] playwright/contract26.spec.ts:529:1 › 22 本页 1–6
+[23/26] playwright/contract26.spec.ts:548:1 › 23 确认变更失败不关窗
+[24/26] playwright/contract26.spec.ts:570:1 › 24 删书须手打书名
+[25/26] playwright/contract26.spec.ts:587:1 › 25 导出标清草稿
+[26/26] playwright/contract26.spec.ts:601:1 › 26 键盘不碰鼠标
+  26 passed (33.5s)

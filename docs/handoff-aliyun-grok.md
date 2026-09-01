@@ -36,8 +36,8 @@
 
 - SSH 主机：`scribe3-demo`（`ubuntu@82.157.130.140`）。本机 `~/.ssh/config` 绑网卡 `en0`。
 - 仓路径：`/home/ubuntu/projects/she-ding-tu`。**不是** `/opt/scribe3`，**不是** `/home/admin/projects/she-ding-tu`。
-- 服务：`setting-api` 听 `127.0.0.1:8787`，未挂公网。打开页面：本机或阿里云 `ssh -L 8787:127.0.0.1:8787 scribe3-demo`，再访 `http://127.0.0.1:8787`。应看到 Vite `#root` + `/assets/*`，书架能打开《渡口》（五场已正史 + 一场草稿）。
-- 重启：`/home/ubuntu/projects/she-ding-tu/logs/restart.sh`。或在仓根：`SETTING_DATA=/home/ubuntu/projects/she-ding-tu/data/books setsid nohup ./vendor/narra/target/release/setting-api >> logs/setting-api.log 2>&1 < /dev/null &`
+- 服务：入口 `127.0.0.1:8787`（nginx），后面是 `setting-api` `127.0.0.1:8788`。未挂公网。打开页面：本机或阿里云 `ssh -L 8787:127.0.0.1:8787 scribe3-demo`，再访 `http://127.0.0.1:8787`。应看到 Vite `#root` + `/assets/*`，书架能打开《渡口》（五场已正史 + 一场草稿），卡上有最后一场名。
+- 重启：`/home/ubuntu/projects/she-ding-tu/logs/restart.sh`（只在机上）。
 - 构建：`apps/web` 里 `npm ci && npm run build`，再在 `vendor/narra` 编 `setting-api`（crates 走中科大镜像即可，不要让腾讯直连 GitHub）。
 - **腾讯不要直连 GitHub**（慢/不稳）。代码更新由 Mac 跳板：Mac 先 `git push` 到 GitHub，再 `rsync` 或 `git bundle` 经 SSH 送到腾讯；不要在腾讯 `git pull github.com`。不要动腾讯上已有的 `127.0.0.1:1088`（去阿里云的跳板）和 `127.0.0.1:18080`。
 - `.env` 只在各机上，不进 git。数据按书隔离在 `data/books/<书名>/`。不要覆盖/删《渡口》正史。
@@ -62,14 +62,10 @@
 - 看法侧开，分场条仍在。白板默认关、只引用场、不写正史。
 - 导出默认含草稿并标注。多书可切。
 
-## 未齐（完整方案第 12.2 剩余）
+## 未齐
 
-- 场页 / 档案三种打开未完全齐（档案就地仍是 dialog）。
-- 伏笔四件事接 `promise_ops`、讨论按格存、`@` `/` 未齐。
-- 自适应高度、800ms 存草稿。
-- 本场变化 / 知情选择器人话行。
-- 白板画布编排、命令面板分组、七模式改场页折页。
+无。第 11 节二十六条已在腾讯 `127.0.0.1:8787` 点测全绿（`e2e/playwright/contract26.spec.ts`，`workers: 1`）。
 
 ## 下一刀
 
-按完整方案第 12.2 剩余项：伏笔四件事、讨论按格存、场页稳定输入。e2e 打新前端，`workers: 1`。禁止为绿灯改松算出这一刻。禁止救活 `archive/stripboard/`。做完一项就 commit 并 push。
+打开书即合同。e2e 打新前端，`workers: 1`。禁止为绿灯改松算出这一刻。禁止救活 `archive/stripboard/`。做完一项就 commit 并 push。

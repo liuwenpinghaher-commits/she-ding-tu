@@ -26,8 +26,16 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
     for (const t of s.state?.threads || []) {
       out.push({ group: "跳", label: `过滤「${t.name}」`, hint: "只改看法，不是写下一场", run: () => s.setLine(t.name) });
     }
+    const seen = new Set<string>();
     for (const p of (s.state?.promises || [])) {
+      if (seen.has(p.name)) continue;
+      seen.add(p.name);
       out.push({ group: "跳", label: `伏笔「${p.name}」`, hint: "不是逻辑线", run: () => s.openDossier(p.name) });
+    }
+    for (const e of (s.state?.all_entities || []).filter((x) => x.kind === "promise")) {
+      if (seen.has(e.name)) continue;
+      seen.add(e.name);
+      out.push({ group: "跳", label: `伏笔「${e.name}」`, hint: "不是逻辑线", run: () => s.openDossier(e.name) });
     }
     return out;
   }, [s]);

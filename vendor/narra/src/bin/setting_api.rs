@@ -2335,6 +2335,7 @@ async fn write_parallel(
     });
     sess.selected = Some(id.clone());
     persist_drafts(&app.data_root, &name, &sess.drafts);
+    set_last_intent(&app.data_root, &name, &intent);
     Ok(Json(serde_json::json!({"id": id, "column_id": c.id, "clock_from": c.clock_from, "clock_to": c.clock_to})))
 }
 

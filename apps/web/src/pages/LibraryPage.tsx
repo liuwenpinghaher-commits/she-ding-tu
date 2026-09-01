@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { api } from "../api/client";
 import { useStore } from "../state/store";
 import { KIND_LABEL } from "./f10";
 
@@ -9,7 +10,13 @@ export function LibraryPage() {
   const [kind, setKind] = useState("");
   const [hasScene, setHasScene] = useState("");
   const [hasBio, setHasBio] = useState("");
+  const [rels, setRels] = useState<Array<{ from: string; to: string }>>([]);
   const ents = s.state?.all_entities || s.state?.entities || [];
+  useEffect(() => {
+    api<{ relations?: Array<{ from: string; to: string }> }>("/api/setup-relations")
+      .then((r) => setRels(r.relations || []))
+      .catch(() => setRels([]));
+  }, [s.state?.book]);
   const scenes = s.scenes;
   const pageIds = new Set((s.state?.entities || []).map((e) => e.id));
 
@@ -36,16 +43,18 @@ export function LibraryPage() {
       const last = cols[cols.length - 1];
       const firstIdx = (s.state?.columns || []).findIndex((c) => c.id === first);
       const lastIdx = (s.state?.columns || []).findIndex((c) => c.id === last);
+      const relN = rels.filter((r) => r.from === e.id || r.to === e.id || r.from === e.name || r.to === e.name).length;
       return {
         e,
         count: appears.length,
         first: firstIdx >= 0 ? firstIdx + 1 : 0,
         last: lastIdx >= 0 ? lastIdx + 1 : 0,
+        relN,
         bio: (e.profile?.setup || e.profile?.bio || "").trim(),
         aliases: e.profile?.aliases || "",
       };
     });
-  }, [ents, kind, q, hasScene, hasBio, scenes, s.state?.columns]);
+  }, [ents, kind, q, hasScene, hasBio, scenes, s.state?.columns, rels]);
 
   const groups = ["person", "place", "thing", "faction", "rule", "promise"];
 
@@ -93,7 +102,7 @@ export function LibraryPage() {
       {view === "table" && (
         <table className="lib-table">
           <thead>
-            <tr><th>名字</th><th>类</th><th>别称</th><th>出场几次</th><th>第一列</th><th>最后列</th></tr>
+            <tr><th>名字</th><th>类</th><th>别称</th><th>出场几次</th><th>第一列</th><th>最后列</th><th>关系数</th></tr>
           </thead>
           <tbody>
             {rows.map((r) => (
@@ -104,6 +113,7 @@ export function LibraryPage() {
                 <td>{r.count}</td>
                 <td>{r.first || "—"}</td>
                 <td>{r.last || "—"}</td>
+                <td>{r.relN}</td>
               </tr>
             ))}
           </tbody>

@@ -29,6 +29,15 @@ export function DossierPage({ mode = "dialog" }: { mode?: "dialog" | "side" | "f
     <div className={`dossier-body${mode === "full" ? " full" : ""}`} data-testid="dossier">
       <h2>{s.dossierName || payload?.name}</h2>
       <p className="muted">{KIND_LABEL[kind] || kind} · 改这一场去分场条。不能在档案写入正史。</p>
+      <div className="scene-open">
+        <button type="button" onClick={() => s.setOpen(null)}>就地</button>
+        <button type="button" onClick={() => s.setOpen("side")}>侧开</button>
+        <button type="button" onClick={() => {
+          const book = s.state?.book;
+          const name = s.dossierName || payload?.name;
+          if (book && name) location.hash = `#/b/${encodeURIComponent(book)}/e/${encodeURIComponent(name)}`;
+        }}>整页</button>
+      </div>
       {saved && <p className="toast-inline">{saved}</p>}
       <section>
         <h3>基本设定</h3>

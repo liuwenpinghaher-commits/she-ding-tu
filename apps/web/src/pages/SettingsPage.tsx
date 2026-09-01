@@ -77,7 +77,23 @@ export function SettingsPage() {
         <h2>章界与回目</h2>
         {chapters.length === 0 && <p className="muted">还没有回目。进度看法会按每 10 列一段</p>}
         {chapters.map((ch, i) => (
-          <div key={i} className="chap-row">
+          <div
+            key={i}
+            className="chap-row"
+            draggable
+            onDragStart={(e) => { e.dataTransfer.setData("text/plain", String(i)); }}
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={(e) => {
+              e.preventDefault();
+              const from = Number(e.dataTransfer.getData("text/plain"));
+              if (Number.isNaN(from) || from === i) return;
+              const n = [...chapters];
+              const [moved] = n.splice(from, 1);
+              n.splice(i, 0, moved);
+              setChapters(n);
+              persist({ chapters: n });
+            }}
+          >
             <input
               value={ch.title}
               placeholder="回目名"

@@ -125,6 +125,8 @@ struct BookCard {
     committed: usize,
     drafts: usize,
     opened_at: i64,
+    #[serde(default)]
+    last_intent: String,
 }
 
 #[derive(Serialize)]
@@ -167,6 +169,8 @@ struct BookMeta {
     columns: usize,
     #[serde(default)]
     committed: usize,
+    #[serde(default)]
+    last_intent: String,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -554,17 +558,38 @@ fn reverse_rel_label(kind: &str) -> &'static str {
     }
 }
 
+fn set_last_intent(root: &std::path::Path, name: &str, intent: &str) {
+    let mut m = load_meta(root, name);
+    m.last_intent = intent.trim().to_string();
+    persist_meta(root, name, &m);
+}
+
 fn book_card(root: &std::path::Path, name: &str) -> BookCard {
     let craft = load_craft(root, name);
     let drafts = load_drafts(root, name);
     let meta = load_meta(root, name);
+    let last_intent = if !meta.last_intent.trim().is_empty() {
+        meta.last_intent
+    } else {
+        drafts
+            .last()
+            .map(|d| {
+                if d.title.trim().is_empty() || d.title == "下一场" {
+                    d.draft.intent.clone()
+                } else {
+                    d.title.clone()
+                }
+            })
+            .unwrap_or_default()
+    };
     BookCard {
         name: name.to_string(),
         premise: craft.premise,
-        columns: meta.columns,
+        columns: meta.columns.max(1),
         committed: meta.committed,
         drafts: drafts.len(),
         opened_at: meta.opened_at,
+        last_intent,
     }
 }
 
@@ -740,6 +765,7 @@ async fn main() {
         .route("/api/books/{name}", patch(patch_book).delete(delete_book))
         .route("/api/books/{name}/open", post(open_book))
         .route("/api/scenes/{id}", get(get_scene))
+        .route("/api/setup-relations", get(list_setup_rels))
         .route(
             "/api/entities/{id}/relations",
             post(add_setup_rel),
@@ -1575,6 +1601,19 @@ fn resolve_ent(canon: &Canon, id: &str) -> Option<String> {
         .map(|e| e.id.clone())
 }
 
+async fn list_setup_rels(
+    State(app): State<App>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    let g = app.inner.lock().await;
+    let name = g
+        .current
+        .clone()
+        .ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
+    Ok(Json(serde_json::json!({
+        "relations": load_rels(&app.data_root, &name),
+    })))
+}
+
 async fn add_setup_rel(
     State(app): State<App>,
     Path(id): Path<String>,
@@ -2070,6 +2109,7 @@ async fn do_commit(
         Ok(b) => {
             mark_later_filled_stale(&mut sess.drafts, b.clock_from);
             persist_drafts(&app.data_root, &name, &sess.drafts);
+            set_last_intent(&app.data_root, &name, &b.intent);
             Ok(Json(serde_json::json!({
             "ok": true,
             "id": b.id,
@@ -2223,6 +2263,7 @@ async fn write_next(
     sess.selected = Some(id.clone());
     reveal_column(sess, col.display_ord);
     persist_drafts(&app.data_root, &name, &sess.drafts);
+    set_last_intent(&app.data_root, &name, &intent);
     Ok(Json(serde_json::json!({"id": id, "appended_last": true, "column_id": col.id})))
 }
 

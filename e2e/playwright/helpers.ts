@@ -24,11 +24,13 @@ export async function dismissPending(page: Page) {
       const el = document.querySelector<HTMLElement>(`[data-testid="${id}"]`);
       if (el && el.offsetParent !== null) el.click();
     }
+    const t = () => AbortSignal.timeout(3000);
     try {
       await fetch("/api/structure/cancel", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: "{}",
+        signal: t(),
       });
     } catch {
       /* 服务未开或未开书时忽略 */
@@ -38,6 +40,7 @@ export async function dismissPending(page: Page) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ person: null }),
+        signal: t(),
       });
     } catch {
       /* 无透镜接口或未开书时忽略 */
@@ -115,7 +118,7 @@ export const test = base.extend({
         for (const name of names) {
           if (!name || name === "渡口") continue;
           try {
-            await fetch(`/api/books/${encodeURIComponent(name)}?confirm=${encodeURIComponent(name)}`, { method: "DELETE" });
+            await fetch(`/api/books/${encodeURIComponent(name)}?confirm=${encodeURIComponent(name)}`, { method: "DELETE", signal: AbortSignal.timeout(5000) });
           } catch { /* 已删或没开服务 */ }
         }
       }, created).catch(() => {});

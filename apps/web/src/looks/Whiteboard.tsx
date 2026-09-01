@@ -11,7 +11,7 @@ export function Whiteboard({ open }: { open: boolean }) {
   const s = useStore();
   const book = s.state?.book || "";
   const [cards, setCards] = useState<Card[]>([]);
-  const drag = useRef<{ id: string; dx: number; dy: number } | null>(null);
+  const drag = useRef<{ id: string; dx: number; dy: number; moved: boolean } | null>(null);
 
   useEffect(() => {
     if (!book) return;
@@ -42,15 +42,34 @@ export function Whiteboard({ open }: { open: boolean }) {
           onClick={() => {
             const sc = s.selectedScene;
             if (!sc) return;
-            setCards((cs) => [...cs, { id: `w${Date.now()}`, beatId: sc.id, x: 40 + cs.length * 16, y: 40 + cs.length * 16, label: sc.intent }]);
+            setCards((cs) => cs.some((c) => c.beatId === sc.id) ? cs : [...cs, { id: `w${Date.now()}`, beatId: sc.id, x: 40 + cs.length * 16, y: 40 + cs.length * 16, label: sc.intent }]);
           }}
         >引用当前场</button>
+        <button
+          type="button"
+          data-testid="wb-add-page"
+          onClick={() => {
+            setCards((cs) => {
+              const have = new Set(cs.map((c) => c.beatId));
+              const extra = s.scenes.filter((sc) => !have.has(sc.id)).map((sc, i) => ({
+                id: `w${Date.now()}-${i}`,
+                beatId: sc.id,
+                x: 24 + ((cs.length + i) % 4) * 140,
+                y: 36 + Math.floor((cs.length + i) / 4) * 72,
+                label: sc.intent,
+              }));
+              return [...cs, ...extra];
+            });
+          }}
+        >引用本页的场</button>
       </div>
+      <p className="muted">挪卡片不改列序、不改钟、不写入正史。</p>
       <div
         className="whiteboard"
         onMouseMove={(e) => {
           if (!drag.current) return;
           const d = drag.current;
+          d.moved = true;
           const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
           setCards((cs) => cs.map((c) => c.id === d.id ? { ...c, x: e.clientX - rect.left - d.dx, y: e.clientY - rect.top - d.dy } : c));
         }}
@@ -64,9 +83,10 @@ export function Whiteboard({ open }: { open: boolean }) {
             style={{ left: c.x, top: c.y }}
             onMouseDown={(e) => {
               const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-              drag.current = { id: c.id, dx: e.clientX - r.left, dy: e.clientY - r.top };
+              drag.current = { id: c.id, dx: e.clientX - r.left, dy: e.clientY - r.top, moved: false };
             }}
             onClick={() => {
+              if (drag.current?.moved) return;
               const sc = s.scenes.find((x) => x.id === c.beatId);
               if (sc) {
                 s.selectScene(sc.id, sc.draft);

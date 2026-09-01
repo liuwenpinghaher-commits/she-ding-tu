@@ -202,14 +202,19 @@ function OccupancyLook({ open }: { open: boolean }) {
               const cell = (occ?.cells || []).find((x) => x.name === e.name && x.column === id);
               const on = !!(cell?.present);
               const draft = !!(cell?.draft);
-              const label = on ? "在场" : draft ? "草稿在场" : "";
+              const mentioned = !on && !draft && s.scenes.some((sc) => {
+                if (sc.column_id !== id) return false;
+                const blob = `${sc.intent || ""}${sc.do_text || ""}${sc.say_text || ""}${sc.think_text || ""}`;
+                return blob.includes(e.name);
+              });
+              const label = on ? "在场" : draft ? "草稿在场" : mentioned ? "只被提到" : "不在场";
               return (
                 <button
                   key={id}
                   type="button"
-                  className={`occ-cell${on ? " solid" : draft ? " hollow" : ""}`}
+                  className={`occ-cell${on ? " solid" : draft || mentioned ? " hollow" : ""}`}
                   data-testid={`occ-${e.name}-col${i}`}
-                  title={label || "不在场"}
+                  title={label}
                   onClick={() => {
                     const here = s.scenes.find((sc) => sc.column_id === id);
                     const idx = cols.findIndex((c) => c.id === id);
@@ -217,7 +222,7 @@ function OccupancyLook({ open }: { open: boolean }) {
                     s.jumpTooth(idx >= 0 ? idx : i);
                     if (here) s.selectScene(here.id, here.draft);
                   }}
-                >{on ? "●" : draft ? "○" : ""}</button>
+                >{on ? "●" : draft || mentioned ? "○" : ""}</button>
               );
             })}
           </div>
@@ -281,6 +286,30 @@ function RelationsLook({ open }: { open: boolean }) {
             setBlock("改设定关系去档案页，改戏里发生的去那一场。");
           }}
         >
+          <svg className="rel-svg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden>
+            {others.map((n, i) => {
+              const ang = (i / Math.max(1, others.length)) * Math.PI * 2;
+              const x = 50 + Math.cos(ang) * 38;
+              const y = 50 + Math.sin(ang) * 38;
+              const dashed = fromScenes.find((r) => r.other === n.id || r.other === n.name);
+              const solid = setup.find((r) => r.other === n.id || r.other_name === n.name);
+              const kind = solid ? "solid" : dashed ? "dashed" : "faint";
+              return (
+                <line
+                  key={n.id}
+                  x1="50" y1="50" x2={x} y2={y}
+                  className={`rel-edge ${kind}`}
+                  onClick={() => {
+                    if (dashed?.beat_id) {
+                      const sc = s.scenes.find((x) => x.id === dashed.beat_id);
+                      s.setLook(null);
+                      if (sc) s.selectScene(sc.id, sc.draft);
+                    }
+                  }}
+                />
+              );
+            })}
+          </svg>
           <button
             type="button"
             className="rel-node center"
@@ -354,6 +383,7 @@ function ProgressLook({ open }: { open: boolean }) {
                     <button
                       type="button"
                       className="ghost"
+                      data-testid={cell ? `prog-${ln.name}-${ch}` : undefined}
                       draggable
                       onDragStart={(e) => e.preventDefault()}
                       onClick={() => {

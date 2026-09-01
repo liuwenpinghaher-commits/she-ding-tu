@@ -67,6 +67,9 @@ const SCHEMA_021: &str = include_str!("migrations/021_narra_bridge.surql");
 /// scene 本场钟；load_canon 以行/边为准
 const SCHEMA_022: &str = include_str!("migrations/022_canon_rows.surql");
 
+/// 场上逻辑线归属，不算进算出这一刻
+const SCHEMA_023: &str = include_str!("migrations/023_story_threads.surql");
+
 /// Apply the database schema to an initialized database connection.
 ///
 /// This executes all DEFINE statements in the schema files, creating tables,
@@ -137,5 +140,6 @@ pub async fn apply_schema(db: &NarraDb) -> Result<(), NarraError> {
     db.query(SCHEMA_020).await?;
     db.query(SCHEMA_021).await?;
     db.query(SCHEMA_022).await?;
+    db.query(SCHEMA_023).await?;
     Ok(())
 }

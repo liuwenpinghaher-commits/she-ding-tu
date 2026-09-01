@@ -1,9 +1,10 @@
 //! 分场条薄 HTTP。算出这一刻只走 SettingBook.world_at。
 
+use axum::body::Body;
 use axum::extract::{Path, Query, State};
-use axum::http::StatusCode;
-use axum::response::{Html, IntoResponse};
-use axum::routing::{get, post};
+use axum::http::{Request, StatusCode};
+use axum::response::IntoResponse;
+use axum::routing::{delete, get, patch, post};
 use axum::{Json, Router};
 use narra::db::connection::{init_db, DbConfig};
 use narra::db::schema::apply_schema;
@@ -15,12 +16,13 @@ use narra::services::fill::{
     chat_completions_url, extract_chat_content, fill_system_prompt, fill_user_prompt, packet_facts,
     parse_fill_content, parse_talk_content, talk_system_prompt, talk_user_prompt,
 };
+use narra::services::materialize::invalidate_interval;
 use narra::services::relations;
 use narra::services::span::{parse_plan_content, plan_system_prompt, span_circumstances, PlanBone};
 use narra::services::world::{
-    apply_track_flatten, Beat, BeatDraft, Canon, Column, Delta, Entity, KnowledgeWrite, PersonTrack,
-    Presence, Promise, PromiseOp, KIND_PERSON, KIND_PLACE, KIND_RULE, ROLE_PRESENT, STATUS_COMMITTED,
-    World,
+    apply_track_flatten, Beat, BeatDraft, BeatThread, Canon, Column, Delta, Entity, KnowledgeWrite,
+    PersonTrack, Presence, Promise, PromiseOp, StoryThread, KIND_FACTION, KIND_PERSON, KIND_PLACE,
+    KIND_RULE, KIND_THING, ROLE_PRESENT, STATUS_COMMITTED, World,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
@@ -28,6 +30,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tower_http::cors::CorsLayer;
+use tower_http::services::{ServeDir, ServeFile};
 
 #[derive(Clone)]
 struct App {
@@ -54,6 +57,7 @@ struct BookSess {
     fill_pending: Option<BeatDraft>,
     lens_person: Option<String>,
     craft: BookCraft,
+    threads: Vec<StoryThread>,
 }
 
 #[derive(Clone, Default, Serialize, Deserialize)]
@@ -113,15 +117,35 @@ struct PasteSuggest {
     target_label: String,
 }
 
+#[derive(Serialize, Clone)]
+struct BookCard {
+    name: String,
+    premise: String,
+    columns: usize,
+    committed: usize,
+    drafts: usize,
+    opened_at: i64,
+}
+
 #[derive(Serialize)]
 struct BookList {
     books: Vec<String>,
+    #[serde(default)]
+    items: Vec<BookCard>,
     current: Option<String>,
 }
 
 #[derive(Deserialize)]
 struct CreateBook {
     name: String,
+    #[serde(default)]
+    premise: Option<String>,
+    #[serde(default)]
+    clock_origin_label: Option<String>,
+    #[serde(default)]
+    clock_origin_minute: Option<i64>,
+    #[serde(default)]
+    clock_format: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -129,6 +153,30 @@ struct NewEntity {
     id: String,
     kind: String,
     name: String,
+    #[serde(default)]
+    aliases: Option<String>,
+    #[serde(default)]
+    profile: Option<std::collections::BTreeMap<String, String>>,
+}
+
+#[derive(Clone, Default, Serialize, Deserialize)]
+struct BookMeta {
+    #[serde(default)]
+    opened_at: i64,
+    #[serde(default)]
+    columns: usize,
+    #[serde(default)]
+    committed: usize,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+struct SetupRel {
+    id: String,
+    kind: String,
+    from: String,
+    to: String,
+    #[serde(default)]
+    note: String,
 }
 
 #[derive(Deserialize)]
@@ -158,6 +206,9 @@ struct PatchDraft {
     promise_ops: Option<Vec<PromiseOp>>,
     cause_beat: Option<String>,
     tracks: Option<Vec<PersonTrack>>,
+    clock_from: Option<i64>,
+    clock_to: Option<i64>,
+    story_threads: Option<Vec<BeatThread>>,
 }
 
 #[derive(Deserialize)]
@@ -239,10 +290,48 @@ struct UiState {
     people: Vec<Entity>,
     craft: BookCraft,
     talk_log: Vec<serde_json::Value>,
+    #[serde(default)]
+    all_entities: Vec<Entity>,
+    #[serde(default)]
+    promises: Vec<Promise>,
+    #[serde(default)]
+    threads: Vec<StoryThread>,
 }
 
-fn html() -> &'static str {
-    include_str!("../../../../apps/stripboard/index.html")
+fn web_dist() -> PathBuf {
+    if let Ok(p) = std::env::var("SETTING_WEB_DIR") {
+        return PathBuf::from(p);
+    }
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../apps/web/dist")
+}
+
+async fn proxy_vite(req: Request<Body>) -> impl IntoResponse {
+    let base = std::env::var("SETTING_WEB_DEV").unwrap_or_else(|_| "http://127.0.0.1:5173".into());
+    let uri = format!("{}{}", base.trim_end_matches('/'), req.uri());
+    match reqwest::Client::new().get(&uri).send().await {
+        Ok(r) => {
+            let status =
+                StatusCode::from_u16(r.status().as_u16()).unwrap_or(StatusCode::BAD_GATEWAY);
+            let ct = r
+                .headers()
+                .get(reqwest::header::CONTENT_TYPE)
+                .and_then(|v| v.to_str().ok())
+                .unwrap_or("text/html")
+                .to_string();
+            let bytes = r.bytes().await.unwrap_or_default();
+            (
+                status,
+                [(axum::http::header::CONTENT_TYPE, ct)],
+                bytes,
+            )
+                .into_response()
+        }
+        Err(e) => (
+            StatusCode::BAD_GATEWAY,
+            format!("Vite 开发服务打不开：{e}。旧单文件已废入口，请先 npm run dev 或 npm run build。"),
+        )
+            .into_response(),
+    }
 }
 
 async fn open_book_dir(root: &PathBuf, name: &str) -> Result<SettingBook, String> {
@@ -276,6 +365,7 @@ fn empty_sess(book: SettingBook) -> BookSess {
         fill_pending: None,
         lens_person: None,
         craft: BookCraft::default(),
+        threads: vec![],
     }
 }
 
@@ -305,10 +395,9 @@ fn load_drafts(root: &std::path::Path, name: &str) -> Vec<UiDraft> {
 
 fn persist_drafts(root: &std::path::Path, name: &str, drafts: &[UiDraft]) {
     let _ = std::fs::create_dir_all(root.join(name));
-    let _ = std::fs::write(
-        drafts_path(root, name),
-        serde_json::to_string_pretty(drafts).unwrap_or_else(|_| "[]".into()),
-    );
+    if let Ok(s) = serde_json::to_string_pretty(drafts) {
+        let _ = std::fs::write(drafts_path(root, name), s);
+    }
 }
 
 fn craft_path(root: &std::path::Path, name: &str) -> PathBuf {
@@ -328,6 +417,155 @@ fn persist_craft(root: &std::path::Path, name: &str, craft: &BookCraft) {
         craft_path(root, name),
         serde_json::to_string_pretty(craft).unwrap_or_else(|_| "{}".into()),
     );
+}
+
+fn threads_path(root: &std::path::Path, name: &str) -> PathBuf {
+    root.join(name).join("threads.json")
+}
+
+fn load_threads(root: &std::path::Path, name: &str) -> Vec<StoryThread> {
+    std::fs::read_to_string(threads_path(root, name))
+        .ok()
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or_default()
+}
+
+fn persist_threads(root: &std::path::Path, name: &str, threads: &[StoryThread]) {
+    let _ = std::fs::create_dir_all(root.join(name));
+    let _ = std::fs::write(
+        threads_path(root, name),
+        serde_json::to_string_pretty(threads).unwrap_or_else(|_| "[]".into()),
+    );
+}
+
+fn next_thread_color(threads: &[StoryThread]) -> u8 {
+    let used = threads
+        .iter()
+        .filter(|t| t.thread_type != "主线")
+        .count();
+    (used % 6) as u8
+}
+
+fn thread_hung_on(
+    committed: &[Beat],
+    drafts: &[UiDraft],
+    id: &str,
+) -> Vec<String> {
+    let mut names = Vec::new();
+    for b in committed {
+        if b.story_threads.iter().any(|t| t.id == id) {
+            names.push(if b.intent.is_empty() {
+                b.id.clone()
+            } else {
+                b.intent.clone()
+            });
+        }
+    }
+    for d in drafts {
+        if d.draft.story_threads.iter().any(|t| t.id == id) {
+            names.push(if d.draft.intent.is_empty() {
+                d.id.clone()
+            } else {
+                d.draft.intent.clone()
+            });
+        }
+    }
+    names
+}
+
+fn meta_path(root: &std::path::Path, name: &str) -> PathBuf {
+    root.join(name).join("meta.json")
+}
+
+fn load_meta(root: &std::path::Path, name: &str) -> BookMeta {
+    std::fs::read_to_string(meta_path(root, name))
+        .ok()
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or_default()
+}
+
+fn persist_meta(root: &std::path::Path, name: &str, meta: &BookMeta) {
+    let _ = std::fs::create_dir_all(root.join(name));
+    let _ = std::fs::write(
+        meta_path(root, name),
+        serde_json::to_string_pretty(meta).unwrap_or_else(|_| "{}".into()),
+    );
+}
+
+fn now_secs() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0)
+}
+
+fn update_meta_counts(root: &std::path::Path, name: &str, columns: usize, committed: usize) {
+    let mut m = load_meta(root, name);
+    m.columns = columns;
+    m.committed = committed;
+    m.opened_at = now_secs();
+    persist_meta(root, name, &m);
+}
+
+fn rel_path(root: &std::path::Path, name: &str) -> PathBuf {
+    root.join(name).join("setup_relations.json")
+}
+
+fn load_rels(root: &std::path::Path, name: &str) -> Vec<SetupRel> {
+    std::fs::read_to_string(rel_path(root, name))
+        .ok()
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or_default()
+}
+
+fn persist_rels(root: &std::path::Path, name: &str, rels: &[SetupRel]) {
+    let _ = std::fs::create_dir_all(root.join(name));
+    let _ = std::fs::write(
+        rel_path(root, name),
+        serde_json::to_string_pretty(rels).unwrap_or_else(|_| "[]".into()),
+    );
+}
+
+fn rel_allowed(kind: &str, from_kind: &str, to_kind: &str) -> bool {
+    match kind {
+        "related" => true,
+        "member" => from_kind == KIND_PERSON && to_kind == KIND_FACTION,
+        "holds" => from_kind == KIND_PERSON && to_kind == KIND_THING,
+        "contains" => from_kind == KIND_PLACE && to_kind == KIND_PLACE,
+        _ => false,
+    }
+}
+
+fn rel_label(kind: &str) -> &'static str {
+    match kind {
+        "member" => "属于",
+        "holds" => "拿着",
+        "contains" => "在…之内",
+        _ => "和…有关系",
+    }
+}
+
+fn reverse_rel_label(kind: &str) -> &'static str {
+    match kind {
+        "member" => "…的成员",
+        "holds" => "在…手上",
+        "contains" => "…里面有",
+        _ => "和…有关系",
+    }
+}
+
+fn book_card(root: &std::path::Path, name: &str) -> BookCard {
+    let craft = load_craft(root, name);
+    let drafts = load_drafts(root, name);
+    let meta = load_meta(root, name);
+    BookCard {
+        name: name.to_string(),
+        premise: craft.premise,
+        columns: meta.columns,
+        committed: meta.committed,
+        drafts: drafts.len(),
+        opened_at: meta.opened_at,
+    }
 }
 
 fn load_dotenv() {
@@ -497,10 +735,19 @@ async fn main() {
         })),
         data_root,
     };
-    let router = Router::new()
-        .route("/", get(index))
+    let api = Router::new()
         .route("/api/books", get(list_books).post(create_book))
+        .route("/api/books/{name}", patch(patch_book).delete(delete_book))
         .route("/api/books/{name}/open", post(open_book))
+        .route("/api/scenes/{id}", get(get_scene))
+        .route(
+            "/api/entities/{id}/relations",
+            post(add_setup_rel),
+        )
+        .route(
+            "/api/entities/{id}/relations/{rid}",
+            delete(delete_setup_rel),
+        )
         .route("/api/state", get(state))
         .route("/api/entities", post(add_entity))
         .route("/api/entities/delete", post(delete_entity))
@@ -541,31 +788,45 @@ async fn main() {
         .route("/api/select", post(select_item))
         .route("/api/promises", post(plant_promise))
         .route("/api/craft", get(get_craft).post(put_craft).put(put_craft))
+        .route("/api/threads", get(list_threads).post(create_thread))
+        .route("/api/threads/{id}", patch(patch_thread).delete(delete_thread))
+        .route("/api/threads/{id}/track", get(thread_track))
+        .route("/api/threads/progress", get(thread_progress))
         .route("/health", get(|| async { "ok" }))
         .layer(CorsLayer::permissive())
         .with_state(app);
+    let router = if std::env::var("SETTING_WEB_DEV").is_ok() {
+        api.fallback(proxy_vite)
+    } else {
+        let dist = web_dist();
+        let index = dist.join("index.html");
+        api.fallback_service(ServeDir::new(dist).not_found_service(ServeFile::new(index)))
+    };
     let addr = std::env::var("SETTING_BIND").unwrap_or_else(|_| "127.0.0.1:8787".into());
     let listener = tokio::net::TcpListener::bind(&addr).await.expect("bind");
     eprintln!("setting-api {addr}");
     axum::serve(listener, router).await.expect("serve");
 }
 
-async fn index() -> impl IntoResponse {
-    Html(html().to_string())
-}
-
-async fn list_books(State(app): State<App>) -> Json<BookList> {
-    let g = app.inner.lock().await;
-    let mut books = disk_books(&app.data_root);
+fn book_list_payload(root: &std::path::Path, g: &Inner) -> BookList {
+    let mut books = disk_books(root);
     for k in g.books.keys() {
         if !books.contains(k) {
             books.push(k.clone());
         }
     }
-    Json(BookList {
+    books.sort();
+    let items = books.iter().map(|n| book_card(root, n)).collect();
+    BookList {
         books,
+        items,
         current: g.current.clone(),
-    })
+    }
+}
+
+async fn list_books(State(app): State<App>) -> Json<BookList> {
+    let g = app.inner.lock().await;
+    Json(book_list_payload(&app.data_root, &g))
 }
 
 fn reveal_column(sess: &mut BookSess, display_ord: i64) {
@@ -1048,13 +1309,30 @@ async fn create_book(
     })
     .await
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let mut craft = BookCraft::default();
+    if let Some(p) = body.premise {
+        craft.premise = p;
+    }
+    if let Some(lab) = body.clock_origin_label {
+        craft.clock_origin_label = lab;
+    }
+    if let Some(m) = body.clock_origin_minute {
+        craft.clock_origin_minute = m;
+    }
+    if let Some(fmt) = body.clock_format {
+        craft.clock_format = fmt;
+    }
+    if craft.clock_origin_minute == 0 && !craft.clock_origin_label.trim().is_empty() {
+        craft.clock_origin_minute = craft::parse_hm_offset(&craft.clock_origin_label);
+    }
+    persist_craft(&app.data_root, &name, &craft);
+    update_meta_counts(&app.data_root, &name, 1, 0);
+    let mut sess = empty_sess(book);
+    sess.craft = craft;
     let mut g = app.inner.lock().await;
-    g.books.insert(name.clone(), empty_sess(book));
+    g.books.insert(name.clone(), sess);
     g.current = Some(name);
-    Ok(Json(BookList {
-        books: g.books.keys().cloned().collect(),
-        current: g.current.clone(),
-    }))
+    Ok(Json(book_list_payload(&app.data_root, &g)))
 }
 
 async fn open_book(
@@ -1086,15 +1364,285 @@ async fn open_book(
         sess.drafts = drafts;
         sess.n = n;
         sess.craft = load_craft(&app.data_root, &name);
+        sess.threads = load_threads(&app.data_root, &name);
         let mut g = app.inner.lock().await;
         g.books.insert(name.clone(), sess);
     }
     let mut g = app.inner.lock().await;
-    g.current = Some(name);
-    Ok(Json(BookList {
-        books: g.books.keys().cloned().collect(),
-        current: g.current.clone(),
-    }))
+    g.current = Some(name.clone());
+    if let Some(sess) = g.books.get(&name) {
+        let cols = sess.book.load_canon().await.ok().map(|c| c.columns.len()).unwrap_or(0);
+        let committed = sess
+            .book
+            .load_canon()
+            .await
+            .ok()
+            .map(|c| c.beats.iter().filter(|b| b.status == STATUS_COMMITTED).count())
+            .unwrap_or(0);
+        update_meta_counts(&app.data_root, &name, cols, committed);
+    }
+    Ok(Json(book_list_payload(&app.data_root, &g)))
+}
+
+#[derive(Deserialize, Default)]
+struct PatchBook {
+    premise: Option<String>,
+    clock_origin_label: Option<String>,
+    clock_origin_minute: Option<i64>,
+    clock_format: Option<String>,
+    minutes_per_tick: Option<i64>,
+    export_include_draft: Option<bool>,
+    export_order: Option<String>,
+    export_extras: Option<String>,
+    chapters: Option<Vec<craft::CraftChapter>>,
+}
+
+#[derive(Deserialize, Default)]
+struct ConfirmQ {
+    confirm: Option<String>,
+}
+
+async fn patch_book(
+    State(app): State<App>,
+    Path(name): Path<String>,
+    Json(body): Json<PatchBook>,
+) -> Result<Json<BookCraft>, (StatusCode, String)> {
+    let name = name.trim().to_string();
+    if name.is_empty() {
+        return Err((StatusCode::BAD_REQUEST, "书名空".into()));
+    }
+    if !book_db_path(&app.data_root, &name).exists() {
+        return Err((StatusCode::NOT_FOUND, "无此书".into()));
+    }
+    let mut craft = {
+        let g = app.inner.lock().await;
+        g.books
+            .get(&name)
+            .map(|s| s.craft.clone())
+            .unwrap_or_else(|| load_craft(&app.data_root, &name))
+    };
+    if let Some(v) = body.premise {
+        craft.premise = v;
+    }
+    if let Some(v) = body.clock_origin_label {
+        craft.clock_origin_label = v;
+    }
+    if let Some(v) = body.clock_origin_minute {
+        craft.clock_origin_minute = v;
+    }
+    if let Some(v) = body.clock_format {
+        craft.clock_format = v;
+    }
+    if let Some(v) = body.minutes_per_tick {
+        craft.minutes_per_tick = v;
+    }
+    if let Some(v) = body.export_include_draft {
+        craft.export_include_draft = v;
+    }
+    if let Some(v) = body.export_order {
+        craft.export_order = v;
+    }
+    if let Some(v) = body.export_extras {
+        craft.export_extras = v;
+    }
+    if let Some(v) = body.chapters {
+        craft.chapters = v;
+    }
+    if craft.clock_origin_minute == 0 && !craft.clock_origin_label.trim().is_empty() {
+        craft.clock_origin_minute = craft::parse_hm_offset(&craft.clock_origin_label);
+    }
+    craft = craft::normalize(craft);
+    persist_craft(&app.data_root, &name, &craft);
+    let mut g = app.inner.lock().await;
+    if let Some(sess) = g.books.get_mut(&name) {
+        sess.craft = craft.clone();
+    }
+    Ok(Json(craft))
+}
+
+async fn delete_book(
+    State(app): State<App>,
+    Path(name): Path<String>,
+    Query(q): Query<ConfirmQ>,
+) -> Result<Json<BookList>, (StatusCode, String)> {
+    let name = name.trim().to_string();
+    if name.is_empty() {
+        return Err((StatusCode::BAD_REQUEST, "书名空".into()));
+    }
+    let confirm = q.confirm.unwrap_or_default();
+    if confirm != name {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            "删书须带确认参数，须等于书名".into(),
+        ));
+    }
+    {
+        let mut g = app.inner.lock().await;
+        g.books.remove(&name);
+        if g.current.as_deref() == Some(name.as_str()) {
+            g.current = None;
+        }
+    }
+    let dir = app.data_root.join(&name);
+    if dir.exists() {
+        std::fs::remove_dir_all(&dir)
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    }
+    let g = app.inner.lock().await;
+    Ok(Json(book_list_payload(&app.data_root, &g)))
+}
+
+async fn get_scene(
+    State(app): State<App>,
+    Path(id): Path<String>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    let g = app.inner.lock().await;
+    let name = g
+        .current
+        .clone()
+        .ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
+    let sess = g.books.get(&name).unwrap();
+    let canon = sess
+        .book
+        .load_canon()
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let caused: Vec<serde_json::Value> = canon
+        .beats
+        .iter()
+        .filter(|b| b.status == STATUS_COMMITTED && b.cause_beat.as_deref() == Some(id.as_str()))
+        .map(|b| {
+            serde_json::json!({
+                "id": b.id,
+                "intent": b.intent,
+                "status": "committed",
+            })
+        })
+        .chain(sess.drafts.iter().filter(|d| d.draft.cause_beat.as_deref() == Some(id.as_str())).map(|d| {
+            serde_json::json!({
+                "id": d.id,
+                "intent": d.draft.intent,
+                "status": "draft",
+            })
+        }))
+        .collect();
+    if let Some(d) = sess.drafts.iter().find(|x| x.id == id) {
+        return Ok(Json(serde_json::json!({
+            "id": d.id,
+            "title": d.title,
+            "status": "draft",
+            "draft": d.draft,
+            "caused": caused,
+            "clock_label": sess.craft.format_span(d.draft.clock_from, d.draft.clock_to),
+        })));
+    }
+    let beat = canon
+        .beats
+        .iter()
+        .find(|b| b.id == id && b.status == STATUS_COMMITTED)
+        .ok_or((StatusCode::NOT_FOUND, "无此场".into()))?;
+    Ok(Json(serde_json::json!({
+        "id": beat.id,
+        "title": beat.intent,
+        "status": "committed",
+        "beat": beat,
+        "caused": caused,
+        "clock_label": sess.craft.format_span(beat.clock_from, beat.clock_to),
+    })))
+}
+
+#[derive(Deserialize)]
+struct NewRel {
+    kind: String,
+    target: String,
+    #[serde(default)]
+    note: Option<String>,
+}
+
+fn entity_kind_of(canon: &Canon, id: &str) -> Option<String> {
+    canon
+        .entities
+        .iter()
+        .find(|e| e.id == id || e.name == id)
+        .map(|e| e.kind.clone())
+}
+
+fn resolve_ent(canon: &Canon, id: &str) -> Option<String> {
+    canon
+        .entities
+        .iter()
+        .find(|e| e.id == id || e.name == id)
+        .map(|e| e.id.clone())
+}
+
+async fn add_setup_rel(
+    State(app): State<App>,
+    Path(id): Path<String>,
+    Json(body): Json<NewRel>,
+) -> Result<Json<SetupRel>, (StatusCode, String)> {
+    let g = app.inner.lock().await;
+    let name = g
+        .current
+        .clone()
+        .ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
+    let sess = g.books.get(&name).unwrap();
+    let canon = sess
+        .book
+        .load_canon()
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let from = resolve_ent(&canon, &id).ok_or((StatusCode::NOT_FOUND, "无此元素".into()))?;
+    let to = resolve_ent(&canon, &body.target).ok_or((StatusCode::NOT_FOUND, "无此对象".into()))?;
+    let from_kind = entity_kind_of(&canon, &from).unwrap_or_default();
+    let to_kind = entity_kind_of(&canon, &to).unwrap_or_default();
+    if !rel_allowed(&body.kind, &from_kind, &to_kind) {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            format!("关系类型不合法：{} 不能 {} {}", from_kind, body.kind, to_kind),
+        ));
+    }
+    drop(g);
+    let mut rels = load_rels(&app.data_root, &name);
+    let rid = format!(
+        "r{}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis())
+            .unwrap_or(0)
+    );
+    let rel = SetupRel {
+        id: rid,
+        kind: body.kind,
+        from,
+        to,
+        note: body.note.unwrap_or_default(),
+    };
+    rels.push(rel.clone());
+    persist_rels(&app.data_root, &name, &rels);
+    Ok(Json(rel))
+}
+
+async fn delete_setup_rel(
+    State(app): State<App>,
+    Path((id, rid)): Path<(String, String)>,
+    Query(q): Query<ConfirmQ>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    let g = app.inner.lock().await;
+    let name = g
+        .current
+        .clone()
+        .ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
+    drop(g);
+    let _ = id;
+    let _ = q;
+    let mut rels = load_rels(&app.data_root, &name);
+    let n = rels.len();
+    rels.retain(|r| r.id != rid);
+    if rels.len() == n {
+        return Err((StatusCode::NOT_FOUND, "无此关系".into()));
+    }
+    persist_rels(&app.data_root, &name, &rels);
+    Ok(Json(serde_json::json!({"ok": true, "id": rid})))
 }
 
 async fn snapshot(sess: &BookSess, name: &str, data_root: &std::path::Path) -> Result<UiState, String> {
@@ -1164,6 +1712,9 @@ async fn snapshot(sess: &BookSess, name: &str, data_root: &std::path::Path) -> R
                 read_talk_lines(data_root, name, &id)
             }
         },
+        all_entities: canon.entities.clone(),
+        promises: canon.promises.clone(),
+        threads: sess.threads.clone(),
     })
 }
 
@@ -1187,12 +1738,18 @@ async fn add_entity(
     let mut g = app.inner.lock().await;
     let name = g.current.clone().ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
     let sess = g.books.get_mut(&name).unwrap();
+    let mut profile = body.profile.unwrap_or_default();
+    if let Some(a) = body.aliases {
+        if !a.trim().is_empty() {
+            profile.insert("aliases".into(), a);
+        }
+    }
     sess.book
         .upsert_entity(&Entity {
             id: body.id,
             kind: body.kind,
             name: body.name,
-            profile: Default::default(),
+            profile,
         })
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
@@ -1357,6 +1914,15 @@ async fn patch_draft(
     if let Some(v) = body.tracks {
         d.draft.tracks = v;
         apply_track_flatten(&mut d.draft);
+    }
+    if let Some(v) = body.clock_from {
+        d.draft.clock_from = v;
+    }
+    if let Some(v) = body.clock_to {
+        d.draft.clock_to = v;
+    }
+    if let Some(v) = body.story_threads {
+        d.draft.story_threads = v;
     }
     sess.selected = Some(body.id.clone());
     let out = d.draft.clone();
@@ -1702,6 +2268,14 @@ async fn write_parallel(
             .map(|d| d.as_millis())
             .unwrap_or(0)
     );
+    let clock_from = body
+        .get("clock_from")
+        .and_then(|v| v.as_i64())
+        .unwrap_or(c.clock_from);
+    let clock_to = body
+        .get("clock_to")
+        .and_then(|v| v.as_i64())
+        .unwrap_or(c.clock_to);
     sess.drafts.push(UiDraft {
         id: id.clone(),
         title: "并列".into(),
@@ -1711,8 +2285,8 @@ async fn write_parallel(
             column_id: c.id.clone(),
             intent: intent.clone(),
             value_shift: None,
-            clock_from: c.clock_from,
-            clock_to: c.clock_to,
+            clock_from,
+            clock_to,
             place_id,
             ..BeatDraft::default()
         },
@@ -1857,6 +2431,16 @@ async fn relations_get(
 struct ExportQ {
     #[serde(default)]
     canon_only: Option<String>,
+    #[serde(default)]
+    from_col: Option<String>,
+    #[serde(default)]
+    to_col: Option<String>,
+    #[serde(default)]
+    chapter: Option<String>,
+    #[serde(default)]
+    order: Option<String>,
+    #[serde(default)]
+    include: Option<String>,
 }
 
 async fn get_craft(State(app): State<App>) -> Result<Json<BookCraft>, (StatusCode, String)> {
@@ -1891,6 +2475,309 @@ async fn put_craft(
     Ok(Json(craft))
 }
 
+#[derive(Deserialize)]
+struct NewThread {
+    name: String,
+    #[serde(rename = "type", default)]
+    thread_type: Option<String>,
+    color: Option<u8>,
+    #[serde(default)]
+    description: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct PatchThread {
+    name: Option<String>,
+    #[serde(rename = "type")]
+    thread_type: Option<String>,
+    color: Option<u8>,
+    description: Option<String>,
+}
+
+async fn list_threads(State(app): State<App>) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    let g = app.inner.lock().await;
+    let name = g.current.clone().ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
+    let sess = g.books.get(&name).ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
+    Ok(Json(serde_json::json!({ "threads": sess.threads })))
+}
+
+async fn create_thread(
+    State(app): State<App>,
+    Json(body): Json<NewThread>,
+) -> Result<Json<StoryThread>, (StatusCode, String)> {
+    let name = body.name.trim().to_string();
+    if name.is_empty() {
+        return Err((StatusCode::BAD_REQUEST, "线名空".into()));
+    }
+    let kind = body.thread_type.unwrap_or_else(|| "支线".into());
+    if kind != "主线" && kind != "支线" {
+        return Err((StatusCode::BAD_REQUEST, "类型只有主线或支线".into()));
+    }
+    let mut g = app.inner.lock().await;
+    let book = g.current.clone().ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
+    let sess = g.books.get_mut(&book).ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
+    if sess.threads.iter().any(|t| t.name == name) {
+        return Err((StatusCode::BAD_REQUEST, "已有同名逻辑线".into()));
+    }
+    let color = if kind == "主线" {
+        0
+    } else {
+        body.color.unwrap_or_else(|| next_thread_color(&sess.threads)) % 6
+    };
+    let id = format!(
+        "t{}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis())
+            .unwrap_or(0)
+    );
+    let thread = StoryThread {
+        id,
+        name,
+        color,
+        thread_type: kind,
+        description: body.description.unwrap_or_default(),
+    };
+    sess.threads.push(thread.clone());
+    persist_threads(&app.data_root, &book, &sess.threads);
+    Ok(Json(thread))
+}
+
+async fn patch_thread(
+    State(app): State<App>,
+    Path(id): Path<String>,
+    Json(body): Json<PatchThread>,
+) -> Result<Json<StoryThread>, (StatusCode, String)> {
+    let mut g = app.inner.lock().await;
+    let book = g.current.clone().ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
+    let sess = g.books.get_mut(&book).ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
+    let t = sess
+        .threads
+        .iter_mut()
+        .find(|x| x.id == id)
+        .ok_or((StatusCode::NOT_FOUND, "无此逻辑线".into()))?;
+    if let Some(n) = body.name {
+        let n = n.trim().to_string();
+        if n.is_empty() {
+            return Err((StatusCode::BAD_REQUEST, "线名空".into()));
+        }
+        t.name = n;
+    }
+    if let Some(k) = body.thread_type {
+        if k != "主线" && k != "支线" {
+            return Err((StatusCode::BAD_REQUEST, "类型只有主线或支线".into()));
+        }
+        t.thread_type = k;
+    }
+    if let Some(c) = body.color {
+        if t.thread_type != "主线" {
+            t.color = c % 6;
+        }
+    }
+    if let Some(d) = body.description {
+        t.description = d;
+    }
+    let out = t.clone();
+    persist_threads(&app.data_root, &book, &sess.threads);
+    Ok(Json(out))
+}
+
+async fn delete_thread(
+    State(app): State<App>,
+    Path(id): Path<String>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    let mut g = app.inner.lock().await;
+    let book = g.current.clone().ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
+    let sess = g.books.get_mut(&book).ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
+    if !sess.threads.iter().any(|t| t.id == id) {
+        return Err((StatusCode::NOT_FOUND, "无此逻辑线".into()));
+    }
+    let canon = sess
+        .book
+        .load_canon()
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let committed: Vec<_> = canon
+        .beats
+        .iter()
+        .filter(|b| b.status == STATUS_COMMITTED)
+        .cloned()
+        .collect();
+    let hung = thread_hung_on(&committed, &sess.drafts, &id);
+    if !hung.is_empty() {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            format!("还有场挂着这条线：{}", hung.join("、")),
+        ));
+    }
+    sess.threads.retain(|t| t.id != id);
+    persist_threads(&app.data_root, &book, &sess.threads);
+    Ok(Json(serde_json::json!({"ok": true, "id": id})))
+}
+
+fn beats_on_thread(
+    committed: &[Beat],
+    drafts: &[UiDraft],
+    id: &str,
+) -> Vec<(i64, i64, String, String, String, String, bool)> {
+    let mut rows = Vec::new();
+    for b in committed {
+        if let Some(st) = b.story_threads.iter().find(|t| t.id == id) {
+            rows.push((
+                b.clock_from,
+                b.commit_seq,
+                b.id.clone(),
+                b.column_id.clone(),
+                b.intent.clone(),
+                if st.role.is_empty() { "推进".into() } else { st.role.clone() },
+                true,
+            ));
+        }
+    }
+    for d in drafts {
+        if let Some(st) = d.draft.story_threads.iter().find(|t| t.id == id) {
+            rows.push((
+                d.draft.clock_from,
+                0,
+                d.id.clone(),
+                d.draft.column_id.clone(),
+                d.draft.intent.clone(),
+                if st.role.is_empty() { "推进".into() } else { st.role.clone() },
+                false,
+            ));
+        }
+    }
+    rows.sort_by(|a, b| a.0.cmp(&b.0).then(a.1.cmp(&b.1)));
+    rows
+}
+
+async fn thread_track(
+    State(app): State<App>,
+    Path(id): Path<String>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    let g = app.inner.lock().await;
+    let book = g.current.clone().ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
+    let sess = g.books.get(&book).ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
+    let thread = sess
+        .threads
+        .iter()
+        .find(|t| t.id == id)
+        .cloned()
+        .ok_or((StatusCode::NOT_FOUND, "无此逻辑线".into()))?;
+    let canon = sess
+        .book
+        .load_canon()
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let committed: Vec<_> = canon
+        .beats
+        .iter()
+        .filter(|b| b.status == STATUS_COMMITTED)
+        .cloned()
+        .collect();
+    let rows = beats_on_thread(&committed, &sess.drafts, &id);
+    let first = rows.first().map(|r| r.2.clone());
+    let last = rows.last().map(|r| r.2.clone());
+    let beats: Vec<serde_json::Value> = rows
+        .into_iter()
+        .map(|r| {
+            serde_json::json!({
+                "id": r.2,
+                "column_id": r.3,
+                "clock_from": r.0,
+                "intent": r.4,
+                "role": r.5,
+                "canon": r.6,
+                "enter": first.as_ref() == Some(&r.2),
+                "exit": last.as_ref() == Some(&r.2),
+            })
+        })
+        .collect();
+    Ok(Json(serde_json::json!({
+        "thread": thread,
+        "beats": beats,
+    })))
+}
+
+async fn thread_progress(
+    State(app): State<App>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    let g = app.inner.lock().await;
+    let book = g.current.clone().ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
+    let sess = g.books.get(&book).ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
+    let canon = sess
+        .book
+        .load_canon()
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let committed: Vec<_> = canon
+        .beats
+        .iter()
+        .filter(|b| b.status == STATUS_COMMITTED)
+        .cloned()
+        .collect();
+    let sorted = craft::sorted_chapters(&sess.craft, &canon.columns);
+    let chapters: Vec<(i64, String)> = if sorted.is_empty() {
+        vec![(
+            canon.columns.first().map(|c| c.display_ord).unwrap_or(0),
+            "全书".into(),
+        )]
+    } else {
+        sorted
+            .into_iter()
+            .map(|(ord, ch)| (ord, ch.title.clone()))
+            .collect()
+    };
+    let mut lines = sess.threads.clone();
+    lines.sort_by(|a, b| {
+        let ak = if a.thread_type == "主线" { 0 } else { 1 };
+        let bk = if b.thread_type == "主线" { 0 } else { 1 };
+        ak.cmp(&bk).then(a.name.cmp(&b.name))
+    });
+    let mut cells = Vec::new();
+    for th in &lines {
+        let rows = beats_on_thread(&committed, &sess.drafts, &th.id);
+        for (i, (from_ord, title)) in chapters.iter().enumerate() {
+            let next = chapters.get(i + 1).map(|(ord, _)| *ord);
+            let in_ch = |col: &str| {
+                let ord = canon
+                    .columns
+                    .iter()
+                    .find(|c| c.id == col)
+                    .map(|c| c.display_ord)
+                    .unwrap_or(0);
+                ord >= *from_ord && next.map(|n| ord < n).unwrap_or(true)
+            };
+            let count = rows.iter().filter(|r| in_ch(&r.3)).count();
+            if count > 0 {
+                let first = rows.iter().find(|r| in_ch(&r.3));
+                cells.push(serde_json::json!({
+                    "line": th.id,
+                    "chapter": title,
+                    "count": count,
+                    "beat_id": first.map(|r| r.2.clone()),
+                    "column_id": first.map(|r| r.3.clone()),
+                }));
+            }
+        }
+    }
+    let unassigned = committed
+        .iter()
+        .filter(|b| b.story_threads.is_empty())
+        .count()
+        + sess
+            .drafts
+            .iter()
+            .filter(|d| d.draft.story_threads.is_empty())
+            .count();
+    Ok(Json(serde_json::json!({
+        "lines": lines,
+        "chapters": chapters.iter().map(|(_, t)| t.clone()).collect::<Vec<_>>(),
+        "cells": cells,
+        "unassigned": unassigned,
+    })))
+}
+
 async fn export_md(
     State(app): State<App>,
     Query(q): Query<ExportQ>,
@@ -1906,11 +2793,75 @@ async fn export_md(
     let canon_only = matches!(
         q.canon_only.as_deref(),
         Some("1") | Some("true") | Some("yes")
-    );
+    ) || matches!(q.include.as_deref(), Some("canon") | Some("canon_only"));
+    let from_ord = q.from_col.as_ref().and_then(|id| {
+        canon
+            .columns
+            .iter()
+            .find(|c| &c.id == id)
+            .map(|c| c.display_ord)
+    });
+    let to_ord = q.to_col.as_ref().and_then(|id| {
+        canon
+            .columns
+            .iter()
+            .find(|c| &c.id == id)
+            .map(|c| c.display_ord)
+    });
+    let chapter_cols: Option<HashSet<String>> = q.chapter.as_ref().map(|ch| {
+        craft::sorted_chapters(&sess.craft, &canon.columns)
+            .into_iter()
+            .find(|(_, c)| c.id == *ch || c.title == *ch)
+            .map(|(_, start)| {
+                let start_ord = canon
+                    .columns
+                    .iter()
+                    .find(|c| c.id == start.start_column)
+                    .map(|c| c.display_ord)
+                    .unwrap_or(0);
+                let next_ord = craft::sorted_chapters(&sess.craft, &canon.columns)
+                    .into_iter()
+                    .filter_map(|(o, _)| if o > start_ord { Some(o) } else { None })
+                    .min();
+                canon
+                    .columns
+                    .iter()
+                    .filter(|c| {
+                        c.display_ord >= start_ord
+                            && next_ord.map(|n| c.display_ord < n).unwrap_or(true)
+                    })
+                    .map(|c| c.id.clone())
+                    .collect()
+            })
+            .unwrap_or_default()
+    });
+    let in_range = |col_id: &str| -> bool {
+        if let Some(set) = &chapter_cols {
+            if !set.contains(col_id) {
+                return false;
+            }
+        }
+        let ord = canon
+            .columns
+            .iter()
+            .find(|c| c.id == col_id)
+            .map(|c| c.display_ord);
+        if let (Some(f), Some(o)) = (from_ord, ord) {
+            if o < f {
+                return false;
+            }
+        }
+        if let (Some(t), Some(o)) = (to_ord, ord) {
+            if o > t {
+                return false;
+            }
+        }
+        true
+    };
     let mut rows: Vec<ExportBeat> = canon
         .beats
         .iter()
-        .filter(|b| b.status == STATUS_COMMITTED)
+        .filter(|b| b.status == STATUS_COMMITTED && in_range(&b.column_id))
         .map(|b| {
             let kind = if b.kind == "ellipsis" { "省略场" } else { "场" };
             ExportBeat {
@@ -1934,6 +2885,9 @@ async fn export_md(
     if !canon_only {
         for d in &sess.drafts {
             let b = &d.draft;
+            if !in_range(&b.column_id) {
+                continue;
+            }
             rows.push(ExportBeat {
                 column_id: b.column_id.clone(),
                 clock: b.clock_from,
@@ -1952,12 +2906,17 @@ async fn export_md(
             });
         }
     }
+    let reading = match q.order.as_deref() {
+        Some("telling") | Some("reading") | Some("read") => true,
+        Some("story") | Some("clock") => false,
+        _ => sess.reading_order,
+    };
     Ok(craft::export_markdown(
         &name,
         &sess.craft,
         &canon.columns,
         rows,
-        sess.reading_order,
+        reading,
     ))
 }
 
@@ -2058,12 +3017,22 @@ async fn plant_promise(
         id: body
             .get("id")
             .and_then(|v| v.as_str())
-            .unwrap_or("token_due")
-            .to_string(),
+            .filter(|s| !s.is_empty())
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| {
+                format!(
+                    "p{}",
+                    std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .map(|d| d.as_millis())
+                        .unwrap_or(0)
+                )
+            }),
         name: body
             .get("name")
             .and_then(|v| v.as_str())
-            .unwrap_or("铜牌三日")
+            .filter(|s| !s.is_empty())
+            .unwrap_or("未命名伏笔")
             .to_string(),
         status: "open".into(),
         related: body
@@ -2074,7 +3043,7 @@ async fn plant_promise(
                     .filter_map(|x| x.as_str().map(|s| s.to_string()))
                     .collect()
             })
-            .unwrap_or_else(|| vec!["阿莲".into(), "铜牌".into()]),
+            .unwrap_or_default(),
         plant_clock: body.get("plant_clock").and_then(|v| v.as_i64()).or(Some(0)),
         deadline_clock: body
             .get("deadline_clock")
@@ -2089,6 +3058,7 @@ async fn plant_promise(
         .upsert_promise(&p)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let _ = invalidate_interval(sess.book.db().as_ref(), p.deadline_clock.unwrap_or(0)).await;
     Ok(Json(serde_json::json!({"ok": true, "id": p.id, "auto_canon": false})))
 }
 
@@ -3215,6 +4185,60 @@ async fn get_dossier(
                 .collect()
         })
         .unwrap_or_default();
+    let rels = load_rels(&app.data_root, &name);
+    let relations_setup: Vec<serde_json::Value> = rels
+        .iter()
+        .filter(|r| r.from == e.id || r.to == e.id)
+        .map(|r| {
+            let outgoing = r.from == e.id;
+            let other = if outgoing { &r.to } else { &r.from };
+            let other_name = canon
+                .entities
+                .iter()
+                .find(|x| x.id == *other)
+                .map(|x| x.name.clone())
+                .unwrap_or_else(|| other.clone());
+            serde_json::json!({
+                "id": r.id,
+                "kind": r.kind,
+                "direction": if outgoing { "out" } else { "in" },
+                "other": other,
+                "other_name": other_name,
+                "label": if outgoing { rel_label(&r.kind) } else { reverse_rel_label(&r.kind) },
+                "note": r.note,
+            })
+        })
+        .collect();
+    let mut relations_from_scenes = vec![];
+    for b in canon.beats.iter().filter(|b| b.status == STATUS_COMMITTED) {
+        let on = b.presences.iter().any(|p| p.entity_id == e.id)
+            || b.place_id.as_deref() == Some(e.id.as_str());
+        if !on {
+            continue;
+        }
+        if let Some(p) = &b.place_id {
+            if p != &e.id {
+                relations_from_scenes.push(serde_json::json!({
+                    "kind": "at",
+                    "other": p,
+                    "beat_id": b.id,
+                    "label": "本场在",
+                    "readonly": true,
+                }));
+            }
+        }
+        for p in &b.presences {
+            if p.entity_id != e.id {
+                relations_from_scenes.push(serde_json::json!({
+                    "kind": "involves",
+                    "other": p.entity_id,
+                    "beat_id": b.id,
+                    "label": "同场",
+                    "readonly": true,
+                }));
+            }
+        }
+    }
     Ok(Json(serde_json::json!({
         "id": e.id,
         "kind": e.kind,
@@ -3227,6 +4251,8 @@ async fn get_dossier(
         "knows_readonly": knows,
         "wrong_beliefs_readonly": wrong,
         "promises_readonly": promises,
+        "relations_setup": relations_setup,
+        "relations_from_scenes": relations_from_scenes,
     })))
 }
 
@@ -3486,13 +4512,62 @@ async fn search_entities(
                 "kind": e.kind,
                 "name": e.name,
                 "on_page": on_page.contains(&e.id),
+                "type": "entity",
             })
         })
         .collect();
+    let qlow = needle.to_lowercase();
+    let mut scene_hits: Vec<serde_json::Value> = vec![];
+    if !qlow.is_empty() {
+        for b in canon.beats.iter().filter(|b| b.status == STATUS_COMMITTED) {
+            let blob = format!(
+                "{} {} {} {} {}",
+                b.intent,
+                b.do_text.as_deref().unwrap_or(""),
+                b.say_text.as_deref().unwrap_or(""),
+                b.think_text.as_deref().unwrap_or(""),
+                b.id
+            )
+            .to_lowercase();
+            if blob.contains(&qlow) {
+                scene_hits.push(serde_json::json!({
+                    "id": b.id,
+                    "kind": "scene",
+                    "name": b.intent,
+                    "type": "scene",
+                    "status": "committed",
+                    "column_id": b.column_id,
+                }));
+            }
+        }
+        for d in &sess.drafts {
+            let blob = format!(
+                "{} {} {} {} {} {}",
+                d.title,
+                d.draft.intent,
+                d.draft.do_text.as_deref().unwrap_or(""),
+                d.draft.say_text.as_deref().unwrap_or(""),
+                d.draft.think_text.as_deref().unwrap_or(""),
+                d.id
+            )
+            .to_lowercase();
+            if blob.contains(&qlow) {
+                scene_hits.push(serde_json::json!({
+                    "id": d.id,
+                    "kind": "scene",
+                    "name": d.draft.intent,
+                    "type": "scene",
+                    "status": "draft",
+                    "column_id": d.draft.column_id,
+                }));
+            }
+        }
+    }
     Ok(Json(serde_json::json!({
         "book": name,
         "q": needle,
         "hits": hits,
+        "scenes": scene_hits,
     })))
 }
 

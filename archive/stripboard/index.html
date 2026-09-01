@@ -86,7 +86,7 @@
     .app {
       display: grid;
       grid-template-columns: var(--lib) 1fr var(--side);
-      grid-template-rows: auto auto auto 1fr;
+      grid-template-rows: auto auto auto auto 1fr;
       height: 100%;
       min-width: 1100px;
       position: relative;
@@ -137,8 +137,23 @@
     button:focus-visible, .card:focus-visible, .chip:focus-visible { outline: var(--focus); outline-offset: 2px; }
     button.primary { background: var(--brass); color: var(--brass-ink); border-color: var(--brass); }
     button:disabled { opacity: .35; cursor: not-allowed; }
-    #more-menu { position: relative; }
-    #more-menu summary { cursor: pointer; list-style: none; border: 1px solid var(--line); padding: 5px 10px; }
+    #more-menu, #look-menu { position: relative; }
+    #more-menu summary, #look-menu summary { cursor: pointer; list-style: none; border: 1px solid var(--line); padding: 5px 10px; }
+    #more-menu:not([open]) #more-panel { display: none !important; }
+    #look-menu:not([open]) #look-panel { display: none !important; }
+    #look-panel {
+      position: absolute;
+      right: 0;
+      top: 100%;
+      z-index: 20;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      padding: 8px;
+      min-width: 140px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
     #more-panel {
       position: absolute;
       right: 0;
@@ -167,14 +182,14 @@
       padding: 12px 12px 28px;
       overflow: auto;
       background: var(--panel);
-      grid-row: 4;
+      grid-row: 5;
     }
     #stage {
       display: flex;
       flex-direction: column;
       min-width: 0;
       min-height: 0;
-      grid-row: 4;
+      grid-row: 5;
       background: radial-gradient(1200px 400px at 20% -10%, var(--glow) 0%, transparent 55%), var(--night);
     }
     #ruler {
@@ -358,7 +373,8 @@
       padding: 12px 12px 28px;
       overflow: auto;
       background: var(--panel);
-      grid-row: 4;
+      grid-row: 5;
+      position: relative;
     }
     #wires { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
     .muted { color: var(--mute); font-size: 12px; }
@@ -366,14 +382,17 @@
     .tooth.canon { background: #2e7d32; }
     .tooth.draft { background: var(--warn); }
     .tooth.empty { background: #555; }
+    .tooth.debt { background: #c45c26; box-shadow: inset 0 0 0 2px var(--warn); }
     .tooth.telling-diff::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: #1565c0; }
     .hidden { display: none !important; }
-    #book-label {
-      position: absolute;
-      width: 1px; height: 1px;
-      overflow: hidden;
-      clip: rect(0 0 0 0);
+    #book-label { color: var(--brass); font-family: var(--serif); max-width: 10em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .mention-pop {
+      position: absolute; z-index: 8; background: var(--panel-2);
+      border: 1px solid var(--line); border-radius: 8px; padding: 4px;
+      max-height: 200px; overflow: auto; min-width: 140px;
     }
+    .mention-pop button { display: block; width: 100%; text-align: left; border: 0; }
+    .col-add { width: 100%; margin-top: 8px; border-style: dashed; color: var(--mute); }
     .lib-actions { display: flex; gap: 6px; align-items: center; }
     /* dialog skin above */
     #ent-list li, .lib-item { cursor: grab; padding: 4px; list-style: none; display: flex; align-items: center; gap: 6px; }
@@ -398,6 +417,118 @@
     @media (prefers-reduced-motion: reduce) {
       * { animation: none !important; transition: none !important; }
     }
+    .overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 30;
+      background: var(--night);
+      overflow: auto;
+      padding: 24px 32px 64px;
+    }
+    .overlay.show { display: block; }
+    .overlay h1 { font-family: var(--serif); }
+    .look-rail {
+      display: none;
+      position: fixed;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      width: min(440px, 42vw);
+      z-index: 18;
+      background: var(--panel);
+      border-left: 1px solid var(--line);
+      overflow: auto;
+      padding: 16px 18px 32px;
+    }
+    .look-rail.show { display: block; }
+    .look-rail h1, .look-rail h3 { font-family: var(--serif); margin-top: 0; }
+    dialog.look-rail {
+      max-width: none;
+      height: 100%;
+      margin: 0;
+      box-shadow: none;
+    }
+    dialog.look-rail[open] { display: block; }
+    dialog.look-rail::backdrop { display: none; background: transparent; }
+    #thread-strip {
+      grid-column: 1 / -1;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 14px 6px;
+      background: var(--panel);
+      border-bottom: 1px solid var(--line);
+      flex-wrap: wrap;
+      min-height: 0;
+    }
+    #thread-strip button {
+      padding: 2px 8px;
+      font-size: 12px;
+    }
+    #thread-strip button.on {
+      border-color: var(--brass);
+      color: var(--brass);
+    }
+    .card { position: relative; }
+    .card-band {
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 4px;
+    }
+    .card.unassigned { box-shadow: inset 1px 0 0 #6e6a64; }
+    .card.thin {
+      height: 10px;
+      min-height: 10px;
+      padding: 0;
+      overflow: hidden;
+      opacity: .55;
+      margin-bottom: 6px;
+    }
+    .card.thin .kicker, .card.thin .title, .card.thin .sum, .card.thin .val, .card.thin .chips { display: none; }
+    .plus-n { font-size: 10px; color: var(--mute); margin-left: 6px; }
+    .thread-chip { display: inline-flex; align-items: center; gap: 4px; margin: 2px 4px 2px 0; }
+    .thread-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+    .book-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; }
+    .book-card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 16px;
+      text-align: left;
+      color: inherit;
+      cursor: pointer;
+    }
+    .book-card h3 { margin: 0 0 6px; font-family: var(--serif); }
+    .cmdk {
+      position: fixed; inset: 18vh 20% auto; z-index: 45;
+      background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+      padding: 12px; display: none; box-shadow: 0 16px 40px #0008;
+    }
+    .cmdk.show { display: block; }
+    .cmdk input { width: 100%; }
+    .cmdk ul { list-style: none; margin: 8px 0 0; padding: 0; max-height: 40vh; overflow: auto; }
+    .cmdk li { padding: 6px 8px; cursor: pointer; }
+    .cmdk li:hover, .cmdk li.on { background: var(--panel-2); }
+    .toast {
+      position: fixed; right: 16px; bottom: 16px; z-index: 50;
+      background: var(--panel); border: 1px solid var(--line); padding: 8px 12px;
+      border-radius: 8px; display: none;
+    }
+    .toast.show { display: block; }
+    .toast button { margin-left: 8px; }
+    dialog { max-width: min(720px, 92vw); }
+    textarea.grow { min-height: 5.5em; }
+    .save-dot { font-size: 11px; color: var(--mute); }
+    .rel-row { display: flex; gap: 8px; align-items: center; margin: 4px 0; }
+    table.matrix { border-collapse: collapse; width: 100%; }
+    table.matrix th, table.matrix td { border: 1px solid var(--line); padding: 6px 8px; }
+    .tl { position: relative; height: 80px; border: 1px solid var(--line); background: var(--panel); overflow-x: auto; }
+    .tl-seg { position: absolute; top: 28px; height: 18px; background: var(--brass); opacity: .75; border-radius: 4px; }
+    .tl-gap { position: absolute; top: 28px; height: 18px; background: repeating-linear-gradient(-45deg, transparent, transparent 4px, var(--line) 4px, var(--line) 5px); }
+    kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); padding: 0 4px; border-radius: 3px; }
   </style>
 </head>
 <body>
@@ -423,25 +554,40 @@
       <button id="mid" data-testid="density-mid">中</button>
       <button id="dense" data-testid="density-dense">密</button>
     </span>
-    <button id="write-next" data-testid="write-next" class="primary">写下一场</button>
+    <button id="write-next" data-testid="write-next" class="primary" disabled title="没有本场任务不准写下一场">写下一场</button>
+    <details id="look-menu" data-testid="look-menu">
+      <summary>看法</summary>
+      <div id="look-panel">
+        <button type="button" data-look="进度" data-testid="open-progress">支线进度</button>
+        <button type="button" data-look="轨迹" data-testid="open-track">支线轨迹</button>
+        <button type="button" data-look="出场" data-testid="look-occupancy">出场</button>
+        <button type="button" data-look="关系" data-testid="look-relations">关系</button>
+        <button type="button" data-look="时间轴" id="look-timeline">时间轴</button>
+        <button type="button" data-look="总表" id="look-table">总表</button>
+      </div>
+    </details>
+    <button id="add-parallel" data-testid="add-parallel">在本列再写一场</button>
+    <button type="button" id="open-shelf" data-testid="open-shelf">书架</button>
     <button type="button" id="open-craft" data-testid="open-craft" disabled>书页</button>
-    <details id="more-menu">
+    <button type="button" id="open-timeline" data-testid="open-timeline">时间轴</button>
+    <button type="button" id="open-library" data-testid="open-library">设定库</button>
+    <button type="button" id="open-cmd" data-testid="open-cmd" title="命令面板 ⌘K">/</button>
+    <label>人物透镜
+      <select id="person-lens" data-testid="person-lens" aria-label="只看谁">
+        <option value="">全知</option>
+      </select>
+    </label>
+    <details id="more-menu" data-testid="more-menu">
       <summary>更多</summary>
       <div id="more-panel">
         <div class="grp">结构</div>
-        <button id="add-column" data-testid="add-column">中间➕加列</button>
         <button id="remove-column" data-testid="remove-column">减列</button>
         <button id="merge-columns" data-testid="merge-columns">合并列</button>
         <button id="swap-columns" data-testid="swap-columns">换列位置</button>
-        <button id="add-parallel" data-testid="add-parallel">在本列再写一场</button>
         <button id="ellipsis" data-testid="ellipsis">省略场</button>
         <div class="grp">看法</div>
         <button id="occupancy" data-testid="occupancy">出场</button>
-        <label>人物透镜
-          <select id="person-lens" data-testid="person-lens" aria-label="只看谁">
-            <option value="">全知</option>
-          </select>
-        </label>
+        <button id="open-table" data-testid="open-table">总表</button>
         <button id="relations" data-testid="relations">关系</button>
         <button id="reading-order" data-testid="reading-order">按读序排</button>
         <div class="grp">进出</div>
@@ -450,18 +596,30 @@
         <button id="plant-promise" data-testid="plant-promise">埋伏笔</button>
       </div>
     </details>
+    <button id="add-column" data-testid="add-column">加列</button>
     <button id="theme-btn" type="button" aria-label="切换亮色或暗色">主题</button>
   </header>
   <div id="filter-banner" data-testid="filter-banner"></div>
+  <div id="thread-strip" data-testid="thread-strip"></div>
   <div id="minimap" data-testid="minimap"></div>
     <aside id="rail" data-testid="left-rail">
       <h2 id="lib-title">设定 · 当前这几列</h2>
       <p class="lib-meta" id="lib-meta"></p>
       <input id="ent-search" data-testid="ent-search" type="search" placeholder="搜全书人物、地点、规则…" autocomplete="off" aria-label="搜全书" />
       <div class="lib-actions">
-        <button id="rail-create" type="button">新建</button>
+        <button id="rail-create" type="button" data-testid="rail-create">新建</button>
         <button id="do-search" data-testid="do-search">搜</button>
       </div>
+      <input id="ent-name" data-testid="ent-name" placeholder="名字" />
+      <select id="ent-kind" data-testid="ent-kind">
+        <option value="person">人物</option>
+        <option value="place">地点</option>
+        <option value="thing">道具</option>
+        <option value="faction">组织</option>
+        <option value="rule">规则</option>
+        <option value="promise">伏笔</option>
+      </select>
+      <button id="new-entity" data-testid="new-entity">新建</button>
       <ul id="search-hits" data-testid="search-hits"></ul>
       <ul id="ent-list" data-testid="ent-list"></ul>
     </aside>
@@ -483,16 +641,49 @@
       <div id="mode-scene" class="mode-panel" data-mode-name="本场">
         <p class="muted">点卡看这场。点标记看这场里的它。左栏拖进拖出改在场。</p>
         <p id="scene-kicker" class="muted"></p>
+        <label id="place-row">本场地点 <input id="place-id" data-testid="place-id" placeholder="本场地点" /></label>
+        <label>读序 <input id="telling-ord" data-testid="telling-ord" placeholder="读序" style="width:4em" /></label>
+        <button id="set-telling" data-testid="set-telling">标读序</button>
+        <label>当众 <input type="radio" name="vis" id="vis-public" data-testid="vis-public" checked /></label>
+        <label>私下 <input type="radio" name="vis" id="vis-private" data-testid="vis-private" /></label>
+        <input id="visible-to" data-testid="visible-to" placeholder="私下谁会看见，逗号分隔" />
+        <label>场次 <input id="scene-title" data-testid="scene-title" placeholder="场次，可空" /></label>
+        <label>因为哪一场 <input id="cause-beat" data-testid="cause-beat" placeholder="上一场的 id 或点选" list="cause-list" /></label>
+        <datalist id="cause-list"></datalist>
+        <div id="caused-by" data-testid="caused-by" class="muted"></div>
         <h3>在场</h3>
         <div id="scene-chips" class="chips"></div>
+        <h3>本场涉及的逻辑线</h3>
+        <p class="muted">贴线只改看法，不算进算出这一刻。没贴线也能写场。</p>
+        <div id="scene-threads" data-testid="scene-threads"></div>
+        <div class="row">
+          <select id="thread-pick" data-testid="thread-pick"></select>
+          <select id="thread-role" data-testid="thread-role">
+            <option value="推进">推进</option>
+            <option value="旁及">旁及</option>
+            <option value="暂停">暂停</option>
+          </select>
+          <button type="button" id="thread-attach" data-testid="thread-attach">贴上这条线</button>
+        </div>
+        <div class="row">
+          <input id="thread-new-name" data-testid="thread-new-name" placeholder="新支线名" />
+          <select id="thread-new-type" data-testid="thread-new-type">
+            <option value="支线">支线</option>
+            <option value="主线">主线</option>
+          </select>
+          <button type="button" id="thread-create" data-testid="thread-create">新建逻辑线</button>
+        </div>
         <p class="muted">点标记看这场里的它。地点不能拿空，把另一个地点拖进卡即替换。</p>
         <div class="field-head"><span>价值转折</span><button type="button" class="discuss-btn" data-discuss="value_shift" data-testid="talk-shift">讨论</button></div>
         <input id="value-shift" data-testid="value-shift" placeholder="价值转折，例如 无知→把柄" />
         <h3>动作 / 对白 / 内心</h3>
+        <div class="field-head"><span>动作</span><button type="button" class="discuss-btn" data-discuss="do_text" data-testid="talk-do">讨论</button></div>
         <div id="tracks" data-testid="tracks"></div>
-        <textarea id="do-text" data-testid="do-text" class="hidden" placeholder="动作"></textarea>
-        <textarea id="say-text" data-testid="say-text" class="hidden" placeholder="对白"></textarea>
-        <textarea id="think-text" data-testid="think-text" class="hidden" placeholder="内心"></textarea>
+        <textarea id="do-text" data-testid="do-text" class="grow" placeholder="动作"></textarea>
+        <textarea id="say-text" data-testid="say-text" class="grow" placeholder="对白"></textarea>
+        <textarea id="think-text" data-testid="think-text" class="grow" placeholder="内心"></textarea>
+        <div id="mention-pop" class="mention-pop hidden" data-testid="mention-pop"></div>
+        <span class="save-dot" id="save-dot" data-testid="save-dot"></span>
         <h3>相关未收伏笔</h3>
         <div id="scene-debts"></div>
         <div id="warn-list" class="hidden" data-testid="knowledge-warn"></div>
@@ -502,9 +693,22 @@
           <button id="fill-live" data-testid="fill-live">模型填下一场</button>
           <button id="fill-fake" data-testid="fill-fake">假模型填场</button>
           <button id="delete-draft" data-testid="delete-draft">删草稿场</button>
-          <button id="delete-canon" data-testid="delete-canon">删已正史</button>
+          <button id="delete-canon" data-testid="delete-canon" disabled>删已正史</button>
+          <button id="revise" data-testid="revise">改已正史</button>
+          <span id="revise-msg" data-testid="revise-msg" class="muted"></span>
         </div>
         <div id="light-delete-error" data-testid="light-delete-error"></div>
+        <div id="promise-ops" data-testid="promise-ops">
+          <select id="promise-id" data-testid="promise-id"></select>
+          <select id="promise-act" data-testid="promise-act">
+            <option value="plant">埋设</option>
+            <option value="advance">推进</option>
+            <option value="payoff">兑现</option>
+            <option value="discard">作废</option>
+          </select>
+          <button type="button" id="add-promise-op" data-testid="add-promise-op">本场对伏笔做这件事</button>
+          <div id="promise-op-list" data-testid="promise-op-list"></div>
+        </div>
         <div id="promise-suggest" data-testid="promise-suggest"></div>
         <button id="ignore-suggest" data-testid="ignore-suggest">忽略建议</button>
         <div id="paste-suggest" data-testid="paste-suggest"></div>
@@ -519,11 +723,7 @@
             <section data-testid="group-presence"><h5>在场来源</h5><div id="g-presence"></div></section>
           </div>
         </details>
-        <details>
-          <summary>地点、读序、本场变化、知情</summary>
-        <input id="place-id" data-testid="place-id" placeholder="本场地点" />
-        <input id="telling-ord" data-testid="telling-ord" placeholder="读序" style="width:4em" />
-        <button id="set-telling" data-testid="set-telling">标读序</button>
+        <h3>本场变化</h3>
         <div class="row">
           <input id="delta-ent" data-testid="delta-ent" placeholder="实体" />
           <input id="delta-attr" data-testid="delta-attr" placeholder="属性" />
@@ -532,6 +732,7 @@
           <button type="button" id="add-delta" data-testid="add-delta">加入变化</button>
         </div>
         <div id="delta-list" data-testid="delta-list"></div>
+        <h3>知情</h3>
         <div class="row">
           <input id="know-who" data-testid="know-who" placeholder="谁" />
           <input id="know-fact" data-testid="know-fact" placeholder="知道什么" />
@@ -552,10 +753,6 @@
           <button type="button" id="add-know" data-testid="add-know">加入知情</button>
         </div>
         <div id="know-write-list" data-testid="know-write-list"></div>
-        <label>当众 <input type="radio" name="vis" id="vis-public" data-testid="vis-public" checked /></label>
-        <label>私下 <input type="radio" name="vis" id="vis-private" data-testid="vis-private" /></label>
-        <input id="visible-to" data-testid="visible-to" placeholder="私下谁会看见，逗号分隔" />
-        </details>
       </div>
       <div id="mode-about" class="mode-panel hidden" data-mode-name="这场·它">
         <p id="about-who"></p>
@@ -582,8 +779,9 @@
         <p id="dossier-inline"></p>
       </div>
       <div id="mode-now" class="mode-panel hidden" data-mode-name="这一刻">
-        <p id="now-copy"></p>
+        <p id="now-copy" data-testid="moment-col"></p>
         <div id="now-human" data-testid="now-human"></div>
+        <div id="moment-body" data-testid="moment-body"></div>
         <pre id="world" data-testid="world"></pre>
       </div>
       <div id="mode-write" class="mode-panel hidden" data-mode-name="写下一场">
@@ -598,19 +796,13 @@
         <pre id="plan-out" data-testid="plan-out"></pre>
       </div>
       <div id="mode-create" class="mode-panel hidden" data-mode-name="新建">
-        <input id="ent-name" data-testid="ent-name" placeholder="名字" />
-        <select id="ent-kind" data-testid="ent-kind">
-          <option value="person">人物</option>
-          <option value="place">地点</option>
-          <option value="thing">道具</option>
-          <option value="faction">组织</option>
-          <option value="rule">规则</option>
-          <option value="promise">伏笔</option>
-        </select>
-        <button id="new-entity" data-testid="new-entity">新建</button>
+        <p class="muted">名字和类型在左栏。这里补档案键。</p>
+        <input id="ent-aliases" data-testid="ent-aliases" placeholder="别名，逗号分隔" />
+        <div id="ent-profile-fields" data-testid="ent-profile-fields"></div>
         <button id="delete-entity" data-testid="delete-entity">删设定</button>
       </div>
-      <div id="mode-talk" class="mode-panel hidden" data-mode-name="讨论">
+      <div id="mode-talk" class="mode-panel hidden" data-mode-name="讨论" data-testid="discuss-panel">
+        <div id="discuss-draft" data-testid="discuss-draft" class="muted"></div>
         <div id="talk-out" data-testid="talk-out"></div>
         <p id="talk-notice" class="hidden" data-testid="talk-notice">讨论不是历史</p>
         <button id="write-box" data-testid="write-box">写入此框</button>
@@ -621,7 +813,7 @@
     <h3>确认变更</h3>
     <ul id="impact-list" data-testid="impact-list"></ul>
     <ul id="suggest-list" data-testid="suggest-list"></ul>
-    <button id="confirm-ok" data-testid="confirm-ok">确认变更</button>
+    <button id="confirm-ok" data-testid="confirm-ok" disabled>确认变更</button>
     <button id="confirm-cancel" data-testid="confirm-cancel">取消</button>
   </dialog>
   <dialog id="gap-dlg" data-testid="gap-dialog">
@@ -630,16 +822,31 @@
     <button id="gap-ok" data-testid="gap-ok">确认删草稿</button>
     <button id="gap-cancel" data-testid="gap-cancel">取消</button>
   </dialog>
-  <dialog id="flyout" data-testid="flyout">
+  <dialog id="flyout" class="look-rail" data-testid="flyout">
     <p>出场飞出层（只读）</p>
+    <div id="occ-full" data-testid="occ-full"></div>
     <table id="occ-table" data-testid="occ-table"></table>
-    <button id="flyout-edit" data-testid="flyout-edit">改格</button>
     <button id="flyout-close" data-testid="flyout-close">关闭</button>
     <div id="flyout-error" data-testid="flyout-error"></div>
   </dialog>
   <dialog id="dossier" data-testid="dossier">
     <h3 id="dossier-title" data-testid="dossier-title">档案</h3>
-    <label>欲望 <input id="dossier-desire" data-testid="dossier-desire" /></label>
+    <div id="dossier-profile" data-testid="dossier-profile"></div>
+    <h4>从故事起点就成立的关系</h4>
+    <div id="dossier-rels" data-testid="dossier-rels"></div>
+    <div class="rel-row">
+      <select id="rel-kind" data-testid="rel-kind">
+        <option value="related">和…有关系</option>
+        <option value="member">属于</option>
+        <option value="holds">拿着</option>
+        <option value="contains">在…之内</option>
+      </select>
+      <input id="rel-target" data-testid="rel-target" placeholder="对象名字" />
+      <input id="rel-note" data-testid="rel-note" placeholder="备注" />
+      <button type="button" id="rel-add" data-testid="rel-add">建关系</button>
+    </div>
+    <h4>场上变过（只读）</h4>
+    <div id="dossier-scene-rels" data-testid="dossier-scene-rels"></div>
     <div id="dossier-beats" data-testid="dossier-beats"></div>
     <div id="dossier-windows" data-testid="dossier-windows"></div>
     <button id="dossier-save" data-testid="dossier-save">保存基本设定</button>
@@ -647,7 +854,7 @@
     <div id="dossier-error" data-testid="dossier-error"></div>
     <button id="dossier-close" data-testid="dossier-close">关闭</button>
   </dialog>
-  <dialog id="graph" data-testid="graph">
+  <dialog id="graph" class="look-rail" data-testid="graph">
     <h3>关系（只读）</h3>
     <p>选中人才画。拖边不能改正史。改正史回分场条。</p>
     <svg id="graph-svg" data-testid="graph-svg" viewBox="0 0 640 520" width="100%" height="360"></svg>
@@ -659,13 +866,98 @@
     <p>主脑和回目挂在这本书上，不算进算出这一刻。</p>
     <label for="craft-premise">主脑（一句前提）</label>
     <textarea id="craft-premise" data-testid="craft-premise" placeholder="这本书在写什么"></textarea>
+    <label>故事时间从何时起 <input id="craft-origin" data-testid="craft-origin" placeholder="第一天 20:00" /></label>
     <div id="craft-chapters" data-testid="craft-chapters"></div>
     <button type="button" id="craft-add-chapter" data-testid="craft-add-chapter">加一回</button>
     <button type="button" id="craft-save" data-testid="craft-save">写入书页</button>
     <button type="button" id="craft-close" data-testid="craft-close">关闭</button>
     <div id="craft-msg" data-testid="craft-msg"></div>
   </dialog>
-  <pre id="export-out" data-testid="export-out" class="hidden"></pre>
+  <dialog id="paste-dlg" data-testid="paste-dialog">
+    <h3>丢一段草稿</h3>
+    <p>贴进来只给建议，不会写成正史。</p>
+    <textarea id="paste-text" data-testid="paste-text" rows="8" placeholder="贴一段对白或动作"></textarea>
+    <button type="button" id="paste-run" data-testid="paste-run">给出建议</button>
+    <button type="button" id="paste-close" data-testid="paste-close">关闭</button>
+    <div id="paste-dlg-suggest" data-testid="paste-dlg-suggest"></div>
+  </dialog>
+  <dialog id="export-dlg" data-testid="export-dialog">
+    <h3>导出</h3>
+    <label><input type="checkbox" id="export-include-drafts" data-testid="export-include-drafts" checked /> 包含草稿</label>
+    <label>从列 <input id="export-from" data-testid="export-from" /></label>
+    <label>到列 <input id="export-to" data-testid="export-to" /></label>
+    <button type="button" id="export-run" data-testid="export-run">导出</button>
+    <button type="button" id="export-copy" data-testid="export-copy">复制</button>
+    <button type="button" id="export-close" data-testid="export-close">关闭</button>
+    <pre id="export-out" data-testid="export-out"></pre>
+  </dialog>
+  <dialog id="promise-dlg" data-testid="promise-dialog">
+    <h3>埋伏笔</h3>
+    <input id="promise-name" data-testid="promise-name" placeholder="伏笔名字" />
+    <input id="promise-related" data-testid="promise-related" placeholder="相关人物，逗号分隔" />
+    <button type="button" id="promise-ok" data-testid="promise-ok">写入设定</button>
+    <button type="button" id="promise-cancel" data-testid="promise-cancel">取消</button>
+  </dialog>
+  <pre id="export-out-legacy" class="hidden"></pre>
+  <div id="shelf" class="overlay" data-testid="shelf">
+    <h1>书架</h1>
+    <p><button type="button" id="shelf-new" data-testid="shelf-new">新建书</button>
+       <button type="button" id="shelf-back" data-testid="shelf-back">回分场条</button></p>
+    <div id="shelf-grid" class="book-grid" data-testid="shelf-grid"></div>
+  </div>
+  <div id="new-book" class="overlay" data-testid="new-book-page">
+    <h1>新建书</h1>
+    <label>书名 <input id="nb-name" data-testid="nb-name" /></label>
+    <label>主脑 <textarea id="nb-premise" data-testid="nb-premise"></textarea></label>
+    <label>故事时间从 <input id="nb-clock" data-testid="nb-clock" placeholder="第一天 20:00" value="第一天 20:00" /></label>
+    <p><button type="button" id="nb-create" data-testid="nb-create">创建并打开</button>
+       <button type="button" id="nb-cancel" data-testid="nb-cancel">取消</button></p>
+  </div>
+  <div id="library" class="overlay" data-testid="library">
+    <h1>设定库</h1>
+    <p><button type="button" id="lib-back" data-testid="lib-back">回分场条</button></p>
+    <div id="library-list" data-testid="library-list"></div>
+  </div>
+  <div id="timeline" class="look-rail" data-testid="timeline">
+    <h1>时间轴</h1>
+    <p class="muted">只看这段故事时间。改钟去分场条拖列，确认变更后才生效。</p>
+    <p id="tl-span" data-testid="tl-span"></p>
+    <div id="tl-track" class="tl" data-testid="tl-track"></div>
+    <p><button type="button" id="tl-back" data-testid="tl-back">关闭看法</button></p>
+  </div>
+  <div id="table-view" class="look-rail" data-testid="table-view">
+    <h1>总表</h1>
+    <p>全部场，只改看法。改正史仍回分场条。</p>
+    <p><button type="button" id="table-back" data-testid="table-back">关闭看法</button></p>
+    <table class="matrix" id="table-body" data-testid="table-body"></table>
+  </div>
+  <div id="look-progress" class="look-rail" data-testid="look-progress">
+    <h1>支线进度</h1>
+    <p class="muted">点格跳回分场条。不能在这里改场序、不能写入正史。</p>
+    <div id="progress-body" data-testid="progress-body"></div>
+    <p><button type="button" id="progress-back" data-testid="progress-back">关闭看法</button></p>
+  </div>
+  <div id="look-track" class="look-rail" data-testid="look-track">
+    <h1>支线轨迹</h1>
+    <p class="muted">仍按故事时。点行跳回分场条。</p>
+    <div id="track-body" data-testid="track-body"></div>
+    <p><button type="button" id="track-back" data-testid="track-back">关闭看法</button></p>
+  </div>
+  <dialog id="del-book-dlg" data-testid="del-book">
+    <h3>删除这本书</h3>
+    <p id="del-book-count" data-testid="del-book-count"></p>
+    <p>这一步不能撤销。请打这本书的书名。</p>
+    <input id="del-book-type" data-testid="del-book-type" autocomplete="off" />
+    <p>
+      <button type="button" id="del-book-ok" data-testid="del-book-ok" disabled>确认删除</button>
+      <button type="button" id="del-book-cancel" data-testid="del-book-cancel">取消</button>
+    </p>
+  </dialog>
+  <div id="cmdk" class="cmdk" data-testid="cmdk">
+    <input id="cmdk-q" data-testid="cmdk-q" placeholder="搜场、人物、命令…" />
+    <ul id="cmdk-hits" data-testid="cmdk-hits"></ul>
+  </div>
+  <div id="toast" class="toast" data-testid="toast"></div>
 <script>
 const $ = (id) => document.getElementById(id);
 let state = { n: 1, window_start: 0, drafts: [], committed: [], columns: [], entities: [], pending: null };
@@ -693,6 +985,330 @@ let craftDraft = { premise: '', chapters: [] };
 let fillingBooks = false;
 let railFilterEntity = '';
 let pendingTracks = [];
+let pendingPromiseOps = [];
+let undoStack = [];
+let redoStack = [];
+let pendingDelBook = null;
+const PROFILE_KEYS = {
+  person: ['desire','secret','speech','identity','look','need','wound','fear','line','contradiction','bio','aliases'],
+  place: ['function','look','rule','history','smell','who_comes','secret','aliases'],
+  thing: ['what','who_holds','where','power','cost','look','secret','aliases'],
+  faction: ['aim','who','rule','place','secret','aliases'],
+  rule: ['statement','enforcement','scope','cost','aliases'],
+  promise: ['setup','payoff','related','deadline','aliases']
+};
+function currentColId() {
+  return state.selected_col
+    || (currentBeat() && currentBeat().column_id)
+    || ((state.columns || [])[state.window_start || 0] && (state.columns || [])[state.window_start || 0].id)
+    || 'col0';
+}
+function fmtClock(t) {
+  const c = state.craft || {};
+  const lab = (c.clock_origin_label || '').trim();
+  let start = Number(c.clock_origin_minute || 0);
+  if (!start && lab) {
+    const m = lab.match(/(\d{1,2}):(\d{2})/);
+    if (m) start = Number(m[1]) * 60 + Number(m[2]);
+  }
+  const abs = start + Number(t || 0);
+  const day = Math.floor(abs / 1440) + 1;
+  const of = ((abs % 1440) + 1440) % 1440;
+  const hh = String(Math.floor(of / 60)).padStart(2, '0');
+  const mm = String(of % 60).padStart(2, '0');
+  return '第' + day + '天 ' + hh + ':' + mm;
+}
+function toast(msg, undoFn) {
+  const el = $('toast');
+  if (!el) return;
+  el.textContent = '';
+  el.appendChild(document.createTextNode(msg));
+  if (undoFn) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = '撤销';
+    b.dataset.testid = 'toast-undo';
+    b.onclick = undoFn;
+    el.appendChild(document.createTextNode(' '));
+    el.appendChild(b);
+  }
+  el.classList.add('show');
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => el.classList.remove('show'), undoFn ? 8000 : 2400);
+}
+function snapshotDraft() {
+  if (!currentDraft) return null;
+  return {
+    id: currentDraft,
+    intent: $('intent') ? $('intent').value : '',
+    do_text: $('do-text') ? $('do-text').value : '',
+    say_text: $('say-text') ? $('say-text').value : '',
+    think_text: $('think-text') ? $('think-text').value : '',
+    deltas: JSON.parse(JSON.stringify(pendingDeltas || [])),
+    knows: JSON.parse(JSON.stringify(pendingKnows || [])),
+    promiseOps: JSON.parse(JSON.stringify(pendingPromiseOps || [])),
+    cause: $('cause-beat') ? $('cause-beat').value : '',
+    title: $('scene-title') ? $('scene-title').value : ''
+  };
+}
+function pushUndo() {
+  const s = snapshotDraft();
+  if (!s) return;
+  undoStack.push(s);
+  if (undoStack.length > 50) undoStack.shift();
+  redoStack = [];
+}
+async function applyDraftSnap(s) {
+  if (!s) return;
+  currentDraft = s.id;
+  if ($('intent')) $('intent').value = s.intent || '';
+  if ($('do-text')) $('do-text').value = s.do_text || '';
+  if ($('say-text')) $('say-text').value = s.say_text || '';
+  if ($('think-text')) $('think-text').value = s.think_text || '';
+  pendingDeltas = s.deltas || [];
+  pendingKnows = s.knows || [];
+  pendingPromiseOps = s.promiseOps || [];
+  if ($('cause-beat')) $('cause-beat').value = s.cause || '';
+  if ($('scene-title')) $('scene-title').value = s.title || '';
+  renderDeltaList();
+  renderKnowList();
+  renderPromiseOps();
+  await persistDraftFields({
+    intent: s.intent,
+    do_text: s.do_text,
+    say_text: s.say_text,
+    think_text: s.think_text,
+    deltas: pendingDeltas,
+    knowledge_writes: pendingKnows,
+    promise_ops: pendingPromiseOps,
+    cause_beat: s.cause,
+    title: s.title
+  });
+}
+async function undoDraft() {
+  const s = undoStack.pop();
+  if (!s) {
+    toast('写入正史和确认变更不能撤销。要改这一场请打开它。');
+    return;
+  }
+  const now = snapshotDraft();
+  if (now) redoStack.push(now);
+  await applyDraftSnap(s);
+  toast('已撤销草稿这一步');
+}
+async function redoDraft() {
+  const s = redoStack.pop();
+  if (!s) return;
+  const now = snapshotDraft();
+  if (now) undoStack.push(now);
+  await applyDraftSnap(s);
+  toast('已重做');
+}
+function syncWriteNext() {
+  const btn = $('write-next');
+  if (!btn) return;
+  const empty = !(($('intent') && $('intent').value) || '').trim();
+  btn.disabled = empty;
+  btn.title = empty ? '没有本场任务不准写下一场' : '写下一场';
+}
+function syncDeleteCanon() {
+  const btn = $('delete-canon');
+  if (!btn) return;
+  btn.disabled = !currentCanon;
+}
+function hideOverlays() {
+  ['shelf','new-book','library'].forEach(id => { const el = $(id); if (el) el.classList.remove('show'); });
+  if ($('cmdk')) $('cmdk').classList.remove('show');
+}
+let currentLook = '';
+let threadFilter = '';
+const THREAD_COLORS = ['#3D8A8A','#4A6FA5','#B56A3C','#7A5A8A','#5A7A42','#A85A6A'];
+const MAIN_COLOR = '#C4A46A';
+function threadsOf() { return state.threads || []; }
+function beatThreads(b) { return (b && b.story_threads) || []; }
+function threadById(id) {
+  return threadsOf().find(t => t.id === id) || { id: id, name: id, type: '支线', color: 0 };
+}
+function threadColor(t) {
+  if (!t) return '#6E6A64';
+  const typ = t.type || t.thread_type;
+  if (typ === '主线') return MAIN_COLOR;
+  return THREAD_COLORS[(Number(t.color) || 0) % 6];
+}
+function beatPrimaryThread(b) {
+  const sts = beatThreads(b);
+  if (!sts.length) return null;
+  const main = sts.find(s => {
+    const t = threadById(s.id);
+    return (t.type || t.thread_type) === '主线';
+  });
+  return main || sts[0];
+}
+function beatOnLine(b, lineId) {
+  if (!lineId) return true;
+  if (lineId === '__none__') return beatThreads(b).length === 0;
+  return beatThreads(b).some(t => t.id === lineId);
+}
+function hideLooks() {
+  ['timeline','table-view','look-progress','look-track'].forEach(id => {
+    const el = $(id); if (el) el.classList.remove('show');
+  });
+  ['flyout','graph'].forEach(id => {
+    const el = $(id);
+    if (el && el.open) el.close();
+  });
+  currentLook = '';
+}
+function showLook(name) {
+  hideLooks();
+  currentLook = name || '';
+  if (name === '时间轴') { renderTimeline(); $('timeline').classList.add('show'); }
+  else if (name === '总表') { renderTableView(); $('table-view').classList.add('show'); }
+  else if (name === '出场') { openFlyoutLook(); }
+  else if (name === '关系') { openGraphLook(); }
+  else if (name === '进度') { renderProgress(); if ($('look-progress')) $('look-progress').classList.add('show'); }
+  else if (name === '轨迹') { renderTrack(); if ($('look-track')) $('look-track').classList.add('show'); }
+  syncHash();
+  if ($('look-menu')) $('look-menu').open = false;
+}
+function syncHash() {
+  const book = state.book;
+  if (!book) return;
+  const q = new URLSearchParams();
+  if (currentDraft || currentCanon) q.set('s', currentDraft || currentCanon);
+  if (threadFilter) q.set('line', threadFilter);
+  if (currentLook) q.set('look', currentLook);
+  if (state.n) q.set('n', String(state.n));
+  if (state.window_start) q.set('start', String(state.window_start));
+  const qs = q.toString();
+  const hash = '#/b/' + encodeURIComponent(book) + '/board' + (qs ? '?' + qs : '');
+  if (location.hash !== hash) history.replaceState(null, '', hash);
+}
+function currentBeatObj() {
+  if (currentCanon) return (state.committed || []).find(b => b.id === currentCanon) || null;
+  if (currentDraft) {
+    const d = (state.drafts || []).find(x => x.id === currentDraft);
+    return d ? d.draft : null;
+  }
+  return null;
+}
+function renderThreadStrip() {
+  const bar = $('thread-strip');
+  if (!bar) return;
+  const list = threadsOf();
+  const unassigned = (state.committed || []).filter(b => !beatThreads(b).length).length
+    + (state.drafts || []).filter(d => d.draft && !beatThreads(d.draft).length).length;
+  let html = '<span class="muted">逻辑线</span>';
+  list.forEach(t => {
+    const typ = t.type || t.thread_type;
+    html += '<button type="button" data-line="' + t.id + '" data-testid="thread-' + t.name + '" class="' + (threadFilter === t.id ? 'on' : '') + '">' +
+      '<span class="thread-dot" style="background:' + threadColor(t) + '"></span>' + t.name + (typ === '主线' ? ' · 主线' : '') + '</button>';
+  });
+  if (list.length) {
+    html += '<button type="button" data-line="__none__" data-testid="thread-unassigned" class="' + (threadFilter === '__none__' ? 'on' : '') + '">未归线 ' + unassigned + '</button>';
+    html += '<button type="button" data-line="" data-testid="thread-all">显示全部</button>';
+  }
+  bar.innerHTML = html;
+  bar.querySelectorAll('button[data-line]').forEach(btn => {
+    btn.onclick = () => {
+      const id = btn.dataset.line;
+      threadFilter = (id && threadFilter === id) ? '' : id;
+      render();
+      syncHash();
+    };
+  });
+}
+function renderSceneThreads() {
+  const host = $('scene-threads');
+  const pick = $('thread-pick');
+  if (!host || !pick) return;
+  const b = currentBeatObj();
+  const attached = b ? beatThreads(b) : [];
+  host.innerHTML = attached.map(st => {
+    const t = threadById(st.id);
+    return '<div class="thread-chip" data-testid="scene-thread-' + t.name + '"><span class="thread-dot" style="background:' + threadColor(t) + '"></span>' +
+      t.name + ' · ' + (st.role || '推进') +
+      ' <button type="button" data-id="' + st.id + '" data-testid="thread-drop-' + t.name + '">拿掉</button></div>';
+  }).join('') || '<p class="muted">未归线。不是错误。</p>';
+  host.querySelectorAll('button[data-id]').forEach(btn => {
+    btn.onclick = () => saveStoryThreads(attached.filter(x => x.id !== btn.dataset.id));
+  });
+  pick.innerHTML = '<option value="">选一条线</option>' + threadsOf().map(t =>
+    '<option value="' + t.id + '">' + t.name + '</option>'
+  ).join('');
+}
+async function saveStoryThreads(list) {
+  if (currentDraft) {
+    await api('/api/drafts/patch', { method: 'POST', body: JSON.stringify({ id: currentDraft, story_threads: list }) });
+  } else if (currentCanon) {
+    await api('/api/beats/' + encodeURIComponent(currentCanon) + '/revise', { method: 'POST', body: JSON.stringify({ story_threads: list }) });
+  } else {
+    return;
+  }
+  await refresh();
+  renderSceneThreads();
+}
+async function renderProgress() {
+  const host = $('progress-body');
+  if (!host) return;
+  try {
+    const data = await api('/api/threads/progress');
+    const lines = data.lines || [];
+    const chapters = data.chapters || ['全书'];
+    const cells = data.cells || [];
+    let html = '<p class="muted">未归线 ' + (data.unassigned || 0) + ' 场</p>';
+    html += '<table class="matrix"><tr><th>逻辑线</th>' + chapters.map(c => '<th>' + c + '</th>').join('') + '</tr>';
+    lines.forEach(t => {
+      html += '<tr><th>' + t.name + '</th>';
+      chapters.forEach(ch => {
+        const cell = cells.find(x => x.line === t.id && x.chapter === ch);
+        html += '<td><button type="button" data-testid="progress-cell-' + t.name + '-' + ch + '" data-beat="' + (cell && cell.beat_id || '') + '" data-col="' + (cell && cell.column_id || '') + '">' + (cell ? cell.count : '·') + '</button></td>';
+      });
+      html += '</tr>';
+    });
+    html += '</table>';
+    host.innerHTML = html || '<p class="muted">还没有逻辑线。</p>';
+    host.querySelectorAll('button[data-beat]').forEach(btn => {
+      btn.onclick = () => {
+        if (!btn.dataset.beat) return;
+        const canon = (state.committed || []).some(b => b.id === btn.dataset.beat);
+        hideLooks();
+        const idx = (state.columns || []).findIndex(c => c.id === btn.dataset.col);
+        if (idx >= 0) jump(idx);
+        selectBeat(btn.dataset.beat, canon);
+        setMode('scene');
+      };
+    });
+  } catch (e) {
+    host.textContent = String(e.message || e);
+  }
+}
+async function renderTrack() {
+  const host = $('track-body');
+  if (!host) return;
+  const line = threadFilter && threadFilter !== '__none__' ? threadFilter : (threadsOf()[0] && threadsOf()[0].id);
+  if (!line) { host.innerHTML = '<p class="muted">还没有逻辑线。</p>'; return; }
+  try {
+    const data = await api('/api/threads/' + encodeURIComponent(line) + '/track');
+    const beats = data.beats || [];
+    host.innerHTML = beats.map(b =>
+      '<button type="button" data-id="' + b.id + '" data-canon="' + (b.canon ? '1' : '0') + '" data-col="' + b.column_id + '" data-testid="track-row-' + b.id + '">' +
+      (b.enter ? '入线 · ' : '') + (b.exit ? '出线 · ' : '') + (b.intent || b.id) + ' · ' + (b.role || '推进') + (b.canon ? '' : ' · 草稿') +
+      '</button>'
+    ).join('') || '<p class="muted">这条线上还没有场。</p>';
+    host.querySelectorAll('button[data-id]').forEach(btn => {
+      btn.onclick = () => {
+        hideLooks();
+        const idx = (state.columns || []).findIndex(c => c.id === btn.dataset.col);
+        if (idx >= 0) jump(idx);
+        selectBeat(btn.dataset.id, btn.dataset.canon === '1');
+        setMode('scene');
+      };
+    });
+  } catch (e) {
+    host.textContent = String(e.message || e);
+  }
+}
 const SIDE_MODES = {
   scene: '本场',
   about: '这场·它',
@@ -720,8 +1336,12 @@ function setMode(key) {
 }
 function parkSharedFields() {
   const row = $('intent-row');
-  if (row && $('mode-write') && row.parentElement !== $('mode-write')) {
-    $('mode-write').insertBefore(row, $('mode-write').firstChild);
+  if (row && $('sidebar') && row.previousElementSibling !== $('sidebar')) {
+    $('sidebar').insertAdjacentElement('afterend', row);
+  }
+  const prow = $('place-row');
+  if (prow && row && prow.previousElementSibling !== row) {
+    row.insertAdjacentElement('afterend', prow);
   }
   const box = $('write-box');
   if (box && $('mode-talk') && box.parentElement !== $('mode-talk')) {
@@ -741,7 +1361,9 @@ function renderSide() {
   parkSharedFields();
   Object.keys(panels).forEach(k => {
     const el = $(panels[k]);
-    if (el) el.classList.toggle('hidden', k !== uiMode);
+    if (!el) return;
+    const on = k === uiMode || (uiMode === 'talk' && k === 'scene');
+    el.classList.toggle('hidden', !on);
   });
   const title = $('side-mode-title');
   if (title) title.textContent = SIDE_MODES[uiMode] || '本场';
@@ -765,8 +1387,9 @@ function renderNow(col) {
   }
   const beats = (state.committed || []).filter(b => b.column_id === col.id);
   const drafts = (state.drafts || []).filter(d => d.draft.column_id === col.id);
-  if (now) now.textContent = '这一列故事时间 ' + col.clock_from + '–' + col.clock_to + '（' + clockLabel(col.clock_from, col.clock_to) + '）。';
+  if (now) now.textContent = '这一列故事时间 t=' + col.clock_from + '–' + col.clock_to + '（' + fmtClock(col.clock_from) + '–' + fmtClock(col.clock_to) + '，' + clockLabel(col.clock_from, col.clock_to) + '）。';
   const lines = [];
+  lines.push('t=' + col.clock_from);
   lines.push('这一列有 ' + beats.length + ' 场正史、' + drafts.length + ' 场草稿。');
   beats.forEach(b => lines.push('正史 · ' + (b.intent || b.id)));
   drafts.forEach(d => lines.push('草稿 · ' + (d.draft.intent || d.id)));
@@ -778,6 +1401,7 @@ function renderNow(col) {
   if (places.length) lines.push('此刻所在：' + places.map(p => (entityOf(p).name || p) + '在' + (entityOf(where[p]).name || where[p])).join('；') + '。');
   if (!beats.length && !drafts.length) lines.push('这段故事时间没有戏。空场次 ≠ 省略场。');
   if (human) human.textContent = lines.join('\n');
+  if ($('moment-body')) $('moment-body').textContent = lines.join('\n');
   if ($('world')) {
     $('world').textContent = state.world
       ? JSON.stringify({ playing: state.world.playing, where: state.world.where }, null, 0)
@@ -797,7 +1421,8 @@ function clockLabel(from, to) {
   return d + ' 分钟';
 }
 function entityOf(id) {
-  return (state.entities || []).find(e => e.id === id || e.name === id) || { id, name: id, kind: 'person' };
+  const all = (state.all_entities || []).concat(state.entities || []).concat(state.people || []);
+  return all.find(e => e.id === id || e.name === id) || { id, name: id, kind: 'person' };
 }
 function presentPeople(b) {
   return (b.presences || []).filter(p => {
@@ -829,7 +1454,6 @@ function colKinds(colId) {
     if (b.place_id) kinds.place = 1;
   });
   (state.committed || []).filter(b => b.column_id === colId).forEach(take);
-  (state.drafts || []).filter(d => d.draft.column_id === colId).forEach(d => take(d.draft));
   return kinds;
 }
 function windowEntityIds() {
@@ -863,8 +1487,12 @@ async function refresh() {
   $('minus').disabled = n <= 1;
   $('plus').disabled = n >= 6;
   if ($('open-craft')) $('open-craft').disabled = !state.book;
-  if (state.selected) currentDraft = state.selected;
-  if (state.selected_canon) currentCanon = state.selected_canon;
+  if ($('reading-order')) $('reading-order').setAttribute('aria-pressed', state.reading_order ? 'true' : 'false');
+  currentDraft = state.selected || null;
+  currentCanon = state.selected_canon || null;
+  if (currentCanon && !(state.committed || []).some(b => b.id === currentCanon)) currentCanon = null;
+  syncWriteNext();
+  syncDeleteCanon();
   pendingFill = state.fill_pending || pendingFill;
   pendingPaste = state.paste_suggestions || pendingPaste;
   render();
@@ -873,6 +1501,7 @@ async function refresh() {
   renderBookList();
   renderDeltaList();
   renderKnowList();
+  renderPromiseOps();
   if (state.pending) openConfirm(state.pending);
   refreshConstrain();
 }
@@ -896,7 +1525,6 @@ async function refreshConstrain() {
   try {
     const r = await api('/api/constrain', { method: 'POST', body: JSON.stringify({ id: currentDraft }) });
     showFindings(r.findings);
-    render();
   } catch {
     /* 未开书时忽略 */
   }
@@ -964,7 +1592,7 @@ function appearancesOf(eid) {
     return marks.some(m => m.id === eid || entityOf(m.id).id === eid || entityOf(m.id).name === entityOf(eid).name);
   });
 }
-function makeChipEl(b, mark, beatId, canon) {
+function makeChipEl(b, mark, beatId, canon, testPrefix) {
   const ent = entityOf(mark.id);
   const ch = document.createElement('span');
   ch.className = 'chip';
@@ -979,7 +1607,7 @@ function makeChipEl(b, mark, beatId, canon) {
   ch.appendChild(dot);
   ch.appendChild(role);
   ch.appendChild(document.createTextNode(ent.name || mark.id));
-  ch.dataset.testid = 'chip-' + mark.id;
+  ch.dataset.testid = (testPrefix || 'chip-') + mark.id;
   ch.dataset.name = ent.name || mark.id;
   ch.ondragstart = ev => {
     ev.stopPropagation();
@@ -1018,7 +1646,7 @@ function renderSceneChips() {
     host.innerHTML = '<span class="muted">还没有。从左栏拖进来。</span>';
     return;
   }
-  marks.forEach(m => host.appendChild(makeChipEl(b, m, id, canon)));
+  marks.forEach(m => host.appendChild(makeChipEl(b, m, id, canon, 'scene-chip-')));
 }
 function renderAbout() {
   const eid = inspectFilter;
@@ -1129,7 +1757,9 @@ function render() {
   const start = state.window_start || 0;
   const n = state.n || 1;
   const view = cols.slice(start, start + n);
-  const emptyBoard = !(state.committed || []).length && !(state.drafts || []).length;
+  const drafts = Array.isArray(state.drafts) ? state.drafts : [];
+  const committed = Array.isArray(state.committed) ? state.committed : [];
+  const emptyBoard = !committed.length && !drafts.length;
   $('empty-book').classList.toggle('hidden', !emptyBoard);
   document.documentElement.style.setProperty('--cols', String(n));
   const densCls = n <= 2 ? 'is-roomy' : n <= 4 ? 'is-mid' : '';
@@ -1150,10 +1780,11 @@ function render() {
       const dur = Math.max(0, c.clock_to - c.clock_from);
       const w = Math.max(8, Math.round(100 * dur / maxDur));
       const dots = ['place','person','thing','faction','promise'].map(k =>
-        '<i class="' + (kinds[k] ? 'on' : '') + '" title="' + kindLabel(k) + '"></i>'
+        '<i class="' + (kinds[k] ? 'on' : '') + '" data-testid="track-' + c.id + '-' + k + '" title="' + kindLabel(k) + '"></i>'
       ).join('');
+      head.dataset.testid = 'ruler-col-' + i;
       head.innerHTML = '<span class="n">' + (abs + 1) + '</span>' +
-        '<span class="clock">' + c.clock_from + '–' + c.clock_to + '</span>' +
+        '<span class="clock">' + fmtClock(c.clock_from) + '–' + fmtClock(c.clock_to) + '</span>' +
         '<span class="dur">' + clockLabel(c.clock_from, c.clock_to) + '</span>' +
         '<div class="lens"><span style="width:' + w + '%"></span></div>' +
         '<span class="cov">' + dots + '</span>';
@@ -1162,7 +1793,7 @@ function render() {
       handle.className = 'handle';
       handle.dataset.testid = 'col-handle-' + i;
       handle.setAttribute('aria-label', '拖这一列结束的故事时间');
-      handle.onmousedown = (ev) => { ev.stopPropagation(); previewInvade(c.id); };
+      handle.onmousedown = (ev) => startDragHandle(ev, c, handle);
       head.appendChild(handle);
       head.onclick = (ev) => {
         if (ev.target.closest('.handle')) return;
@@ -1178,22 +1809,48 @@ function render() {
     div.dataset.testid = 'column-' + i;
     div.dataset.colId = c.id;
     const committed = (state.committed || []).filter(b => b.column_id === c.id);
-    const drafts = (state.drafts || []).filter(d => d.draft.column_id === c.id);
-    if (!committed.length && !drafts.length) {
+    const drafts = (state.drafts || []).filter(d => d.draft && d.draft.column_id === c.id);
+    const items = [];
+    committed.forEach(b => items.push({ obj: b, canon: true, t: b.clock_from }));
+    drafts.forEach(d => items.push({ obj: d, canon: false, t: d.draft.clock_from }));
+    items.sort((a, b) => a.t - b.t);
+    if (!items.length) {
       const empty = document.createElement('div');
       empty.className = 'card is-spare';
       empty.dataset.testid = 'empty-col-' + i;
       empty.textContent = '这段故事时间没有戏。空场次 ≠ 省略场。';
       div.appendChild(empty);
     }
-    committed.forEach(b => div.appendChild(renderCard(b, true)));
-    drafts.forEach(d => div.appendChild(renderCard(d, false)));
+    items.forEach((it, idx) => {
+      const card = renderCard(it.obj, it.canon);
+      if (items.length > 1) {
+        const mark = document.createElement('div');
+        mark.className = 'muted';
+        mark.textContent = '本列第 ' + (idx + 1) + ' / ' + items.length + ' 场 · ' + fmtClock(it.t);
+        card.insertBefore(mark, card.firstChild);
+      }
+      div.appendChild(card);
+    });
     div.addEventListener('dragover', e => e.preventDefault());
     div.addEventListener('drop', e => onDropOnCol(e, c.id));
+    const add = document.createElement('button');
+    add.type = 'button';
+    add.className = 'col-add';
+    add.dataset.testid = 'col-add-' + i;
+    add.textContent = '在本列再写一场';
+    add.onclick = (ev) => {
+      ev.stopPropagation();
+      state.selected_col = c.id;
+      writeParallel();
+    };
+    div.appendChild(add);
     $('cols').appendChild(div);
   });
   renderRail();
   renderMinimap();
+  renderThreadStrip();
+  renderSceneThreads();
+  renderFilterBanner();
   const beat = currentBeat() || {};
   if (beat && $('value-shift') && document.activeElement !== $('value-shift')) {
     $('value-shift').value = beat.value_shift || '';
@@ -1253,7 +1910,12 @@ function renderMinimap() {
     const ellipsis = beats.some(b => b.kind === 'ellipsis') || drafts.some(d => d.draft.kind === 'ellipsis');
     const hasC = beats.length > 0;
     const hasD = drafts.length > 0;
-    const cls = ellipsis ? 'ellipsis' : hasC ? 'canon' : hasD ? 'draft' : 'empty';
+    const due = (state.promises || (state.world && state.world.promises) || []).some(p => {
+      const d = Number(p.deadline_clock);
+      const open = !p.status || p.status === 'open' || p.status === 'planted';
+      return open && !Number.isNaN(d) && d >= c.clock_from && d <= c.clock_to;
+    });
+    const cls = ellipsis ? 'ellipsis' : due ? 'debt' : hasC ? 'canon' : hasD ? 'draft' : 'empty';
     const tellingDiff = beats.some(b => b.telling_ord != null && b.telling_ord !== c.display_ord);
     const sp = document.createElement('span');
     sp.className = 'tooth ' + cls + (tellingDiff ? ' telling-diff' : '');
@@ -1264,11 +1926,17 @@ function renderMinimap() {
   });
   const box = document.createElement('div');
   box.id = 'win-box';
-  box.dataset.testid = 'win-box';
+  box.dataset.testid = 'mini-window';
   const step = 16;
   box.style.left = (start * step) + 'px';
   box.style.width = (n * step) + 'px';
   track.appendChild(box);
+  const chs = (state.craft && state.craft.chapters) || [];
+  const lab = document.createElement('div');
+  lab.dataset.testid = 'mini-chapters';
+  lab.textContent = chs.map(c => c.title).filter(Boolean).join(' · ');
+  lab.classList.toggle('hidden', !lab.textContent);
+  track.appendChild(lab);
   $('minimap').innerHTML = '';
   $('minimap').appendChild(track);
 }
@@ -1294,7 +1962,7 @@ function renderRail() {
       $('search-hits').appendChild(li);
     }
   } else {
-    list = list.filter(e => inWin.has(e.id) || inWin.has(e.name));
+    list = state.entities || [];
   }
   $('ent-list').innerHTML = '';
   const groups = { person: [], place: [], thing: [], faction: [], promise: [], rule: [] };
@@ -1334,7 +2002,7 @@ function renderRail() {
       };
       li.appendChild(filt);
       if (e.kind !== 'rule') {
-        li.ondragstart = ev => ev.dataTransfer.setData('text/plain', JSON.stringify({type:'entity', id: e.id}));
+        li.ondragstart = ev => ev.dataTransfer.setData('text/plain', JSON.stringify({type:'entity', id: e.id, kind: e.kind}));
       }
       li.onclick = () => {
         setMode('dossier');
@@ -1351,35 +2019,62 @@ function renderRail() {
 function renderFilterBanner() {
   const bar = $('filter-banner');
   if (!bar) return;
-  if (!railFilterEntity) {
+  const bits = [];
+  if (railFilterEntity) {
+    const e = entityOf(railFilterEntity);
+    bits.push('正在只看：' + (e.name || e.id));
+  }
+  if (threadFilter === '__none__') bits.push('只看未归线的场。已归线的收成薄条，仍可点。');
+  else if (threadFilter) {
+    const t = threadById(threadFilter);
+    const onPage = (state.committed || []).concat((state.drafts || []).map(d => d.draft)).filter(Boolean)
+      .filter(b => {
+        const cols = (state.columns || []).slice(state.window_start || 0, (state.window_start || 0) + (state.n || 1));
+        return cols.some(c => c.id === b.column_id) && beatOnLine(b, threadFilter);
+      });
+    bits.push(onPage.length ? ('正在只看逻辑线：' + t.name + '。不在线上的场是薄条，仍可点。') : ('这条线上的场不在本页这几列。‹ › 或点细条跳到最近一场。'));
+  }
+  if (!bits.length) {
     bar.classList.remove('show');
     bar.innerHTML = '';
     return;
   }
-  const e = entityOf(railFilterEntity);
   bar.classList.add('show');
-  bar.innerHTML = '正在只看：' + (e.name || e.id) + ' <button type="button" data-testid="filter-clear">×</button>';
-  bar.querySelector('button').onclick = () => { railFilterEntity = ''; render(); };
+  bar.innerHTML = bits.join(' ') + ' <button type="button" data-testid="filter-clear">显示全部</button>';
+  bar.querySelector('button').onclick = () => { railFilterEntity = ''; threadFilter = ''; render(); syncHash(); };
 }
 function renderCard(obj, canon) {
   const b = canon ? obj : obj.draft;
   const id = canon ? obj.id : obj.id;
-  if (railFilterEntity) {
-    const hit = (b.presences || []).some(p => p.entity_id === railFilterEntity || entityOf(p.entity_id).id === railFilterEntity);
-    if (!hit) {
-      const skip = document.createElement('div');
-      skip.style.display = 'none';
-      return skip;
-    }
-  }
   const card = document.createElement('div');
   const leak = !canon && lastFindings.some(f => f.code === 'knowledge_leak');
   const n = state.n || 1;
   const isPre = !canon && (obj.title === '预场' || String(id).indexOf('pre') === 0);
-  const off = !!(b.visible_to && b.visible_to.length && $('vis-private') && $('vis-private').checked);
+  const off = !!(b.visible_to && b.visible_to.length);
+  const personMiss = railFilterEntity && !(b.presences || []).some(p => p.entity_id === railFilterEntity || entityOf(p.entity_id).id === railFilterEntity);
+  const lineMiss = threadFilter && !beatOnLine(b, threadFilter);
   card.className = 'card';
   if (canon) card.classList.add('canon');
   else card.classList.add('draft', 'is-draft');
+  if (personMiss || lineMiss) card.classList.add('thin');
+  const primary = beatPrimaryThread(b);
+  if (primary) {
+    const band = document.createElement('div');
+    band.className = 'card-band';
+    band.style.background = threadColor(threadById(primary.id));
+    card.appendChild(band);
+    const extra = beatThreads(b).length - 1;
+    if (extra > 0) {
+      const plus = document.createElement('span');
+      plus.className = 'plus-n';
+      plus.dataset.testid = 'card-plus-' + id;
+      plus.textContent = '+' + extra;
+      plus.title = beatThreads(b).map(st => threadById(st.id).name + ' · ' + (st.role || '推进')).join('\n');
+      card.appendChild(plus);
+    }
+  } else {
+    card.classList.add('unassigned');
+  }
   if (b.kind === 'ellipsis') card.classList.add('is-ellipsis', 'ellipsis');
   if (b.kind === 'flashback' || b.flashback) card.classList.add('is-flash');
   if (off) card.classList.add('is-off');
@@ -1413,16 +2108,36 @@ function renderCard(obj, canon) {
   card.appendChild(kicker);
   const title = document.createElement('div');
   title.className = 'title';
-  const sceneTitle = (obj.title && obj.title !== id && obj.title !== '下一场' && obj.title !== '并列')
-    ? obj.title
-    : (b.intent || '未名场');
-  title.textContent = sceneTitle;
+  title.dataset.testid = 'card-title';
+  const named = obj.title && obj.title !== id && obj.title !== '下一场' && obj.title !== '并列';
+  title.textContent = named ? obj.title : '未名场';
   card.appendChild(title);
-  if (b.intent && sceneTitle !== b.intent && !dense) {
+  if (b.intent && !dense) {
     const sum = document.createElement('div');
     sum.className = 'sum';
     sum.textContent = b.intent;
     card.appendChild(sum);
+  }
+  if (!b.value_shift && b.kind !== 'ellipsis') {
+    if (dense) {
+      const dot = document.createElement('span');
+      dot.className = 'warn-dot';
+      dot.dataset.testid = 'warn-dot';
+      dot.title = '未写转折';
+      dot.textContent = '·';
+      kicker.appendChild(dot);
+    } else {
+      const uw = document.createElement('div');
+      uw.className = 'muted';
+      uw.dataset.testid = 'unwritten-shift';
+      uw.textContent = '未写转折';
+      card.appendChild(uw);
+    }
+  }
+  if (!dense && !mid) {
+    if (b.do_text) { const s = document.createElement('div'); s.dataset.testid = 'card-do'; s.textContent = b.do_text; card.appendChild(s); }
+    if (b.say_text) { const s = document.createElement('div'); s.dataset.testid = 'card-say'; s.textContent = b.say_text; card.appendChild(s); }
+    if (b.think_text) { const s = document.createElement('div'); s.dataset.testid = 'card-think'; s.textContent = b.think_text; card.appendChild(s); }
   }
   if (!canon && obj.stale_world) {
     card.classList.add('warn');
@@ -1469,19 +2184,32 @@ function renderCard(obj, canon) {
   chips.className = 'chips';
   beatMarks(b).forEach(m => chips.appendChild(makeChipEl(b, m, id, canon)));
   card.appendChild(chips);
+  card.onkeydown = (ev) => {
+    if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); card.click(); }
+  };
   card.onclick = async () => {
     inspectFilter = '';
-    if (!canon) {
-      $('intent').value = b.intent || '';
-      $('do-text').value = b.do_text || '';
-      $('say-text').value = b.say_text || '';
-      $('think-text').value = b.think_text || '';
-    }
+    $('intent').value = b.intent || $('intent').value;
+    $('do-text').value = b.do_text || '';
+    $('say-text').value = b.say_text || '';
+    $('think-text').value = b.think_text || '';
     if ($('value-shift')) $('value-shift').value = b.value_shift || '';
     if ($('place-id') && b.place_id) $('place-id').value = b.place_id;
-    await selectBeat(id, canon);
+    if ($('scene-title')) $('scene-title').value = (!canon && obj.title) || '';
+    if ($('cause-beat')) $('cause-beat').value = b.cause_beat || '';
+    pendingDeltas = (b.deltas || []).slice();
+    pendingKnows = (b.knowledge_writes || []).slice();
+    pendingPromiseOps = (b.promise_ops || []).slice();
+    renderDeltaList();
+    renderKnowList();
+    renderPromiseOps();
+    fillCauseList();
+    currentDraft = canon ? null : id;
+    currentCanon = canon ? id : null;
+    syncDeleteCanon();
     setMode('scene');
-    render();
+    renderInspector();
+    await selectBeat(id, canon);
   };
   card.addEventListener('dragover', e => e.preventDefault());
   card.addEventListener('drop', e => onDropCard(e, b.column_id, canon ? null : id));
@@ -1497,10 +2225,22 @@ async function selectBeat(id, canon) {
     currentCanon = null;
     await api('/api/select', { method: 'POST', body: JSON.stringify({ draft_id: id }) });
   }
+  syncDeleteCanon();
+  try {
+    const sc = await api('/api/scenes/' + encodeURIComponent(id));
+    if ($('caused-by')) {
+      const caused = sc.caused || [];
+      $('caused-by').textContent = caused.length
+        ? ('导致了：' + caused.map(x => x.intent || x.id).join('、'))
+        : '';
+    }
+  } catch (e) {}
 }
 function renderTracks() {
   const host = $('tracks');
   if (!host) return;
+  const ae = document.activeElement;
+  if (ae && host.contains(ae) && (ae.tagName === 'TEXTAREA' || ae.tagName === 'INPUT')) return;
   const b = currentBeat() || {};
   const people = presentPeople(b);
   let tracks = (b.tracks && b.tracks.length) ? b.tracks.map(t => ({
@@ -1522,9 +2262,9 @@ function renderTracks() {
   host.innerHTML = '';
   if (!tracks.length) {
     host.innerHTML = '<p class="muted">' + ((b.kind === 'ellipsis') ? '省略场没有动作 / 对白 / 内心。' : '把人物拖进卡，按人分轨写动作、对白、内心。') + '</p>';
-    $('do-text').value = b.do_text || '';
-    $('say-text').value = b.say_text || '';
-    $('think-text').value = b.think_text || '';
+    if (document.activeElement !== $('do-text') && uiMode !== 'talk' && !pendingFill) $('do-text').value = b.do_text || $('do-text').value;
+    if (document.activeElement !== $('say-text') && uiMode !== 'talk' && !pendingFill) $('say-text').value = b.say_text || $('say-text').value;
+    if (document.activeElement !== $('think-text') && uiMode !== 'talk' && !pendingFill) $('think-text').value = b.think_text || $('think-text').value;
     return;
   }
   tracks.forEach((tr, idx) => {
@@ -1542,37 +2282,27 @@ function renderTracks() {
     host.appendChild(blk);
   });
   host.querySelectorAll('textarea[data-track]').forEach(ta => {
-    ta.addEventListener('change', async () => {
-      const i = Number(ta.dataset.track);
-      pendingTracks[i][ta.dataset.f] = ta.value;
-      $('do-text').value = pendingTracks.map(t => t.do_text).filter(Boolean).join('\n');
-      $('say-text').value = pendingTracks.map(t => t.say_text).filter(Boolean).join('\n');
-      $('think-text').value = pendingTracks.map(t => t.think_text).filter(Boolean).join('\n');
-      if (!currentDraft) return;
-      try {
-        await api('/api/drafts/patch', { method: 'POST', body: JSON.stringify({
-          id: currentDraft,
-          tracks: pendingTracks,
-          do_text: $('do-text').value,
-          say_text: $('say-text').value,
-          think_text: $('think-text').value
-        }) });
-      } catch (e) {
-        $('sidebar').textContent = String(e.message || e);
-      }
-    });
+    ta.addEventListener('input', () => scheduleTrackSave(ta));
+    ta.addEventListener('change', () => scheduleTrackSave(ta));
   });
   host.querySelectorAll('.discuss-btn').forEach(btn => {
     btn.onclick = () => startFieldTalk(btn.dataset.discuss);
   });
-  $('do-text').value = pendingTracks.map(t => t.do_text).filter(Boolean).join('\n');
-  $('say-text').value = pendingTracks.map(t => t.say_text).filter(Boolean).join('\n');
-  $('think-text').value = pendingTracks.map(t => t.think_text).filter(Boolean).join('\n');
+  const lockText = uiMode === 'talk' || pendingFill;
+  const joinedDo = pendingTracks.map(t => t.do_text).filter(Boolean).join('\n');
+  const joinedSay = pendingTracks.map(t => t.say_text).filter(Boolean).join('\n');
+  const joinedThink = pendingTracks.map(t => t.think_text).filter(Boolean).join('\n');
+  if (!lockText && document.activeElement !== $('do-text')) $('do-text').value = joinedDo || b.do_text || $('do-text').value;
+  if (!lockText && document.activeElement !== $('say-text')) $('say-text').value = joinedSay || b.say_text || $('say-text').value;
+  if (!lockText && document.activeElement !== $('think-text')) $('think-text').value = joinedThink || b.think_text || $('think-text').value;
 }
 function startFieldTalk(field) {
   pendingTalkField = field || 'intent';
   let text = $('intent').value;
   if (field === 'value_shift') text = $('value-shift').value;
+  if (field === 'do_text') text = $('do-text').value;
+  if (field === 'say_text') text = $('say-text').value;
+  if (field === 'think_text') text = $('think-text').value;
   if (field && field.indexOf('track|') === 0) {
     const parts = field.split('|');
     const tr = pendingTracks[Number(parts[1])] || {};
@@ -1620,7 +2350,12 @@ function renderTalk(log) {
   });
 }
 function renderPaste() {
-  const box = $('paste-suggest');
+  const dlg = $('paste-dlg');
+  const intoDlg = dlg && dlg.open && $('paste-dlg-suggest');
+  const box = intoDlg ? $('paste-dlg-suggest') : $('paste-suggest');
+  const other = intoDlg ? $('paste-suggest') : $('paste-dlg-suggest');
+  if (other) other.innerHTML = '';
+  if (!box) return;
   box.innerHTML = '';
   (pendingPaste || []).forEach(s => {
     const row = document.createElement('div');
@@ -1642,6 +2377,15 @@ function renderPaste() {
     box.appendChild(row);
   });
 }
+async function addPresenceToDraft(target, entityId, kind) {
+  const k = (kind || entityOf(entityId).kind || '').toLowerCase();
+  if (k === 'rule') {
+    $('sidebar').textContent = '规则不能拖进场，请去档案';
+    return;
+  }
+  await api('/api/presence', { method: 'POST', body: JSON.stringify({ draft_id: target, entity_id: entityId, action: 'add' }) });
+  refresh();
+}
 async function onDropCard(e, colId, draftId) {
   e.preventDefault();
   e.stopPropagation();
@@ -1649,8 +2393,7 @@ async function onDropCard(e, colId, draftId) {
   try { data = JSON.parse(e.dataTransfer.getData('text/plain')); } catch { return; }
   const target = draftId || currentDraft;
   if (data.type === 'entity' && target) {
-    await api('/api/presence', { method: 'POST', body: JSON.stringify({ draft_id: target, entity_id: data.id, action: 'add' }) });
-    refresh();
+    await addPresenceToDraft(target, data.id, data.kind);
   }
 }
 async function onDropOnCol(e, colId) {
@@ -1658,8 +2401,7 @@ async function onDropOnCol(e, colId) {
   let data;
   try { data = JSON.parse(e.dataTransfer.getData('text/plain')); } catch { return; }
   if (data.type === 'entity' && currentDraft) {
-    await api('/api/presence', { method: 'POST', body: JSON.stringify({ draft_id: currentDraft, entity_id: data.id, action: 'add' }) });
-    refresh();
+    await addPresenceToDraft(currentDraft, data.id, data.kind);
     return;
   }
   if (data.type === 'beat') {
@@ -1692,13 +2434,18 @@ function openConfirm(pending) {
   dlg.dataset.wide = (pending.op === 'delete_canon') ? '1' : '0';
   const ul = $('suggest-list');
   ul.innerHTML = '';
-  pendingChoice = pending.suggestions[0] && pending.suggestions[0].id;
+  pendingChoice = null;
+  $('confirm-ok').disabled = true;
   pending.suggestions.forEach(s => {
     const li = document.createElement('li');
     const btn = document.createElement('button');
     btn.textContent = s.label;
     btn.dataset.testid = 'suggest-' + s.id;
-    btn.onclick = () => { pendingChoice = s.id; };
+    btn.onclick = () => {
+      pendingChoice = s.id;
+      $('confirm-ok').disabled = false;
+      ul.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', b === btn ? 'true' : 'false'));
+    };
     li.appendChild(btn);
     ul.appendChild(li);
   });
@@ -1712,14 +2459,57 @@ function openConfirm(pending) {
   });
   dlg.showModal();
 }
-async function previewInvade(colId) {
-  await api('/api/structure/preview', { method: 'POST', body: JSON.stringify({ op: 'invade', column_id: colId }) });
+function startDragHandle(ev, col, handle) {
+  ev.preventDefault();
+  ev.stopPropagation();
+  const startX = ev.clientX;
+  const oldTo = col.clock_to;
+  const dur = Math.max(1, col.clock_to - col.clock_from);
+  const colEl = document.querySelector('.col[data-col-id="' + col.id + '"]');
+  const w = (colEl && colEl.getBoundingClientRect().width) || 160;
+  const onMove = (e) => {
+    handle.style.transform = 'translateX(' + (e.clientX - startX) + 'px)';
+  };
+  const onUp = async (e) => {
+    window.removeEventListener('mousemove', onMove);
+    window.removeEventListener('mouseup', onUp);
+    handle.style.transform = '';
+    const dx = e.clientX - startX;
+    if (Math.abs(dx) < 4) return;
+    const newTo = Math.round(oldTo + dx / w * dur);
+    await previewInvade(col.id, newTo);
+  };
+  window.addEventListener('mousemove', onMove);
+  window.addEventListener('mouseup', onUp);
+}
+async function previewInvade(colId, clockTo) {
+  await api('/api/structure/preview', { method: 'POST', body: JSON.stringify({ op: 'invade', column_id: colId, clock_to: clockTo }) });
   refresh();
 }
 
 $('create-book').onclick = async () => {
-  await api('/api/books', { method: 'POST', body: JSON.stringify({ name: $('book-name').value }) });
-  refresh();
+  const dlg = $('confirm-dlg');
+  if (dlg && dlg.open) {
+    try { await api('/api/structure/cancel', { method: 'POST', body: '{}' }); } catch (e) {}
+    dlg.close();
+  }
+  const name = $('book-name').value;
+  try {
+    await api('/api/books', { method: 'POST', body: JSON.stringify({
+      name,
+      premise: ($('nb-premise') && $('nb-premise').value) || undefined,
+      clock_origin_label: ($('nb-clock') && $('nb-clock').value) || undefined
+    }) });
+  } catch (e) {
+    const msg = String(e.message || e);
+    if (msg.indexOf('已存在') >= 0) {
+      await api('/api/books/' + encodeURIComponent(name) + '/open', { method: 'POST', body: '{}' });
+    } else {
+      $('sidebar').textContent = msg;
+      return;
+    }
+  }
+  await refresh();
 };
 $('open-book').onclick = async () => {
   await api('/api/books/' + encodeURIComponent($('book-name').value) + '/open', { method: 'POST', body: '{}' });
@@ -1734,7 +2524,12 @@ $('prev').onclick = async () => { await api('/api/window', { method: 'POST', bod
 $('next').onclick = async () => { await api('/api/window', { method: 'POST', body: JSON.stringify({ start: (state.window_start||0)+1 }) }); refresh(); };
 $('new-entity').onclick = async () => {
   const name = $('ent-name').value;
-  await api('/api/entities', { method: 'POST', body: JSON.stringify({ id: name, kind: $('ent-kind').value, name }) });
+  const profile = collectProfile($('ent-profile-fields'));
+  const aliases = ($('ent-aliases') && $('ent-aliases').value) || '';
+  await api('/api/entities', { method: 'POST', body: JSON.stringify({
+    id: name, kind: $('ent-kind').value, name, aliases, profile
+  }) });
+  setMode('scene');
   refresh();
 };
 async function tryDeleteEntity(id) {
@@ -1754,27 +2549,33 @@ $('delete-entity').onclick = async () => {
   try { await tryDeleteEntity($('ent-name').value); refresh(); } catch (e) {}
 };
 $('write-next').onclick = async () => {
-  setMode('write');
   try {
     const r = await api('/api/write-next', { method: 'POST', body: JSON.stringify({ intent: $('intent').value, place_id: $('place-id').value.trim() || undefined }) });
     currentDraft = r.id;
     currentCanon = null;
+    await api('/api/select', { method: 'POST', body: JSON.stringify({ draft_id: r.id }) });
     setMode('scene');
-    refresh();
+    await refresh();
   } catch (e) {
-    setMode('write');
     $('sidebar').textContent = String(e.message || e);
   }
 };
-$('add-parallel').onclick = async () => {
-  const col = (state.columns && state.columns[state.window_start] && state.columns[state.window_start].id) || 'col0';
+async function writeParallel() {
+  const col = currentColId();
   const place = $('place-id').value.trim();
-  await api('/api/write-parallel', { method: 'POST', body: JSON.stringify({ intent: $('intent').value, column_id: col, place_id: place || undefined }) });
-  refresh();
-};
-$('plant-promise').onclick = async () => {
-  await api('/api/promises', { method: 'POST', body: JSON.stringify({ id: 'token_due', name: '铜牌三日', related: ['阿莲'], deadline_clock: 0 }) });
-  refresh();
+  const c = (state.columns || []).find(x => x.id === col);
+  await api('/api/write-parallel', { method: 'POST', body: JSON.stringify({
+    intent: $('intent').value,
+    column_id: col,
+    place_id: place || undefined,
+    clock_from: c && c.clock_from,
+    clock_to: c && c.clock_to
+  }) });
+  await refresh();
+}
+$('add-parallel').onclick = () => writeParallel();
+$('plant-promise').onclick = () => {
+  if ($('promise-dlg')) $('promise-dlg').showModal();
 };
 $('set-telling').onclick = async () => {
   const id = currentCanon || (state.committed && state.committed[0] && state.committed[0].id);
@@ -1787,8 +2588,14 @@ $('talk').onclick = async () => {
   await runTalk('intent', $('intent').value);
 };
 async function runTalk(field, text) {
+  setMode('talk');
+  if ($('discuss-draft')) $('discuss-draft').textContent = '讨论中…';
   if (!currentDraft) {
     $('sidebar').textContent = '先开一场再讨论';
+    pendingTalk = '讨论稿：可再改';
+    pendingTalkField = field || 'intent';
+    if ($('discuss-draft')) $('discuss-draft').textContent = pendingTalk;
+    if ($('write-box')) $('write-box').disabled = false;
     return;
   }
   try {
@@ -1798,12 +2605,17 @@ async function runTalk(field, text) {
       text: text || ''
     }) });
     const opt = (r.concerns || []).find(c => c.kind === 'option');
-    pendingTalk = (opt && opt.message) || r.reply || '';
+    pendingTalk = '讨论稿：' + ((opt && opt.message) || r.reply || '可再改');
     pendingTalkField = field || 'intent';
+    if ($('discuss-draft')) $('discuss-draft').textContent = pendingTalk;
+    if ($('write-box')) $('write-box').disabled = false;
     $('sidebar').textContent = r.notice || '讨论不是历史';
     setMode('talk');
-    await refresh();
   } catch (e) {
+    pendingTalk = '讨论稿：可再改';
+    pendingTalkField = field || 'intent';
+    if ($('discuss-draft')) $('discuss-draft').textContent = pendingTalk;
+    if ($('write-box')) $('write-box').disabled = false;
     $('sidebar').textContent = String(e.message || e);
     setMode('talk');
   }
@@ -1866,22 +2678,18 @@ $('plan-apply').onclick = async () => {
   }
 };
 $('write-box').onclick = async () => {
+  try {
   if (pendingFill && currentDraft) {
-    if ($('do-text').value) pendingFill.do_text = $('do-text').value;
-    if ($('say-text').value) pendingFill.say_text = $('say-text').value;
-    if ($('think-text').value) pendingFill.think_text = $('think-text').value;
-    await api('/api/drafts/patch', { method: 'POST', body: JSON.stringify({
-      id: currentDraft,
-      do_text: $('do-text').value,
-      say_text: $('say-text').value,
-      think_text: $('think-text').value,
-      intent: $('intent').value,
-      tracks: pendingTracks,
-      apply_fill: true
-    }) });
+    const body = { id: currentDraft, apply_fill: true, intent: $('intent').value };
+    if ($('do-text').value) body.do_text = $('do-text').value;
+    if ($('say-text').value) body.say_text = $('say-text').value;
+    if ($('think-text').value) body.think_text = $('think-text').value;
+    await api('/api/drafts/patch', { method: 'POST', body: JSON.stringify(body) });
     pendingFill = null;
     pendingTalk = '';
-    refresh();
+    if ($('discuss-draft')) $('discuss-draft').textContent = '';
+    setMode('scene');
+    await refresh();
     return;
   }
   if (pendingTalk && currentDraft) {
@@ -1901,7 +2709,12 @@ $('write-box').onclick = async () => {
       await api('/api/drafts/patch', { method: 'POST', body: JSON.stringify({ id: currentDraft, do_text: $('do-text').value, intent: $('intent').value }) });
     }
     pendingTalk = '';
-    refresh();
+    if ($('discuss-draft')) $('discuss-draft').textContent = '';
+    setMode('scene');
+    await refresh();
+  }
+  } catch (e) {
+    $('sidebar').textContent = String(e.message || e);
   }
 };
 $('commit').onclick = async () => {
@@ -1915,7 +2728,15 @@ $('commit').onclick = async () => {
   if ($('do-text').value) body.do_text = $('do-text').value;
   if ($('say-text').value) body.say_text = $('say-text').value;
   if ($('think-text').value) body.think_text = $('think-text').value;
-  if (pendingTracks.length) body.tracks = pendingTracks;
+  if (pendingTracks.length) {
+    if (!pendingTracks[0].do_text && $('do-text').value) pendingTracks[0].do_text = $('do-text').value;
+    if (!pendingTracks[0].say_text && $('say-text').value) pendingTracks[0].say_text = $('say-text').value;
+    if (!pendingTracks[0].think_text && $('think-text').value) pendingTracks[0].think_text = $('think-text').value;
+    body.tracks = pendingTracks;
+  }
+  if ($('scene-title') && $('scene-title').value.trim()) body.title = $('scene-title').value.trim();
+  if ($('cause-beat') && $('cause-beat').value.trim()) body.cause_beat = $('cause-beat').value.trim();
+  if (pendingPromiseOps.length) body.promise_ops = pendingPromiseOps;
   if ($('value-shift') && $('value-shift').value.trim()) body.value_shift = $('value-shift').value.trim();
   if (pendingDeltas.length) body.deltas = pendingDeltas;
   if (pendingKnows.length) body.knowledge_writes = pendingKnows;
@@ -1936,12 +2757,13 @@ $('commit').onclick = async () => {
 };
 async function applyFillResult(r) {
   pendingFill = r;
-  $('do-text').value = r.do_text || '';
-  $('say-text').value = r.say_text || '';
-  $('think-text').value = r.think_text || '';
-  if ($('value-shift') && r.value_shift) $('value-shift').value = r.value_shift;
-  if (r.tracks) pendingTracks = r.tracks;
-  renderTracks();
+  const lines = [];
+  if (r.do_text) lines.push('动作：' + r.do_text);
+  if (r.say_text) lines.push('对白：' + r.say_text);
+  if (r.think_text) lines.push('内心：' + r.think_text);
+  if ($('discuss-draft')) $('discuss-draft').textContent = lines.join('\n') || '动作：';
+  if ($('write-box')) $('write-box').disabled = false;
+  setMode('talk');
   renderInspector();
 }
 $('fill-fake').onclick = async () => {
@@ -1959,18 +2781,18 @@ $('fill-live').onclick = async () => {
     $('sidebar').textContent = String(e.message || e);
   }
 };
-$('say-text').addEventListener('change', async () => {
-  if (!currentDraft) return;
-  try {
-    await api('/api/drafts/patch', { method: 'POST', body: JSON.stringify({
-      id: currentDraft,
+['do-text', 'say-text', 'think-text'].forEach(id => {
+  const el = $(id);
+  if (!el) return;
+  el.addEventListener('change', () => {
+    if (!currentDraft) return;
+    persistDraftFields({
+      do_text: $('do-text').value,
       say_text: $('say-text').value,
+      think_text: $('think-text').value,
       intent: $('intent').value
-    }) });
-    refreshConstrain();
-  } catch (e) {
-    $('sidebar').textContent = String(e.message || e);
-  }
+    });
+  });
 });
 $('ellipsis').onclick = async () => {
   if (!currentDraft) return;
@@ -2005,18 +2827,18 @@ $('gap-ok').onclick = async () => {
 };
 $('gap-cancel').onclick = () => { $('gap-dlg').close(); pendingDeleteDraft = null; };
 $('delete-canon').onclick = async () => {
-  const id = currentCanon || (state.committed && state.committed[0] && state.committed[0].id);
+  const id = currentCanon;
   if (!id) return;
   await api('/api/delete-canon', { method: 'POST', body: JSON.stringify({ id }) });
   refresh();
 };
 $('add-column').onclick = async () => {
-  const col = (state.columns && state.columns[state.window_start] && state.columns[state.window_start].id) || null;
+  const col = currentColId();
   await api('/api/structure/preview', { method: 'POST', body: JSON.stringify({ op: 'add_column', column_id: col }) });
   refresh();
 };
 $('remove-column').onclick = async () => {
-  const col = (state.columns && state.columns[state.window_start] && state.columns[state.window_start].id);
+  const col = currentColId();
   await api('/api/structure/preview', { method: 'POST', body: JSON.stringify({ op: 'remove_column', column_id: col }) });
   refresh();
 };
@@ -2029,6 +2851,7 @@ $('swap-columns').onclick = async () => {
   refresh();
 };
 $('confirm-ok').onclick = async () => {
+  try {
   if (pendingChoice === 'plan_mid') {
     try {
       const r = await api('/api/plan-apply', { method: 'POST', body: JSON.stringify({
@@ -2047,9 +2870,12 @@ $('confirm-ok').onclick = async () => {
     refresh();
     return;
   }
-  await api('/api/structure/confirm', { method: 'POST', body: JSON.stringify({ choice: pendingChoice || 'empty_col' }) });
+  await api('/api/structure/confirm', { method: 'POST', body: JSON.stringify({ choice: pendingChoice }) });
   $('confirm-dlg').close();
   refresh();
+  } catch (e) {
+    $('sidebar').textContent = String(e.message || e);
+  }
 };
 $('confirm-cancel').onclick = async () => {
   await api('/api/structure/cancel', { method: 'POST', body: '{}' });
@@ -2057,40 +2883,82 @@ $('confirm-cancel').onclick = async () => {
   refresh();
 };
 $('reading-order').onclick = async () => { await api('/api/reading-order', { method: 'POST', body: '{}' }); refresh(); };
-$('occupancy').onclick = async () => {
+async function openFlyoutLook() {
+  currentLook = '出场';
+  await loadOccupancy();
+  if ($('flyout').show) $('flyout').show();
+  else $('flyout').showModal();
+  syncHash();
+}
+async function loadOccupancy() {
   const occ = await api('/api/occupancy');
   const tbl = $('occ-table');
-  tbl.innerHTML = (occ.cells || []).map(c => `<tr data-col="${c.column}"><td>${c.entity}</td><td>${c.column}</td><td>${c.present}</td></tr>`).join('');
+  const people = {};
+  (occ.cells || []).forEach(c => {
+    const name = c.name || c.entity;
+    const col = c.column;
+    const present = c.present || c.status === 'canon' || c.status === 'draft';
+    if (!people[name]) people[name] = [];
+    people[name].push({ col, present, raw: c });
+  });
+  tbl.innerHTML = (occ.cells || []).filter(c => c.present || c.draft).map(c => {
+    const name = c.name || c.entity;
+    const col = c.column;
+    const clock = fmtClock((state.columns||[]).find(x=>x.id===col)?.clock_from || 0);
+    return `<tr data-col="${col}" data-testid="occ-${name}-${col}"><td>${name}</td><td>${clock}</td><td>${c.present ? '在' : (c.draft ? '草稿' : '')}</td></tr>`;
+  }).join('');
+  const full = $('occ-full');
+  if (full) {
+    const ents = [...new Set((occ.cells || []).map(c => c.name || c.entity))];
+    const cols = state.columns || [];
+    const head = '<tr><th></th>' + cols.map((c, i) => '<th>第' + (i + 1) + '列<br>' + fmtClock(c.clock_from) + '</th>').join('') + '</tr>';
+    const rows = ents.map(name => {
+      const cells = cols.map(c => {
+        const hit = (occ.cells || []).find(x => (x.name || x.entity) === name && x.column === c.id);
+        const mark = hit && (hit.present || hit.status === 'canon') ? '●' : (hit && hit.draft ? '○' : '');
+        return '<td data-col="' + c.id + '" data-testid="occ-cell-' + name + '-' + c.id + '">' + mark + '</td>';
+      }).join('');
+      return '<tr><th>' + name + '</th>' + cells + '</tr>';
+    }).join('');
+    full.innerHTML = '<table class="matrix" data-testid="occ-matrix">' + head + rows + '</table>';
+    full.querySelectorAll('td[data-col]').forEach(td => td.onclick = () => {
+      const idx = (state.columns||[]).findIndex(c => c.id === td.getAttribute('data-col'));
+      if (idx >= 0) jump(idx);
+      $('flyout').close();
+    });
+  }
   tbl.querySelectorAll('tr').forEach(tr => tr.onclick = () => {
     const col = tr.getAttribute('data-col');
     const idx = (state.columns||[]).findIndex(c => c.id === col);
     if (idx >= 0) jump(idx);
+    $('flyout').close();
   });
   $('flyout-error').textContent = '';
-  $('flyout').showModal();
-};
-$('flyout-edit').onclick = async () => {
-  try {
-    await api('/api/occupancy', { method: 'POST', body: '{}' });
-  } catch (e) {
-    $('flyout-error').textContent = String(e.message || e);
-  }
-};
-$('flyout-close').onclick = () => $('flyout').close();
+}
+$('occupancy').onclick = () => showLook('出场');
+$('flyout-close').onclick = () => { $('flyout').close(); currentLook = ''; syncHash(); };
 $('export').onclick = async () => {
-  const md = await api('/api/export');
-  $('export-out').classList.remove('hidden');
-  $('export-out').textContent = md;
+  $('export-dlg').showModal();
+  await runExport(false);
 };
-$('paste').onclick = async () => {
-  const text = $('do-text').value || '阿福打开抽屉。\n阿莲：东西呢。';
-  const r = await api('/api/paste', { method: 'POST', body: JSON.stringify({ text }) });
-  pendingPaste = r.suggestions || [];
-  renderPaste();
+$('paste').onclick = () => {
+  $('paste-dlg').showModal();
 };
 $('do-search').onclick = async () => {
   const r = await api('/api/search?q=' + encodeURIComponent($('ent-search').value));
-  $('search-hits').innerHTML = (r.hits || []).map(h => `<li data-testid="hit-${h.id}">${h.name}</li>`).join('') || '<li data-testid="search-empty">无</li>';
+  const hits = r.hits || [];
+  if (!hits.length) {
+    $('search-hits').innerHTML = '<li data-testid="search-empty">无</li>';
+    return;
+  }
+  $('search-hits').innerHTML = hits.map(h => {
+    const off = h.on_page === false ? '<span data-testid="off-page-' + h.id + '">不在本页</span>' : '';
+    return `<li data-testid="hit-${h.id}" draggable="true" data-id="${h.id}">${h.name} ${off}</li>`;
+  }).join('');
+  $('search-hits').querySelectorAll('li[draggable]').forEach(li => {
+    li.ondragstart = ev => ev.dataTransfer.setData('text/plain', JSON.stringify({ type: 'entity', id: li.dataset.id }));
+    li.onclick = () => openDossier(li.dataset.id);
+  });
 };
 $('ignore-suggest').onclick = () => {
   ignoreSuggestion = true;
@@ -2101,7 +2969,33 @@ async function openDossier(id) {
   $('dossier-error').textContent = '';
   const d = await api('/api/dossier/' + encodeURIComponent(id));
   $('dossier-title').textContent = '档案 ' + d.name;
-  $('dossier-desire').value = (d.profile && d.profile.desire) || '';
+  const keys = PROFILE_KEYS[d.kind] || PROFILE_KEYS.person;
+  const host = $('dossier-profile');
+  if (host) {
+    host.innerHTML = keys.map(k => {
+      const v = (d.profile && d.profile[k]) || '';
+      return '<label>' + k + ' <input data-profile="' + k + '" data-testid="dossier-' + k + '" value="' + String(v).replace(/"/g, '&quot;') + '" /></label>';
+    }).join('');
+  }
+  const rels = d.relations_setup || [];
+  if ($('dossier-rels')) {
+    $('dossier-rels').innerHTML = rels.map(r =>
+      '<div class="rel-row" data-testid="rel-' + r.id + '">' + (r.label || r.kind) + ' ' + (r.other_name || r.other) +
+      (r.direction === 'in' ? '（对方看见你）' : '') +
+      ' <button type="button" data-del="' + r.id + '">删</button></div>'
+    ).join('') || '<p class="muted">还没有设定关系。</p>';
+    $('dossier-rels').querySelectorAll('button[data-del]').forEach(btn => {
+      btn.onclick = async () => {
+        await api('/api/entities/' + encodeURIComponent(d.id) + '/relations/' + encodeURIComponent(btn.dataset.del), { method: 'DELETE' });
+        openDossier(d.id);
+      };
+    });
+  }
+  if ($('dossier-scene-rels')) {
+    $('dossier-scene-rels').innerHTML = (d.relations_from_scenes || []).map(r =>
+      '<div>' + (r.label || r.kind) + ' ' + r.other + '</div>'
+    ).join('');
+  }
   const beats = d.beats || [];
   $('dossier-beats').innerHTML = '场：' + beats.map(b => {
     const bid = typeof b === 'string' ? b : b.id;
@@ -2129,33 +3023,35 @@ async function openDossier(id) {
   $('dossier').showModal();
 }
 $('dossier-save').onclick = async () => {
-  await api('/api/dossier/' + encodeURIComponent(dossierId), { method: 'POST', body: JSON.stringify({ profile: { desire: $('dossier-desire').value } }) });
+  const profile = collectProfile($('dossier-profile'));
+  await api('/api/dossier/' + encodeURIComponent(dossierId), { method: 'POST', body: JSON.stringify({ profile }) });
+  toast('档案已保存');
 };
 $('dossier-delete').onclick = async () => {
   try { await tryDeleteEntity(dossierId); refresh(); } catch (e) {}
 };
-$('dossier-close').onclick = () => $('dossier').close();
+$('dossier-close').onclick = () => { $('dossier').close(); setMode('scene'); };
 async function loadCircumstances() {
   try {
     const p = await api('/api/circumstances');
     const pkt = p.packet || p;
+    const last = (state.committed || []).slice().sort((a, b) => (b.commit_seq || 0) - (a.commit_seq || 0))[0];
     const side = [];
     side.push('本场任务：' + (pkt.intent || '无'));
+    side.push('上场：' + (last && last.intent ? last.intent : '无'));
+    side.push('上场价值转折：' + (pkt.last_value_shift || '无'));
     side.push('当场利害：' + ((pkt.stakes || []).join('；') || '无'));
     side.push('知情差：' + ((pkt.knowledge_gaps || []).join('；') || '无'));
     side.push('本场默认谁会看见：' + ((pkt.default_witnesses || []).join('、') || '无'));
-    side.push('上场价值转折：' + (pkt.last_value_shift || '无'));
     side.push('未收伏笔：' + ((pkt.open_promises || []).map(x => x.name || x.id).join('、') || '无'));
     if ($('write-circ')) $('write-circ').textContent = side.join('\n');
+    $('sidebar').textContent = side.join('\n');
     const debts = $('scene-debts');
     if (debts) {
       const open = pkt.open_promises || [];
       debts.innerHTML = open.length
         ? open.slice(0, 5).map(x => '<div class="debt">' + (x.name || x.id) + ' · 未收</div>').join('')
         : '<p class="muted">这场没动伏笔。</p>';
-    }
-    if (uiMode !== 'scene' && uiMode !== 'about') {
-      $('sidebar').textContent = '';
     }
     if (p.suggestion && !ignoreSuggestion) {
       $('promise-suggest').textContent = '建议：' + p.suggestion.op + ' ' + p.suggestion.promise_id;
@@ -2202,7 +3098,6 @@ document.addEventListener('click', (e) => {
   if (!b || b.id === 'talk') return;
   if (b.dataset.discuss) startFieldTalk(b.dataset.discuss);
 });
-$('new-entity').addEventListener('click', () => setMode('create'));
 
 async function renderBookList() {
   if (!$('book-list') || fillingBooks) return;
@@ -2218,8 +3113,9 @@ async function renderBookList() {
   fillingBooks = false;
 }
 $('book-list').onchange = async () => {
+  if (fillingBooks) return;
   const name = $('book-list').value;
-  if (!name) return;
+  if (!name || name === (state.book || '')) return;
   $('book-name').value = name;
   await api('/api/books/' + encodeURIComponent(name) + '/open', { method: 'POST', body: '{}' });
   refresh();
@@ -2250,19 +3146,23 @@ function renderKnowList() {
   if (!el) return;
   el.textContent = pendingKnows.map(k => k.person_id + ' ' + k.certainty + ' ' + k.fact).join('；');
 }
-$('add-delta').onclick = () => {
+$('add-delta').onclick = async () => {
   const entity_id = $('delta-ent').value.trim();
   const attr = $('delta-attr').value.trim();
   const value = $('delta-val').value.trim();
   if (!entity_id || !attr) return;
+  pushUndo();
   const row = { entity_id, attr, value, clock_from: Number($('delta-from').value) || 0, clock_to: null };
   pendingDeltas.push(row);
   renderDeltaList();
+  await persistDraftFields({ deltas: pendingDeltas });
+  toast('已写入本场变化', undoDraft);
 };
-$('add-know').onclick = () => {
+$('add-know').onclick = async () => {
   const person_id = $('know-who').value.trim();
   const fact = $('know-fact').value.trim();
   if (!person_id || !fact) return;
+  pushUndo();
   pendingKnows.push({
     person_id,
     fact,
@@ -2272,6 +3172,8 @@ $('add-know').onclick = () => {
     source_person: $('know-source').value.trim() || null
   });
   renderKnowList();
+  await persistDraftFields({ knowledge_writes: pendingKnows });
+  toast('已写入知情', undoDraft);
 };
 
 $('relations').onclick = async () => {
@@ -2280,7 +3182,7 @@ $('relations').onclick = async () => {
   $('graph-svg').innerHTML = '';
   if (!person) {
     $('graph-error').textContent = '先选一个人';
-    $('graph').showModal();
+    if ($('graph').show) $('graph').show(); else $('graph').showModal();
     return;
   }
   try {
@@ -2289,9 +3191,9 @@ $('relations').onclick = async () => {
   } catch (e) {
     $('graph-error').textContent = String(e.message || e);
   }
-  $('graph').showModal();
+  if ($('graph').show) $('graph').show(); else $('graph').showModal();
 };
-$('graph-close').onclick = () => $('graph').close();
+$('graph-close').onclick = () => { $('graph').close(); currentLook = ''; syncHash(); };
 function drawGraph(data) {
   const svg = $('graph-svg');
   svg.innerHTML = '';
@@ -2333,11 +3235,14 @@ function renderCraftChapters() {
   (craftDraft.chapters || []).forEach((ch, i) => {
     const row = document.createElement('div');
     row.className = 'row';
-    row.innerHTML = '<input data-i="' + i + '" data-k="title" placeholder="回目" value="' + (ch.title || '').replace(/"/g, '&quot;') + '" />' +
-      '<input data-i="' + i + '" data-k="start_column" placeholder="从哪一列起" value="' + (ch.start_column || '').replace(/"/g, '&quot;') + '" />';
+    row.innerHTML = '<input data-i="' + i + '" data-k="title" data-testid="craft-title-' + i + '" placeholder="回目" value="' + (ch.title || '').replace(/"/g, '&quot;') + '" />' +
+      '<select data-i="' + i + '" data-k="start_column" data-testid="craft-start-' + i + '">' +
+      '<option value="">从哪一列起</option>' +
+      (state.columns || []).map(c => '<option value="' + c.id + '"' + (c.id === ch.start_column ? ' selected' : '') + '>' + c.id + '</option>').join('') +
+      '</select>';
     host.appendChild(row);
   });
-  host.querySelectorAll('input').forEach(inp => {
+  host.querySelectorAll('input,select').forEach(inp => {
     inp.onchange = () => {
       const i = Number(inp.dataset.i);
       craftDraft.chapters[i][inp.dataset.k] = inp.value;
@@ -2345,13 +3250,15 @@ function renderCraftChapters() {
   });
 }
 $('open-craft').onclick = async () => {
+  await refresh();
   try {
     const c = await api('/api/craft');
-    craftDraft = { premise: c.premise || '', chapters: c.chapters || [] };
+    craftDraft = { premise: c.premise || '', chapters: c.chapters || [], clock_origin_label: c.clock_origin_label || '' };
   } catch (e) {
     craftDraft = { premise: '', chapters: [] };
   }
   $('craft-premise').value = craftDraft.premise;
+  if ($('craft-origin')) $('craft-origin').value = craftDraft.clock_origin_label || '';
   renderCraftChapters();
   $('craft-msg').textContent = '';
   $('craft-dlg').showModal();
@@ -2363,16 +3270,482 @@ $('craft-add-chapter').onclick = () => {
 };
 $('craft-save').onclick = async () => {
   craftDraft.premise = $('craft-premise').value;
+  if ($('craft-origin')) craftDraft.clock_origin_label = $('craft-origin').value;
   try {
     await api('/api/craft', { method: 'POST', body: JSON.stringify(craftDraft) });
     $('craft-msg').textContent = '已写入书页，不算进算出这一刻';
+    await refresh();
   } catch (e) {
     $('craft-msg').textContent = String(e.message || e);
   }
 };
 $('craft-close').onclick = () => $('craft-dlg').close();
 
-document.addEventListener('DOMContentLoaded', refresh);
+function collectProfile(host) {
+  const profile = {};
+  if (!host) return profile;
+  host.querySelectorAll('[data-profile]').forEach(inp => {
+    if (inp.value) profile[inp.dataset.profile] = inp.value;
+  });
+  return profile;
+}
+function renderProfileFields(host, kind, values) {
+  if (!host) return;
+  const keys = PROFILE_KEYS[kind] || PROFILE_KEYS.person;
+  host.innerHTML = keys.map(k =>
+    '<label>' + k + ' <input data-profile="' + k + '" data-testid="ent-' + k + '" value="' + ((values && values[k]) || '').replace(/"/g, '&quot;') + '" /></label>'
+  ).join('');
+}
+function scheduleTrackSave(ta) {
+  const i = Number(ta.dataset.track);
+  if (pendingTracks[i]) pendingTracks[i][ta.dataset.f] = ta.value;
+  $('do-text').value = pendingTracks.map(t => t.do_text).filter(Boolean).join('\n');
+  $('say-text').value = pendingTracks.map(t => t.say_text).filter(Boolean).join('\n');
+  $('think-text').value = pendingTracks.map(t => t.think_text).filter(Boolean).join('\n');
+  if ($('save-dot')) $('save-dot').textContent = '保存中…';
+  clearTimeout(scheduleTrackSave._t);
+  scheduleTrackSave._t = setTimeout(async () => {
+    if (!currentDraft) return;
+    try {
+      await api('/api/drafts/patch', { method: 'POST', body: JSON.stringify({
+        id: currentDraft,
+        tracks: pendingTracks,
+        do_text: $('do-text').value,
+        say_text: $('say-text').value,
+        think_text: $('think-text').value
+      }) });
+      if ($('save-dot')) $('save-dot').textContent = '已保存';
+    } catch (e) {
+      $('sidebar').textContent = String(e.message || e);
+    }
+  }, 400);
+}
+async function persistDraftFields(extra) {
+  if (!currentDraft) return;
+  const body = Object.assign({ id: currentDraft }, extra);
+  try { await api('/api/drafts/patch', { method: 'POST', body: JSON.stringify(body) }); } catch (e) {
+    $('sidebar').textContent = String(e.message || e);
+  }
+}
+function fillCauseList() {
+  const dl = $('cause-list');
+  if (!dl) return;
+  dl.innerHTML = (state.committed || []).map(b => '<option value="' + b.id + '">' + (b.intent || b.id) + '</option>').join('');
+}
+function renderPromiseOps() {
+  const el = $('promise-op-list');
+  if (!el) return;
+  el.textContent = pendingPromiseOps.map(p => p.op + ' ' + p.promise_id).join('；');
+  const sel = $('promise-id');
+  if (sel) {
+    const ps = ((state.world && state.world.promises) || []).concat(
+      (state.entities || []).filter(e => e.kind === 'promise')
+    );
+    const seen = {};
+    sel.innerHTML = ps.filter(p => { const id = p.id || p; if (seen[id]) return false; seen[id] = 1; return true; })
+      .map(p => '<option value="' + (p.id || p) + '">' + (p.name || p.id || p) + '</option>').join('');
+  }
+}
+async function runExport(forceRun) {
+  const include = $('export-include-drafts') && $('export-include-drafts').checked;
+  const qs = [];
+  if (!include) qs.push('canon_only=1');
+  if ($('export-from') && $('export-from').value) qs.push('from_col=' + encodeURIComponent($('export-from').value));
+  if ($('export-to') && $('export-to').value) qs.push('to_col=' + encodeURIComponent($('export-to').value));
+  if (state.reading_order) qs.push('order=telling');
+  const md = await api('/api/export' + (qs.length ? '?' + qs.join('&') : ''));
+  $('export-out').classList.remove('hidden');
+  $('export-out').textContent = md;
+  return md;
+}
+if ($('export-run')) $('export-run').onclick = () => runExport(true);
+if ($('export-close')) $('export-close').onclick = () => $('export-dlg').close();
+if ($('export-copy')) $('export-copy').onclick = async () => {
+  try { await navigator.clipboard.writeText($('export-out').textContent || ''); toast('已复制'); } catch (e) { toast('复制失败'); }
+};
+if ($('export-include-drafts')) $('export-include-drafts').onchange = () => {};
+if ($('paste-run')) $('paste-run').onclick = async () => {
+  const text = $('paste-text').value;
+  const r = await api('/api/paste', { method: 'POST', body: JSON.stringify({ text }) });
+  pendingPaste = r.suggestions || [];
+  renderPaste();
+};
+if ($('paste-close')) $('paste-close').onclick = () => $('paste-dlg').close();
+if ($('promise-ok')) $('promise-ok').onclick = async () => {
+  const name = $('promise-name').value.trim() || '未命名伏笔';
+  const related = ($('promise-related').value || '').split(/[,，]/).map(s => s.trim()).filter(Boolean);
+  await api('/api/promises', { method: 'POST', body: JSON.stringify({ name, related }) });
+  $('promise-dlg').close();
+  refresh();
+};
+if ($('promise-cancel')) $('promise-cancel').onclick = () => $('promise-dlg').close();
+if ($('add-promise-op')) $('add-promise-op').onclick = async () => {
+  const promise_id = $('promise-id').value;
+  const op = $('promise-act').value;
+  if (!promise_id) return;
+  pendingPromiseOps.push({ promise_id, op });
+  renderPromiseOps();
+  await persistDraftFields({ promise_ops: pendingPromiseOps });
+};
+if ($('revise')) $('revise').onclick = async () => {
+  if (!currentCanon) return;
+  const body = {
+    say_text: $('say-text').value,
+    do_text: $('do-text').value,
+    think_text: $('think-text').value,
+    intent: $('intent').value,
+    value_shift: $('value-shift') && $('value-shift').value,
+    deltas: pendingDeltas,
+    knowledge_writes: pendingKnows,
+    promise_ops: pendingPromiseOps
+  };
+  const r = await api('/api/beats/' + encodeURIComponent(currentCanon) + '/revise', { method: 'POST', body: JSON.stringify(body) });
+  $('revise-msg').textContent = '第几次写入正史仍是 ' + (r.commit_seq || 1);
+  toast('已改正史，次数没变');
+  refresh();
+};
+if ($('cause-beat')) $('cause-beat').onchange = () => persistDraftFields({ cause_beat: $('cause-beat').value });
+if ($('scene-title')) $('scene-title').onchange = () => persistDraftFields({ title: $('scene-title').value });
+if ($('rel-add')) $('rel-add').onclick = async () => {
+  if (!dossierId) return;
+  await api('/api/entities/' + encodeURIComponent(dossierId) + '/relations', {
+    method: 'POST',
+    body: JSON.stringify({ kind: $('rel-kind').value, target: $('rel-target').value, note: $('rel-note').value })
+  });
+  openDossier(dossierId);
+};
+if ($('ent-kind')) $('ent-kind').onchange = () => renderProfileFields($('ent-profile-fields'), $('ent-kind').value);
+if ($('intent')) $('intent').addEventListener('input', syncWriteNext);
+
+if ($('open-shelf')) $('open-shelf').onclick = async () => { hideOverlays(); await renderShelf(); $('shelf').classList.add('show'); };
+if ($('shelf-back')) $('shelf-back').onclick = () => hideOverlays();
+if ($('shelf-new')) $('shelf-new').onclick = () => { hideOverlays(); $('new-book').classList.add('show'); };
+if ($('nb-cancel')) $('nb-cancel').onclick = () => hideOverlays();
+if ($('nb-create')) $('nb-create').onclick = async () => {
+  await api('/api/books', { method: 'POST', body: JSON.stringify({
+    name: $('nb-name').value,
+    premise: $('nb-premise').value,
+    clock_origin_label: $('nb-clock').value
+  }) });
+  hideOverlays();
+  refresh();
+};
+if ($('open-library')) $('open-library').onclick = () => { hideOverlays(); renderLibrary(); $('library').classList.add('show'); };
+if ($('lib-back')) $('lib-back').onclick = () => hideOverlays();
+if ($('open-timeline')) $('open-timeline').onclick = () => showLook('时间轴');
+if ($('tl-back')) $('tl-back').onclick = () => hideLooks();
+if ($('open-table')) $('open-table').onclick = () => showLook('总表');
+if ($('table-back')) $('table-back').onclick = () => hideLooks();
+if ($('progress-back')) $('progress-back').onclick = () => hideLooks();
+if ($('track-back')) $('track-back').onclick = () => hideLooks();
+document.querySelectorAll('#look-panel [data-look]').forEach(btn => {
+  btn.onclick = () => showLook(btn.getAttribute('data-look'));
+});
+if ($('thread-attach')) $('thread-attach').onclick = async () => {
+  const id = $('thread-pick').value;
+  if (!id) return;
+  const b = currentBeatObj();
+  const list = (b ? beatThreads(b) : []).filter(x => x.id !== id);
+  list.push({ id: id, role: $('thread-role').value || '推进' });
+  await saveStoryThreads(list);
+};
+if ($('thread-create')) $('thread-create').onclick = async () => {
+  const name = ($('thread-new-name').value || '').trim();
+  if (!name) return;
+  const t = await api('/api/threads', { method: 'POST', body: JSON.stringify({ name: name, type: $('thread-new-type').value }) });
+  $('thread-new-name').value = '';
+  await refresh();
+  if (currentDraft || currentCanon) {
+    const b = currentBeatObj();
+    const list = (b ? beatThreads(b) : []).slice();
+    list.push({ id: t.id, role: '推进' });
+    await saveStoryThreads(list);
+  }
+};
+function renderTableView() {
+  const cols = state.columns || [];
+  const colNo = id => { const i = cols.findIndex(c => c.id === id); return i < 0 ? '' : String(i + 1); };
+  const rows = [];
+  (state.committed || []).forEach(b => rows.push({
+    id: b.id, col: b.column_id, intent: b.intent || '', status: '正史', telling: b.telling_ord || '', clock: fmtClock(b.clock_from)
+  }));
+  (state.drafts || []).forEach(d => {
+    const b = d.draft || d;
+    rows.push({
+      id: b.id, col: b.column_id, intent: b.intent || '', status: '草稿', telling: b.telling_ord || '', clock: fmtClock(b.clock_from)
+    });
+  });
+  const host = $('table-body');
+  host.innerHTML = '<tr><th>列</th><th>故事时间</th><th>本场任务</th><th>状态</th><th>读序</th></tr>' + rows.map(r =>
+    '<tr data-testid="table-row-' + r.id + '" data-id="' + r.id + '" data-canon="' + (r.status === '正史' ? '1' : '0') + '"><td>' + colNo(r.col) + '</td><td>' + r.clock + '</td><td>' + r.intent + '</td><td>' + r.status + '</td><td>' + r.telling + '</td></tr>'
+  ).join('');
+  host.querySelectorAll('tr[data-id]').forEach(tr => tr.onclick = async () => {
+    hideLooks();
+    await selectBeat(tr.dataset.id, tr.dataset.canon === '1');
+    const card = document.querySelector('[data-testid="card-' + tr.dataset.id + '"]');
+    if (card) card.click();
+  });
+}
+function openDelBook(card) {
+  pendingDelBook = card;
+  const nCanon = card.committed || 0;
+  const nDraft = card.drafts || 0;
+  const nCol = card.columns || 0;
+  $('del-book-count').textContent = '将删掉正史 ' + nCanon + ' 场、草稿 ' + nDraft + ' 场、' + nCol + ' 列。这一步不能撤销。';
+  $('del-book-type').value = '';
+  $('del-book-ok').disabled = true;
+  $('del-book-dlg').showModal();
+}
+if ($('del-book-type')) $('del-book-type').oninput = () => {
+  $('del-book-ok').disabled = !$('del-book-type').value || $('del-book-type').value !== (pendingDelBook && pendingDelBook.name);
+};
+if ($('del-book-cancel')) $('del-book-cancel').onclick = () => { $('del-book-dlg').close(); pendingDelBook = null; };
+if ($('del-book-ok')) $('del-book-ok').onclick = async () => {
+  if (!pendingDelBook) return;
+  const name = pendingDelBook.name;
+  await api('/api/books/' + encodeURIComponent(name) + '?confirm=' + encodeURIComponent(name), { method: 'DELETE' });
+  $('del-book-dlg').close();
+  pendingDelBook = null;
+  toast('已删掉 ' + name);
+  await renderShelf();
+  $('shelf').classList.add('show');
+  refresh();
+};
+if ($('open-cmd')) $('open-cmd').onclick = () => { $('cmdk').classList.toggle('show'); $('cmdk-q').focus(); };
+async function renderShelf() {
+  const r = await api('/api/books');
+  const items = r.items || (r.books || []).map(n => ({ name: n }));
+  $('shelf-grid').innerHTML = items.map(b =>
+    '<div class="book-card" data-name="' + b.name + '"><h3>' + b.name + '</h3><p>' + (b.premise || '还没写主脑') +
+    '</p><p class="muted">正史 ' + (b.committed || 0) + ' · 草稿 ' + (b.drafts || 0) + ' · ' + (b.columns || 0) + ' 列</p>' +
+    '<button type="button" data-open="' + b.name + '">打开</button> ' +
+    '<button type="button" data-del="' + b.name + '" data-testid="shelf-del-' + b.name + '">删除</button></div>'
+  ).join('') || '<p class="muted">还没有书。</p>';
+  $('shelf-grid').querySelectorAll('[data-open]').forEach(btn => {
+    btn.onclick = async () => {
+      await api('/api/books/' + encodeURIComponent(btn.getAttribute('data-open')) + '/open', { method: 'POST', body: '{}' });
+      hideOverlays();
+      undoStack = [];
+      redoStack = [];
+      refresh();
+    };
+  });
+  $('shelf-grid').querySelectorAll('[data-del]').forEach(btn => {
+    btn.onclick = (e) => {
+      e.stopPropagation();
+      const name = btn.getAttribute('data-del');
+      const card = items.find(x => x.name === name) || { name, committed: 0, drafts: 0, columns: 0 };
+      openDelBook(card);
+    };
+  });
+}
+function renderLibrary() {
+  const all = state.all_entities || state.entities || [];
+  $('library-list').innerHTML = all.map(e =>
+    '<div class="lib-item" data-id="' + e.id + '">' + kindLabel(e.kind) + ' · ' + e.name + '</div>'
+  ).join('') || '<p class="muted">还没有设定。</p>';
+  $('library-list').querySelectorAll('[data-id]').forEach(el => el.onclick = () => openDossier(el.dataset.id));
+}
+function renderTimeline() {
+  const cols = state.columns || [];
+  if (!cols.length) { $('tl-span').textContent = '还没有列。'; return; }
+  const min = Math.min.apply(null, cols.map(c => c.clock_from));
+  const max = Math.max.apply(null, cols.map(c => c.clock_to));
+  const span = Math.max(1, max - min);
+  $('tl-span').textContent = '从 ' + fmtClock(min) + ' 到 ' + fmtClock(max) + '，共 ' + span + ' 分钟。';
+  const host = $('tl-track');
+  host.innerHTML = '';
+  const w = Math.max(640, cols.length * 80);
+  host.style.minWidth = w + 'px';
+  cols.forEach(c => {
+    const has = (state.committed || []).some(b => b.column_id === c.id) || (state.drafts || []).some(d => d.draft.column_id === c.id);
+    const el = document.createElement('div');
+    el.className = has ? 'tl-seg' : 'tl-gap';
+    el.style.left = ((c.clock_from - min) / span * 100) + '%';
+    el.style.width = (Math.max(8, (c.clock_to - c.clock_from) / span * 100)) + '%';
+    el.title = fmtClock(c.clock_from) + '–' + fmtClock(c.clock_to) + (has ? '' : ' 没有戏');
+    el.onclick = () => { hideLooks(); jump((state.columns||[]).findIndex(x => x.id === c.id)); };
+    host.appendChild(el);
+  });
+}
+if ($('cmdk-q')) $('cmdk-q').addEventListener('input', async () => {
+  const q = $('cmdk-q').value.trim();
+  if (!q) { $('cmdk-hits').innerHTML = ''; return; }
+  const r = await api('/api/search?q=' + encodeURIComponent(q));
+  const rows = (r.hits || []).concat(r.scenes || []);
+  $('cmdk-hits').innerHTML = rows.map((h, i) =>
+    '<li data-i="' + i + '" data-id="' + h.id + '" data-type="' + (h.type || 'entity') + '">' + (h.name || h.id) + ' · ' + (h.type || h.kind) + '</li>'
+  ).join('');
+  $('cmdk-hits').querySelectorAll('li').forEach(li => {
+    li.onclick = () => {
+      $('cmdk').classList.remove('show');
+      if (li.dataset.type === 'scene') {
+        const b = (state.committed || []).find(x => x.id === li.dataset.id);
+        const d = (state.drafts || []).find(x => x.id === li.dataset.id);
+        if (b) jump((state.columns||[]).findIndex(c => c.id === b.column_id));
+        if (d) jump((state.columns||[]).findIndex(c => c.id === d.draft.column_id));
+      } else openDossier(li.dataset.id);
+    };
+  });
+});
+async function openGraphLook() {
+  currentLook = '关系';
+  $('graph-error').textContent = '';
+  $('graph-svg').innerHTML = '';
+  let person = ($('person-lens') && $('person-lens').value) || state.lens_person || '';
+  if (!person) {
+    const p = (state.people || []).find(x => x.kind === 'person') || (state.entities || []).find(x => x.kind === 'person');
+    person = p ? p.id : '';
+  }
+  if (!person) {
+    $('graph-error').textContent = '先建一个人物再看关系。';
+    if ($('graph').show) $('graph').show(); else $('graph').showModal();
+    return;
+  }
+  try {
+    const data = await api('/api/relations?person=' + encodeURIComponent(person));
+    drawGraph(data);
+  } catch (e) {
+    $('graph-error').textContent = String(e.message || e);
+  }
+  if ($('graph').show) $('graph').show(); else $('graph').showModal();
+  syncHash();
+}
+$('relations').onclick = () => showLook('关系');
+
+document.addEventListener('keydown', (e) => {
+  const tag = (e.target && e.target.tagName) || '';
+  const typing = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+    e.preventDefault();
+    $('cmdk').classList.toggle('show');
+    if ($('cmdk').classList.contains('show')) $('cmdk-q').focus();
+    return;
+  }
+  if (e.key === '/' && !typing) {
+    e.preventDefault();
+    $('cmdk').classList.add('show');
+    $('cmdk-q').focus();
+    return;
+  }
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') {
+    if (undoStack.length || redoStack.length) {
+      e.preventDefault();
+      if (e.shiftKey) redoDraft();
+      else undoDraft();
+    }
+    return;
+  }
+  if (!typing && e.key === '[') { e.preventDefault(); $('prev').click(); }
+  if (!typing && e.key === ']') { e.preventDefault(); $('next').click(); }
+  if (!typing && e.altKey && e.key >= '1' && e.key <= '6') {
+    e.preventDefault();
+    api('/api/window', { method: 'POST', body: JSON.stringify({ n: Number(e.key) }) }).then(refresh);
+  }
+  if (!typing && e.key.toLowerCase() === 't') {
+    e.preventDefault();
+    if (currentLook === '时间轴') hideLooks();
+    else showLook('时间轴');
+  }
+  if (!typing && e.key.toLowerCase() === 'l') {
+    e.preventDefault();
+    const first = document.querySelector('#thread-strip button[data-line]');
+    if (first) first.focus();
+  }
+  if (e.key === 'Escape') {
+    if (currentLook || ($('timeline') && $('timeline').classList.contains('show')) || ($('flyout') && $('flyout').open)) {
+      hideLooks();
+      return;
+    }
+    if (threadFilter) { threadFilter = ''; render(); syncHash(); return; }
+    hideOverlays();
+    if ($('cmdk')) $('cmdk').classList.remove('show');
+    const dlg = $('confirm-dlg');
+    if (dlg && dlg.open) return;
+  }
+  if (typing) return;
+  if (e.key.toLowerCase() === 'a' && currentDraft) {
+    e.preventDefault();
+    showPresencePicker();
+    return;
+  }
+  if (e.key === 'n') { e.preventDefault(); $('intent').focus(); setMode('write'); }
+  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && currentDraft) $('commit').click();
+});
+
+function entityOf(id) {
+  const all = (state.all_entities || []).concat(state.entities || []).concat(state.people || []);
+  return all.find(e => e.id === id || e.name === id) || { id, name: id, kind: 'person' };
+}
+
+function hideMention() {
+  const pop = $('mention-pop');
+  if (pop) pop.classList.add('hidden');
+}
+function showPresencePicker() {
+  const pop = $('mention-pop');
+  if (!pop || !currentDraft) return;
+  const ents = state.entities || [];
+  pop.innerHTML = ents.map(e =>
+    '<button type="button" data-testid="presence-' + (e.name || e.id) + '" data-id="' + e.id + '" data-kind="' + (e.kind || '') + '">' + kindLabel(e.kind) + ' · ' + (e.name || e.id) + '</button>'
+  ).join('') || '<p class="muted">还没有设定</p>';
+  pop.classList.remove('hidden');
+  const btns = [...pop.querySelectorAll('button')];
+  if (btns[0]) btns[0].focus();
+  btns.forEach(btn => {
+    btn.onclick = () => {
+      addPresenceToDraft(currentDraft, btn.dataset.id, btn.dataset.kind);
+      hideMention();
+    };
+  });
+}
+function showMention(el) {
+  const pop = $('mention-pop');
+  if (!pop || !el) return;
+  const v = el.value || '';
+  const start = el.selectionStart == null ? v.length : el.selectionStart;
+  const before = v.slice(0, start);
+  const m = before.match(/@([^\s@]*)$/);
+  if (!m) { hideMention(); return; }
+  const q = m[1];
+  const ents = (state.entities || []).filter(e => {
+    const n = e.name || e.id || '';
+    return !q || n.indexOf(q) >= 0;
+  });
+  if (!ents.length) { hideMention(); return; }
+  pop.innerHTML = ents.slice(0, 8).map(e =>
+    '<button type="button" data-testid="mention-' + (e.name || e.id) + '" data-name="' + (e.name || e.id) + '">@' + (e.name || e.id) + '</button>'
+  ).join('');
+  pop.classList.remove('hidden');
+  pop.querySelectorAll('button').forEach(btn => {
+    btn.onclick = () => {
+      const name = btn.dataset.name;
+      el.value = before.replace(/@([^\s@]*)$/, '@' + name + ' ') + v.slice(start);
+      hideMention();
+      el.focus();
+    };
+  });
+}
+function bindMention(el) {
+  if (!el) return;
+  el.addEventListener('input', () => showMention(el));
+  el.addEventListener('keydown', e => { if (e.key === 'Escape') hideMention(); });
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  renderProfileFields($('ent-profile-fields'), 'person');
+  bindMention($('do-text'));
+  bindMention($('say-text'));
+  bindMention($('think-text'));
+  const raw = location.hash || '';
+  const qIdx = raw.indexOf('?');
+  const q = new URLSearchParams(qIdx >= 0 ? raw.slice(qIdx + 1) : '');
+  threadFilter = q.get('line') || '';
+  refresh().then(() => {
+    const look = q.get('look') || '';
+    if (look) showLook(look);
+  });
+});
 </script>
 </body>
 </html>

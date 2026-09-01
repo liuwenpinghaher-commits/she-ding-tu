@@ -197,6 +197,33 @@ pub struct Beat {
     pub presences: Vec<Presence>,
     #[serde(default)]
     pub tracks: Vec<PersonTrack>,
+    /// 作者贴的逻辑线。不算进算出这一刻。
+    #[serde(default)]
+    pub story_threads: Vec<BeatThread>,
+}
+
+/// 一场挂着的一条逻辑线。入线 / 出线不存，按故事时推导。
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct BeatThread {
+    pub id: String,
+    /// 推进 | 旁及 | 暂停
+    #[serde(default)]
+    pub role: String,
+}
+
+/// 书内逻辑线目录。不算进算出这一刻。
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct StoryThread {
+    pub id: String,
+    pub name: String,
+    /// 支线：6 槽之一 0–5；主线忽略，界面固定黄铜。
+    #[serde(default)]
+    pub color: u8,
+    /// 主线 | 支线
+    #[serde(rename = "type")]
+    pub thread_type: String,
+    #[serde(default)]
+    pub description: String,
 }
 
 /// 写入正史之前的一场，只存在应用内存。不进 Narra。
@@ -226,6 +253,9 @@ pub struct BeatDraft {
     pub presences: Vec<Presence>,
     #[serde(default)]
     pub tracks: Vec<PersonTrack>,
+    /// 作者贴的逻辑线。不算进算出这一刻。
+    #[serde(default)]
+    pub story_threads: Vec<BeatThread>,
     /// 注入 RELATE 失败（切片 1.3）。
     #[serde(default)]
     pub fail_relate: bool,

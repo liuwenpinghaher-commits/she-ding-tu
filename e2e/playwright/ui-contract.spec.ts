@@ -1,4 +1,12 @@
-import { test, expect } from "@playwright/test";
+import { expect, type Page } from "@playwright/test";
+import { test } from "./helpers";
+
+async function openMore(page: Page) {
+  await page.locator("#more-menu").evaluate((el: HTMLDetailsElement) => { el.open = true; });
+}
+async function closeMore(page: Page) {
+  await page.locator("#more-menu").evaluate((el: HTMLDetailsElement) => { el.open = false; });
+}
 
 test("1 场卡密度、细轨、点列看这一刻", async ({ page }) => {
   const book = "ui-p1-" + Date.now();
@@ -271,8 +279,8 @@ test("4 左栏、飞出层、多书、丢一段草稿", async ({ page }) => {
   await page.locator('[data-testid="hit-阿莲"]').dragTo(page.locator(".card.draft").first());
   await expect(page.getByTestId("chip-阿莲")).toBeVisible();
 
-  await page.locator('[data-testid="ent-开船须铜牌"]').dragTo(page.locator(".card.draft").first()).catch(() => {});
-  await expect(page.getByTestId("chip-开船须铜牌")).toHaveCount(0);
+await page.locator('[data-testid="ent-开船须铜牌"]').dragTo(page.locator(".card.draft").first(), { timeout: 2000 }).catch(() => {});
+  expect(await page.locator('[data-testid="chip-开船须铜牌"]').count()).toBe(0);
   const draftId = await page.evaluate(async () => {
     const st = await (await fetch("/api/state")).json();
     return st.selected || (st.drafts[0] && st.drafts[0].id);
@@ -287,9 +295,11 @@ test("4 左栏、飞出层、多书、丢一段草稿", async ({ page }) => {
   }, draftId);
   expect(ruleRefuse.ok).toBe(false);
   expect(ruleRefuse.text).toContain("规则不能拖进场");
-  await expect(page.getByTestId("chip-开船须铜牌")).toHaveCount(0);
+  expect(await page.locator('[data-testid="chip-开船须铜牌"]').count()).toBe(0);
 
+  await openMore(page);
   await page.getByTestId("occupancy").click();
+  await closeMore(page);
   await expect(page.getByTestId("flyout")).toBeVisible();
   await expect(page.getByTestId("flyout-edit")).toHaveCount(0);
   await page.getByTestId("occ-阿莲-col0").click();
@@ -322,14 +332,16 @@ test("4 左栏、飞出层、多书、丢一段草稿", async ({ page }) => {
   await page.locator(".card.draft").first().click();
   await expect(page.getByTestId("say-text")).toHaveValue("");
   const committedBefore = await page.evaluate(async () => ((await (await fetch("/api/state")).json()).committed || []).length);
+  await openMore(page);
   await page.getByTestId("paste").click();
+  await closeMore(page);
   await expect(page.getByTestId("paste-dialog")).toBeVisible();
   await page.getByTestId("paste-text").fill("甲：你好。\n乙：在。");
   await page.getByTestId("paste-run").click();
-  await expect(page.getByTestId("paste-apply-paste0")).toBeVisible();
+  await expect(page.getByTestId("paste-dialog").getByTestId("paste-apply-paste0")).toBeVisible();
   await expect(page.getByTestId("say-text")).toHaveValue("");
   await expect(page.getByTestId("do-text")).toHaveValue("");
-  await page.getByTestId("paste-apply-paste0").click();
+  await page.getByTestId("paste-dialog").getByTestId("paste-apply-paste0").click();
   await expect(page.getByTestId("say-text")).toHaveValue(/甲：你好/);
   const committedAfter = await page.evaluate(async () => ((await (await fetch("/api/state")).json()).committed || []).length);
   expect(committedAfter).toBe(committedBefore);
@@ -388,6 +400,7 @@ test("5 改已正史、删正史补洞、导出", async ({ page }) => {
   await page.locator(`[data-testid="card-${b1.id}"]`).click();
   await expect(page.getByTestId("revise")).toBeVisible();
   await expect(page.getByTestId("delete-canon")).toBeEnabled();
+  await expect(page.getByTestId("say-text")).toHaveValue(/在这儿/);
   await page.getByTestId("say-text").fill("不在这儿。");
   await page.getByTestId("revise").click();
   await expect(page.getByTestId("revise-msg")).toContainText("第几次写入正史仍是 1");
@@ -411,7 +424,9 @@ test("5 改已正史、删正史补洞、导出", async ({ page }) => {
   await page.getByTestId("telling-ord").fill("1");
   await page.getByTestId("set-telling").click();
 
+  await openMore(page);
   await page.getByTestId("export").click();
+  await closeMore(page);
   await expect(page.getByTestId("export-out")).toBeVisible();
   const mdStory = await page.getByTestId("export-out").innerText();
   expect(mdStory).toContain("状态：正史");
@@ -419,9 +434,13 @@ test("5 改已正史、删正史补洞、导出", async ({ page }) => {
   expect(mdStory).not.toContain("状态：草稿");
   await page.getByTestId("export-close").click();
 
+  await openMore(page);
   await page.getByTestId("reading-order").click();
+  await closeMore(page);
   await expect(page.getByTestId("reading-order")).toHaveAttribute("aria-pressed", "true");
+  await openMore(page);
   await page.getByTestId("export").click();
+  await closeMore(page);
   await page.getByTestId("export-run").click();
   const mdRead = await page.getByTestId("export-out").innerText();
   expect(mdRead.indexOf("阿莲来找")).toBeLessThan(mdRead.indexOf("阿福发现刀"));
@@ -433,7 +452,9 @@ test("5 改已正史、删正史补洞、导出", async ({ page }) => {
   await page.getByTestId("intent").fill("未写入的草稿");
   await page.getByTestId("write-next").click();
   await page.locator(".card.draft").first().waitFor();
+  await openMore(page);
   await page.getByTestId("export").click();
+  await closeMore(page);
   await page.getByTestId("export-include-drafts").check();
   await page.getByTestId("export-run").click();
   await expect(page.getByTestId("export-out")).toContainText("状态：草稿");

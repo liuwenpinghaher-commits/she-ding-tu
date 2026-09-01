@@ -1,4 +1,5 @@
-import { test, expect } from "@playwright/test";
+import { expect } from "@playwright/test";
+import { test } from "./helpers";
 
 const FORBIDDEN = "你现在应该写中点";
 

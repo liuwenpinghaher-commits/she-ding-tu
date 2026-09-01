@@ -1,4 +1,5 @@
-import { test, expect, Page } from "@playwright/test";
+import { expect, Page } from "@playwright/test";
+import { test } from "./helpers";
 
 test("渡口六条戏能在分场条上点出来", async ({ page }) => {
   test.setTimeout(180000);

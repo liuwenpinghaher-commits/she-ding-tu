@@ -72,6 +72,7 @@ fn draft_as_beat(d: &BeatDraft, id: &str) -> Beat {
         promise_ops: d.promise_ops.clone(),
         presences: d.presences.clone(),
         tracks: d.tracks.clone(),
+        story_threads: d.story_threads.clone(),
     }
 }
 

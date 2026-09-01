@@ -2,15 +2,15 @@
 
 mod common;
 
-use narra::services::canon::SettingBook;
+use narra::services::canon::{BeatPatch, SettingBook};
 use narra::services::circumstances::{apply_person_lens, given_circumstances};
 use narra::services::relations::relations_for;
 use narra::services::ferry::{self, AFU, AHE, CITY, COL0, COL1, COL2, FERRY, GANG, KNIFE, LIAN, TOKEN, NIGHT_RULE};
 use narra::services::constrain;
 use narra::services::craft::{self, BookCraft, CraftChapter, ExportBeat};
 use narra::services::world::{
-    BeatDraft, Column, Delta, Entity, KnowledgeWrite, Presence, Promise, PromiseOp, ROLE_MENTIONED,
-    ROLE_PRESENT, ATTR_HOLDS, CERT_WRONG, KIND_RULE,
+    BeatDraft, BeatThread, Column, Delta, Entity, KnowledgeWrite, Presence, Promise, PromiseOp,
+    ROLE_MENTIONED, ROLE_PRESENT, ATTR_HOLDS, CERT_WRONG, KIND_RULE,
 };
 use std::sync::Arc;
 
@@ -115,6 +115,35 @@ async fn s1_2_commit_then_world_at_sees_and_seq() {
     );
     let _ = d2;
     let _ = ATTR_HOLDS;
+}
+
+#[tokio::test]
+async fn story_threads_do_not_change_world_at() {
+    let (_h, book) = book().await;
+    let b1 = book.commit(afu_sees_knife()).await.expect("commit");
+    let before = book.world_at(10, None).await.expect("world before");
+    book.revise(
+        &b1.id,
+        BeatPatch {
+            story_threads: Some(vec![BeatThread {
+                id: "t_copper".into(),
+                role: "推进".into(),
+            }]),
+            ..Default::default()
+        },
+    )
+    .await
+    .expect("贴线");
+    let after = book.world_at(10, None).await.expect("world after");
+    let loaded = book.load_canon().await.expect("load");
+    let beat = loaded.beats.iter().find(|b| b.id == b1.id).expect("beat");
+    assert_eq!(beat.story_threads.len(), 1);
+    assert_eq!(beat.story_threads[0].id, "t_copper");
+    assert_eq!(
+        serde_json::to_string(&before).unwrap(),
+        serde_json::to_string(&after).unwrap(),
+        "贴线不得改变算出这一刻"
+    );
 }
 
 #[tokio::test]
@@ -992,6 +1021,7 @@ async fn s5_export_premise_and_chapters_no_beat_advice() {
                 start_column: COL1.into(),
             },
         ],
+        ..Default::default()
     };
     let cols = vec![
         Column {

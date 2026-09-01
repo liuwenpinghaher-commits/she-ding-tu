@@ -4,6 +4,14 @@ use crate::services::world::Column;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 
+fn default_true() -> bool {
+    true
+}
+
+fn default_tick() -> i64 {
+    1
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub struct BookCraft {
     /// 一句前提。空则导出不写主脑。
@@ -11,6 +19,92 @@ pub struct BookCraft {
     pub premise: String,
     #[serde(default)]
     pub chapters: Vec<CraftChapter>,
+    /// 故事时间零点怎么写给人看，例如「第一天 20:00」。
+    #[serde(default)]
+    pub clock_origin_label: String,
+    /// t=0 对应一天里的哪一分钟（20:00 = 1200）。
+    #[serde(default)]
+    pub clock_origin_minute: i64,
+    /// 一格多少分钟。只影响显示，不算进算出这一刻。
+    #[serde(default = "default_tick")]
+    pub minutes_per_tick: i64,
+    /// day_clock / label / minutes
+    #[serde(default)]
+    pub clock_format: String,
+    #[serde(default = "default_true")]
+    pub export_include_draft: bool,
+    #[serde(default)]
+    pub export_order: String,
+    #[serde(default)]
+    pub export_extras: String,
+}
+
+impl BookCraft {
+    /// 把分钟整数显示成人话。不算进算出这一刻。
+    pub fn format_clock(&self, t: i64) -> String {
+        let fmt = if self.clock_format.trim().is_empty() {
+            "day_clock"
+        } else {
+            self.clock_format.trim()
+        };
+        match fmt {
+            "minutes" => t.to_string(),
+            "label" => {
+                let lab = self.clock_origin_label.trim();
+                if lab.is_empty() {
+                    t.to_string()
+                } else if t == 0 {
+                    lab.to_string()
+                } else {
+                    format!("{lab} +{t}分")
+                }
+            }
+            _ => {
+                let start = if self.clock_origin_minute > 0 {
+                    self.clock_origin_minute
+                } else {
+                    parse_hm_offset(&self.clock_origin_label)
+                };
+                let abs = start + t;
+                let day = if abs >= 0 {
+                    abs / 1440 + 1
+                } else {
+                    abs.div_euclid(1440) + 1
+                };
+                let of = abs.rem_euclid(1440);
+                format!("第{day}天 {:02}:{:02}", of / 60, of % 60)
+            }
+        }
+    }
+
+    pub fn format_span(&self, from: i64, to: i64) -> String {
+        format!("{}–{}", self.format_clock(from), self.format_clock(to))
+    }
+}
+
+pub fn parse_hm_offset(label: &str) -> i64 {
+    let bytes = label.as_bytes();
+    let mut i = 0;
+    while i + 4 < bytes.len() {
+        if bytes[i].is_ascii_digit()
+            && bytes[i + 1].is_ascii_digit()
+            && bytes[i + 2] == b':'
+            && bytes[i + 3].is_ascii_digit()
+            && bytes[i + 4].is_ascii_digit()
+        {
+            let h = std::str::from_utf8(&bytes[i..i + 2])
+                .ok()
+                .and_then(|s| s.parse::<i64>().ok())
+                .unwrap_or(0);
+            let m = std::str::from_utf8(&bytes[i + 3..i + 5])
+                .ok()
+                .and_then(|s| s.parse::<i64>().ok())
+                .unwrap_or(0);
+            return h * 60 + m;
+        }
+        i += 1;
+    }
+    0
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
@@ -191,6 +285,7 @@ mod tests {
                     start_column: "col1".into(),
                 },
             ],
+            ..Default::default()
         };
         let columns = vec![col("col0", 0), col("col1", 1)];
         let md = export_markdown(
@@ -213,10 +308,22 @@ mod tests {
     }
 
     #[test]
+    fn format_clock_day_from_label() {
+        let craft = BookCraft {
+            clock_origin_label: "第一天 20:00".into(),
+            ..Default::default()
+        };
+        assert_eq!(craft.format_clock(0), "第1天 20:00");
+        assert_eq!(craft.format_clock(50), "第1天 20:50");
+        assert_eq!(craft.format_clock(240), "第2天 00:00");
+    }
+
+    #[test]
     fn no_chapters_is_flat_export() {
         let craft = BookCraft {
             premise: String::new(),
             chapters: vec![],
+            ..Default::default()
         };
         let md = export_markdown(
             "渡口",

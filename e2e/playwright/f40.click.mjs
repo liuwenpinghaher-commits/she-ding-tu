@@ -49,6 +49,12 @@ async function commitClick() {
   if (!r.ok()) fail("写入正史失败 " + r.status() + " " + (await r.text()));
   return r;
 }
+async function openMore() {
+  await page.locator("#more-menu").evaluate((el) => { el.open = true; });
+}
+async function closeMore() {
+  await page.locator("#more-menu").evaluate((el) => { el.open = false; });
+}
 async function dragHandle(testid, dx) {
   const box = await page.getByTestId(testid).boundingBox();
   if (!box) fail("no handle " + testid);
@@ -60,6 +66,13 @@ async function dragHandle(testid, dx) {
 
 const book = "f40-" + Date.now();
 await page.goto(base + "/");
+await page.evaluate(async () => {
+  const d = document.getElementById("confirm-dlg");
+  if (d && d.open) d.close();
+  try {
+    await fetch("/api/structure/cancel", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+  } catch {}
+});
 note("1 启动真分场条", base);
 if (base.includes("8765") || base.includes("stripboard-v1")) fail("禁止用演示页");
 
@@ -212,7 +225,9 @@ await expectEnabled("write-next");
 await page.getByTestId("write-next").click();
 await page.locator(".card.draft").last().waitFor();
 await page.locator(".card.draft").last().click();
+await openMore();
 await page.getByTestId("ellipsis").click();
+await closeMore();
 await page.waitForTimeout(200);
 const ell = (await st()).drafts.find((d) => d.draft.kind === "ellipsis");
 if (!ell) fail("省略场未标");
@@ -366,7 +381,9 @@ await Promise.all([
   page.evaluate(() => window.jump(0)),
 ]);
 await page.locator(`[data-testid="card-${firstCanon.id}"]`).click();
+await openMore();
 await page.getByTestId("remove-column").click();
+await closeMore();
 await page.getByTestId("confirm-change").waitFor();
 await page.getByTestId("suggest-refuse").waitFor();
 await page.getByTestId("confirm-cancel").click();
@@ -398,7 +415,9 @@ const shouldKeep = seqBeforeDel.filter((s) => s !== del.commit_seq);
 if (shouldKeep.some((s) => !leftSeq.includes(s))) fail("不该删的场没了 " + JSON.stringify({ shouldKeep, leftSeq }));
 note("23 删已正史补洞，seq 不重编号", { impacts: impacts.slice(0, 120), leftSeq });
 
+await openMore();
 await page.getByTestId("export").click();
+await closeMore();
 await page.getByTestId("export-out").waitFor({ state: "visible" });
 const md = await page.getByTestId("export-out").innerText();
 if (!md.includes("状态：正史")) fail("导出无正史");
@@ -417,7 +436,9 @@ if (JSON.stringify((await st()).committed.map((b) => b.id)) !== JSON.stringify(c
 await page.getByTestId("export-close").click();
 
 await page.getByTestId("tooth-0").click({ force: true });
+await openMore();
 await page.getByTestId("occupancy").click();
+await closeMore();
 await page.getByTestId("flyout").waitFor();
 if (await page.getByTestId("flyout-edit").count()) fail("飞出层仍有改格");
 const occCell = page.locator('[data-testid^="occ-阿福-"]').first();
@@ -440,10 +461,12 @@ await page.evaluate(() => document.querySelectorAll("dialog[open]").forEach((d) 
 await page.locator(".card.canon").first().click();
 await page.getByTestId("telling-ord").fill("9");
 await page.getByTestId("set-telling").click();
+await openMore();
 await Promise.all([
   page.waitForResponse((r) => r.url().includes("/api/reading-order") && r.request().method() === "POST"),
   page.getByTestId("reading-order").click(),
 ]);
+await closeMore();
 await page.waitForFunction(
   () => document.querySelector('[data-testid="reading-order"]')?.getAttribute("aria-pressed") === "true"
 );

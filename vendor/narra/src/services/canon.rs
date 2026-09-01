@@ -54,6 +54,7 @@ struct BeatRow {
     promise_ops_json: Option<String>,
     knowledge_json: Option<String>,
     tracks_json: Option<String>,
+    story_threads_json: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -148,6 +149,7 @@ pub struct BeatPatch {
     pub knowledge_writes: Option<Vec<KnowledgeWrite>>,
     pub promise_ops: Option<Vec<PromiseOp>>,
     pub visible_to: Option<Vec<String>>,
+    pub story_threads: Option<Vec<crate::services::world::BeatThread>>,
 }
 
 fn opt_text(s: String) -> Option<String> {
@@ -180,6 +182,7 @@ fn beat_as_draft(b: &Beat) -> BeatDraft {
         promise_ops: b.promise_ops.clone(),
         presences: b.presences.clone(),
         tracks: b.tracks.clone(),
+        story_threads: b.story_threads.clone(),
         ..BeatDraft::default()
     }
 }
@@ -198,23 +201,36 @@ fn nonempty(s: &Option<String>) -> Option<String> {
 }
 
 fn overlay_scene_content(b: &mut Beat, sc: &SceneRow) {
-    if let Some(k) = nonempty(&sc.kind) {
-        b.kind = k;
+    // 正史以 setting_beat 为准；官方 scene 只补空，避免双写把刚改的对白盖回去。
+    if b.kind.is_empty() {
+        if let Some(k) = nonempty(&sc.kind) {
+            b.kind = k;
+        }
     }
-    if let Some(i) = nonempty(&sc.intent) {
-        b.intent = i;
+    if b.intent.is_empty() {
+        if let Some(i) = nonempty(&sc.intent) {
+            b.intent = i;
+        }
     }
-    if sc.value_shift.is_some() {
-        b.value_shift = nonempty(&sc.value_shift);
+    if b.value_shift.is_none() {
+        if sc.value_shift.is_some() {
+            b.value_shift = nonempty(&sc.value_shift);
+        }
     }
-    if sc.do_text.is_some() {
-        b.do_text = nonempty(&sc.do_text);
+    if b.do_text.is_none() {
+        if sc.do_text.is_some() {
+            b.do_text = nonempty(&sc.do_text);
+        }
     }
-    if sc.say_text.is_some() {
-        b.say_text = nonempty(&sc.say_text);
+    if b.say_text.is_none() {
+        if sc.say_text.is_some() {
+            b.say_text = nonempty(&sc.say_text);
+        }
     }
-    if sc.think_text.is_some() {
-        b.think_text = nonempty(&sc.think_text);
+    if b.think_text.is_none() {
+        if sc.think_text.is_some() {
+            b.think_text = nonempty(&sc.think_text);
+        }
     }
     if sc.telling_ord.is_some() {
         b.telling_ord = sc.telling_ord;
@@ -281,6 +297,7 @@ fn beat_from_scene(
         promise_ops: vec![],
         presences: vec![],
         tracks: vec![],
+        story_threads: vec![],
     };
     overlay_scene(&mut b, sc);
     b
@@ -449,6 +466,11 @@ impl SettingBook {
                     presences: vec![],
                     tracks: b
                         .tracks_json
+                        .as_deref()
+                        .and_then(|s| serde_json::from_str(s).ok())
+                        .unwrap_or_default(),
+                    story_threads: b
+                        .story_threads_json
                         .as_deref()
                         .and_then(|s| serde_json::from_str(s).ok())
                         .unwrap_or_default(),
@@ -626,12 +648,13 @@ impl SettingBook {
         let kws = serde_json::to_string(&draft.knowledge_writes)?;
         let pops = serde_json::to_string(&draft.promise_ops)?;
         let tracks = serde_json::to_string(&draft.tracks)?;
+        let threads = serde_json::to_string(&draft.story_threads)?;
 
         let beat_rid = RecordId::from(("setting_beat", id.as_str()));
         let col_rid = RecordId::from(("setting_column", draft.column_id.as_str()));
         let mut stmts = String::from("BEGIN TRANSACTION;\n");
         stmts.push_str(
-            "CREATE $bid SET kind = $kind, column = $col, status = 'committed', commit_seq = $seq, intent = $intent, value_shift = $vs, do_text = $do, say_text = $say, think_text = $th, clock_from = $cf, clock_to = $ct, place = $place, telling_ord = $tell, cause_beat = $cause, visible_to = $vis, deltas_json = $dj, promise_ops_json = $pj, knowledge_json = $kj, tracks_json = $tj;\n",
+            "CREATE $bid SET kind = $kind, column = $col, status = 'committed', commit_seq = $seq, intent = $intent, value_shift = $vs, do_text = $do, say_text = $say, think_text = $th, clock_from = $cf, clock_to = $ct, place = $place, telling_ord = $tell, cause_beat = $cause, visible_to = $vis, deltas_json = $dj, promise_ops_json = $pj, knowledge_json = $kj, tracks_json = $tj, story_threads_json = $sj;\n",
         );
         if draft.fail_relate {
             stmts.push_str("RELATE $ghost->setting_present_in->$bid SET role = 'present';\n");
@@ -679,6 +702,7 @@ impl SettingBook {
             .bind(("pj", pops))
             .bind(("kj", kws))
             .bind(("tj", tracks))
+            .bind(("sj", threads))
             .bind((
                 "ghost",
                 RecordId::from(("setting_entity", "___no_such_entity___")),
@@ -753,6 +777,17 @@ impl SettingBook {
                 id: beat_id.into(),
             })?;
         let seq = old.commit_seq;
+        let threads_only = patch.story_threads.is_some()
+            && patch.intent.is_none()
+            && patch.do_text.is_none()
+            && patch.say_text.is_none()
+            && patch.think_text.is_none()
+            && patch.value_shift.is_none()
+            && patch.place_id.is_none()
+            && patch.deltas.is_none()
+            && patch.knowledge_writes.is_none()
+            && patch.promise_ops.is_none()
+            && patch.visible_to.is_none();
         let mut next = old.clone();
         if let Some(v) = patch.intent {
             next.intent = v;
@@ -762,6 +797,9 @@ impl SettingBook {
         }
         if let Some(v) = patch.say_text {
             next.say_text = opt_text(v);
+            for t in next.tracks.iter_mut() {
+                t.say_text = next.say_text.clone();
+            }
         }
         if let Some(v) = patch.think_text {
             next.think_text = opt_text(v);
@@ -784,6 +822,9 @@ impl SettingBook {
         if let Some(v) = patch.visible_to {
             next.visible_to = if v.is_empty() { None } else { Some(v) };
         }
+        if let Some(v) = patch.story_threads {
+            next.story_threads = v;
+        }
         let draft = beat_as_draft(&next);
         let mut canon_ex = canon.clone();
         if let Some(b) = canon_ex.beats.iter_mut().find(|b| b.id == beat_id) {
@@ -805,10 +846,11 @@ impl SettingBook {
         let kws = serde_json::to_string(&next.knowledge_writes)?;
         let pops = serde_json::to_string(&next.promise_ops)?;
         let tj = serde_json::to_string(&next.tracks)?;
+        let sj = serde_json::to_string(&next.story_threads)?;
         let mut q = self
             .db
             .query(
-                "UPDATE $bid SET intent = $intent, value_shift = $vs, do_text = $do, say_text = $say, think_text = $th, place = $place, visible_to = $vis, deltas_json = $dj, promise_ops_json = $pj, knowledge_json = $kj, tracks_json = $tj WHERE status = 'committed' RETURN AFTER",
+                "UPDATE $bid SET intent = $intent, value_shift = $vs, do_text = $do, say_text = $say, think_text = $th, place = $place, visible_to = $vis, deltas_json = $dj, promise_ops_json = $pj, knowledge_json = $kj, tracks_json = $tj, story_threads_json = $sj WHERE status = 'committed' RETURN AFTER",
             )
             .bind(("bid", RecordId::from(("setting_beat", beat_id))))
             .bind(("intent", next.intent.clone()))
@@ -827,6 +869,7 @@ impl SettingBook {
             .bind(("pj", pops))
             .bind(("kj", kws))
             .bind(("tj", tj))
+            .bind(("sj", sj))
             .await?;
         let rows: Vec<BeatRow> = q.take(0)?;
         if rows.is_empty() {
@@ -835,14 +878,18 @@ impl SettingBook {
                 id: beat_id.into(),
             });
         }
-        let invalidate_from = next
-            .deltas
-            .iter()
-            .map(|d| d.clock_from)
-            .min()
-            .unwrap_or(next.clock_from)
-            .min(next.clock_from);
-        invalidate_interval(&self.db, invalidate_from).await?;
+        let col = canon.columns.iter().find(|c| c.id == next.column_id);
+        narra_bridge::mirror_beat(&self.db, &next, col).await?;
+        if !threads_only {
+            let invalidate_from = next
+                .deltas
+                .iter()
+                .map(|d| d.clock_from)
+                .min()
+                .unwrap_or(next.clock_from)
+                .min(next.clock_from);
+            invalidate_interval(&self.db, invalidate_from).await?;
+        }
         let canon2 = self.load_canon().await?;
         let beat = canon2
             .beats

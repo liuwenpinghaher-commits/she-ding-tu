@@ -71,7 +71,12 @@ export function Dialogs() {
         <div className="dialog-back">
           <div className="dialog">
             <h3>导出</h3>
-            <p>这份文件改了不会写回正史。</p>
+            <p>这份文件改了不会写回正史。要改回来改分场条。</p>
+            <p className="muted" data-testid="export-count">
+              {s.exportOut
+                ? `这次会导出 ${Math.max(0, (s.exportOut.match(/^## /gm) || []).length || (s.exportOut.match(/状态：/g) || []).length)} 场，其中 ${(s.exportOut.match(/状态：草稿/g) || []).length} 场是草稿`
+                : "点导出看预览"}
+            </p>
             <label><input type="checkbox" data-testid="export-include-drafts" checked={s.exportIncludeDrafts} onChange={(e) => s.setExportIncludeDrafts(e.target.checked)} /> 含草稿</label>
             <button data-testid="export-run" type="button" onClick={() => s.loadExport(s.exportIncludeDrafts)}>导出</button>
             <pre data-testid="export-out">{s.exportOut}</pre>

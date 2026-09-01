@@ -152,6 +152,13 @@ span.mini-window[data-testid="mini-window"] {
   display: flex; flex-direction: column; gap: 2px; min-width: 140px;
 }
 .tooth.on-line { filter: brightness(1.35); }
+.tooth.chap { box-shadow: inset 2px 0 0 var(--cream); }
+.minimap { position: relative; }
+.tooth-tip {
+  position: absolute; left: 12px; top: 100%; z-index: 6;
+  background: var(--panel); border: 1px solid var(--line); padding: 4px 8px;
+  white-space: nowrap; max-width: 80vw; overflow: hidden; text-overflow: ellipsis;
+}
 .card.on-line .band { box-shadow: 0 0 6px var(--brass); }
 .page { padding: 24px; overflow: auto; flex: 1; }
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }

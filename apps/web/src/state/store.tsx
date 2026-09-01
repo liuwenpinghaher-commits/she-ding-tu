@@ -389,6 +389,44 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
   }, [route, refresh, state?.book]);
 
+  const hashApplied = useRef("");
+  useEffect(() => {
+    if (!state?.book) return;
+    if (route.kind !== "board" && route.kind !== "scene") return;
+    const sel = state.selected || state.selected_canon || "";
+    const sceneId = route.kind === "scene" ? route.scene : q.s;
+    const sig = `${state.book}|${sceneId || ""}|${q.n ?? ""}|${q.start ?? ""}`;
+    if (hashApplied.current === sig) return;
+    const needN = q.n != null && q.n !== state.n;
+    const needStart = q.start != null && q.start !== state.window_start;
+    const needS = !!(sceneId && sceneId !== sel);
+    if (!needN && !needStart && !needS) {
+      hashApplied.current = sig;
+      return;
+    }
+    hashApplied.current = sig;
+    (async () => {
+      try {
+        if (needN || needStart) {
+          await api("/api/window", {
+            method: "POST",
+            body: JSON.stringify({ n: q.n ?? state.n, start: q.start ?? state.window_start }),
+          });
+        }
+        if (needS && sceneId) {
+          const isDraft = (state.drafts || []).some((d) => d.id === sceneId);
+          await api("/api/select", {
+            method: "POST",
+            body: JSON.stringify(isDraft ? { draft_id: sceneId } : { canon_id: sceneId }),
+          });
+        }
+        await refresh();
+      } catch {
+        /* 地址栏对不上时忽略 */
+      }
+    })();
+  }, [route.kind, q.s, q.n, q.start, state?.book, state?.n, state?.window_start, state?.selected, state?.selected_canon, refresh, state?.drafts]);
+
   const goShelf = useCallback(() => {
     writeHash("#/");
   }, []);
@@ -963,19 +1001,31 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         undo();
         return;
       }
+      const typing = ["INPUT", "TEXTAREA", "SELECT"].includes((e.target as HTMLElement)?.tagName);
       if (e.altKey && e.key >= "1" && e.key <= "6") {
         e.preventDefault();
         setWindow({ n: Number(e.key) });
         return;
       }
-      if (e.key === "[" ) setWindow({ start: Math.max(0, (state?.window_start || 0) - 1) });
-      if (e.key === "]" ) setWindow({ start: (state?.window_start || 0) + 1 });
-      if (e.key === "Escape" && !["INPUT", "TEXTAREA", "SELECT"].includes((e.target as HTMLElement)?.tagName)) {
+      if (!typing && e.key === "[") setWindow({ start: Math.max(0, (state?.window_start || 0) - 1) });
+      if (!typing && e.key === "]") setWindow({ start: (state?.window_start || 0) + 1 });
+      if (e.key === "Escape" && !typing) {
+        if (cmdOpen) { setCmdOpen(false); return; }
         if (route.kind === "scene" || q.open === "full") setOpen("side");
         else if (q.open === "side") setOpen(null);
         else if (q.look) setLook(null);
         else if (q.line) setLine(null);
         else if (dossierOpen) setDossierOpen(false);
+      }
+      if (!typing && !cmdOpen && (e.key === "ArrowRight" || e.key === "ArrowLeft")) {
+        e.preventDefault();
+        const list = [...(state?.committed || []).map((b) => ({ id: b.id, draft: false, col: b.column_id, t: b.clock_from, seq: b.commit_seq })),
+          ...(state?.drafts || []).map((d) => ({ id: d.id, draft: true, col: d.draft.column_id, t: d.draft.clock_from, seq: 0 }))]
+          .sort((a, b) => a.t - b.t || a.seq - b.seq);
+        const cur = state?.selected || state?.selected_canon;
+        const i = Math.max(0, list.findIndex((x) => x.id === cur));
+        const next = e.key === "ArrowRight" ? list[Math.min(list.length - 1, i + 1)] : list[Math.max(0, i - 1)];
+        if (next) void selectScene(next.id, next.draft);
       }
       if (e.key === " " && !["INPUT", "TEXTAREA", "SELECT", "BUTTON", "SUMMARY"].includes((e.target as HTMLElement)?.tagName)) {
         e.preventDefault();
@@ -1004,7 +1054,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [undo, setWindow, state?.window_start, q.line, q.look, q.open, route.kind, setLine, setLook, setOpen, dossierOpen]);
+  }, [undo, setWindow, state, q.line, q.look, q.open, route.kind, setLine, setLook, setOpen, dossierOpen, cmdOpen, selectScene]);
 
   const scenes = useMemo<SceneCard[]>(() => {
     const committed = (state?.committed || []).map(asScene);

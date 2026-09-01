@@ -52,6 +52,8 @@ export function Stripboard() {
     (sc) => visible.some((c) => c.id === sc.column_id) && !isThinCard(sc, line, who, catalog, ents),
   );
   const showBanner = !!s.q.line && visibleFull.length === 0 && s.scenes.some((sc) => visible.some((c) => c.id === sc.column_id));
+  const [hover, setHover] = useState<number | null>(null);
+  const chapStarts = new Set((craft?.chapters || []).map((ch) => ch.start_column));
 
   return (
     <div className="board-wrap">
@@ -67,17 +69,31 @@ export function Stripboard() {
           const onLine = line
             ? s.scenes.some((sc) => sc.column_id === c.id && !isThinCard(sc, line, null, catalog, ents))
             : false;
+          const here = s.scenes.filter((sc) => sc.column_id === c.id);
+          const clock = formatClock(c.clock_from, craft?.clock_origin_label, craft?.clock_origin_minute, craft?.clock_format);
           return (
             <button
               key={c.id}
               type="button"
-              className={`${toothClass(c, s.scenes, s.state?.promises || [])}${i >= start && i < start + n ? " mini-window" : ""}${onLine ? " on-line" : ""}`}
+              className={`${toothClass(c, s.scenes, s.state?.promises || [])}${i >= start && i < start + n ? " mini-window" : ""}${onLine ? " on-line" : ""}${chapStarts.has(c.id) ? " chap" : ""}`}
               data-testid={`tooth-${i}`}
-              title={`第 ${i + 1} 列 ${formatClock(c.clock_from, craft?.clock_origin_label, craft?.clock_origin_minute, craft?.clock_format)}`}
+              title={`第 ${i + 1} 列 ${clock}${here.length ? " · " + here.map((sc) => sc.intent || "未名场").join("、") : " · 空场次"}`}
+              onMouseEnter={() => setHover(i)}
+              onMouseLeave={() => setHover(null)}
+              onFocus={() => setHover(i)}
+              onBlur={() => setHover(null)}
+              onKeyDown={(e) => { if (e.key === "Enter") s.jumpTooth(i); }}
               onClick={() => s.jumpTooth(i)}
             />
           );
         })}
+        {hover != null && cols[hover] && (
+          <span className="tooth-tip" data-testid="tooth-tip">
+            第 {hover + 1} 列 · {formatClock(cols[hover].clock_from, craft?.clock_origin_label, craft?.clock_origin_minute, craft?.clock_format)}
+            {" · "}
+            {s.scenes.filter((sc) => sc.column_id === cols[hover].id).map((sc) => sc.intent || "未名场").join("、") || "空场次"}
+          </span>
+        )}
         <span data-testid="mini-window" className="mini-window" aria-hidden="false" />
       </div>
       <div id="ruler" className="ruler" data-testid="ruler">

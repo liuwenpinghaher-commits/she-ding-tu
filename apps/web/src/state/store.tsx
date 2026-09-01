@@ -341,6 +341,20 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         setVisPrivate(!!canon.visible_to?.length);
         setVisibleTo((canon.visible_to || []).join("，"));
       });
+    } else {
+      take("intent", () => setIntent(""));
+      take("place", () => setPlaceId(""));
+      take("do", () => setDoText(""));
+      take("say", () => setSayText(""));
+      take("think", () => setThinkText(""));
+      take("shift", () => setValueShift(""));
+      take("cause", () => setCauseBeat(""));
+      take("title", () => setSceneTitle(""));
+      take("telling", () => setTellingOrd(""));
+      take("vis", () => {
+        setVisPrivate(false);
+        setVisibleTo("");
+      });
     }
   }, []);
 
@@ -1042,8 +1056,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [refresh]);
 
   const cancelChange = useCallback(async () => {
-    await api("/api/structure/cancel", { method: "POST", body: "{}" });
-    await refresh();
+    try {
+      await api("/api/structure/cancel", { method: "POST", body: "{}" });
+      await refresh();
+    } catch {
+      /* 没开书或没有待确认的改动 */
+    }
   }, [refresh]);
 
   const invade = useCallback(async (columnId: string, clockTo: number) => {

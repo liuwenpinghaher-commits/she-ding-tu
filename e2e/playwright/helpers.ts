@@ -18,9 +18,11 @@ export async function dismissPending(page: Page) {
     });
     const ae = document.activeElement as HTMLElement | null;
     if (ae && ae !== document.body && typeof ae.blur === "function") ae.blur();
-    document.querySelector<HTMLElement>("[data-testid=confirm-cancel]")?.click();
+    const openConfirm = document.querySelector<HTMLDialogElement>("dialog[open][data-testid=confirm-change]");
+    if (openConfirm) openConfirm.querySelector<HTMLElement>("[data-testid=confirm-cancel]")?.click();
     for (const id of ["craft-close", "export-close", "paste-close"]) {
-      document.querySelector<HTMLElement>(`[data-testid="${id}"]`)?.click();
+      const el = document.querySelector<HTMLElement>(`[data-testid="${id}"]`);
+      if (el && el.offsetParent !== null) el.click();
     }
     try {
       await fetch("/api/structure/cancel", {

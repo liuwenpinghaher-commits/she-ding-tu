@@ -39,7 +39,7 @@ export function Dialogs() {
           disabled={!choice}
           onClick={() => { if (choice) { s.confirmChange(choice); setChoice(null); } }}
         >确认变更</button>
-        <button data-testid="confirm-cancel" type="button" onClick={() => { setChoice(null); s.cancelChange(); }}>取消</button>
+        <button data-testid="confirm-cancel" type="button" onClick={() => { setChoice(null); void s.cancelChange(); }}>取消</button>
       </dialog>
 
       {s.craftOpen && (

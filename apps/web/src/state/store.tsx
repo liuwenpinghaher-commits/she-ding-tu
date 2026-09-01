@@ -74,6 +74,12 @@ export interface Store {
   craftMsg: string;
   mentionOpen: boolean;
   mentionQ: string;
+  mentionField: string | null;
+  slashField: string | null;
+  cmd: string | null;
+  saveStatus: string;
+  committing: boolean;
+  fillChunks: { do_text?: string; say_text?: string; think_text?: string } | null;
   presencePicker: string | null;
   setIntent: (v: string) => void;
   setPlaceId: (v: string) => void;
@@ -124,7 +130,12 @@ export interface Store {
   writeBox: () => Promise<void>;
   fillFake: () => Promise<void>;
   addDelta: (entity_id: string, attr: string, value: string, clock_from?: number) => Promise<void>;
-  addKnow: (who: string, fact: string, cert?: string, truth?: string) => Promise<void>;
+  addKnow: (who: string, fact: string, cert?: string, truth?: string, method?: string, source?: string) => Promise<void>;
+  addPromiseOp: (promiseId: string, op: string) => Promise<void>;
+  applyFillPart: (field: "do_text" | "say_text" | "think_text") => Promise<void>;
+  setSlashField: (f: string | null) => void;
+  setCmd: (c: string | null) => void;
+  clearMention: () => void;
   preview: (op: string, extra?: Record<string, unknown>) => Promise<void>;
   confirmChange: (choice: string) => Promise<void>;
   cancelChange: () => Promise<void>;
@@ -209,6 +220,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [craftMsg, setCraftMsg] = useState("");
   const [mentionOpen, setMentionOpen] = useState(false);
   const [mentionQ, setMentionQ] = useState("");
+  const [mentionField, setMentionField] = useState<string | null>(null);
+  const [slashField, setSlashField] = useState<string | null>(null);
+  const [cmd, setCmd] = useState<string | null>(null);
+  const [saveStatus, setSaveStatus] = useState("");
+  const [committing, setCommitting] = useState(false);
+  const [fillChunks, setFillChunks] = useState<{ do_text?: string; say_text?: string; think_text?: string } | null>(null);
   const [presencePicker, setPresencePicker] = useState<string | null>(null);
   const refreshGen = useRef(0);
   const editorSel = useRef<string | null>(null);
@@ -555,6 +572,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setSidebar("没有选中的草稿，不能写入正史");
       return;
     }
+    if (!intent.trim()) {
+      setSidebar("没有本场任务，不能写入正史");
+      return;
+    }
     const body: Record<string, unknown> = {
       id,
       intent,
@@ -569,13 +590,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (visPrivate && visibleTo.trim()) {
       body.visible_to = visibleTo.split(/[,，]/).map((s) => s.trim()).filter(Boolean);
     }
+    setCommitting(true);
     try {
       await api("/api/drafts/patch", { method: "POST", body: JSON.stringify(body) });
       await api("/api/commit", { method: "POST", body: JSON.stringify({ id }) });
-      setToast("已写入正史");
+      setToast("已写入正史。不能撤销。接着写下一场。");
+      dirty.current.clear();
       await refresh();
     } catch (e) {
       setSidebar(e instanceof Error ? e.message : "写入正史失败");
+    } finally {
+      setCommitting(false);
     }
   }, [state?.selected, intent, doText, sayText, thinkText, valueShift, placeId, sceneTitle, causeBeat, visPrivate, visibleTo, refresh]);
 
@@ -670,6 +695,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         body: JSON.stringify({ id, apply_fill: true, intent }),
       });
       setFillPending(false);
+      setFillChunks(null);
       setTalkPending(null);
       setDiscussDraft("");
       setDiscussOpen(false);
@@ -684,10 +710,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const text = talkPending.text;
     if (field === "intent") setIntent(text);
     else if (field === "value_shift") setValueShift(text);
+    else if (field === "say_text") setSayText(text);
+    else if (field === "think_text") setThinkText(text);
     else setDoText(text);
     const patch: Record<string, unknown> = { id };
     if (field === "intent") patch.intent = text;
     else if (field === "value_shift") patch.value_shift = text;
+    else if (field === "say_text") patch.say_text = text;
+    else if (field === "think_text") patch.think_text = text;
     else patch.do_text = text;
     await api("/api/drafts/patch", { method: "POST", body: JSON.stringify(patch) });
     setTalkPending(null);
@@ -699,11 +729,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const fillFake = useCallback(async () => {
     const id = state?.selected;
-    if (!id) return;
+    if (!id || !intent.trim()) return;
     const r = await api<{ do_text?: string; say_text?: string; think_text?: string }>("/api/fill-fake", {
       method: "POST",
       body: JSON.stringify({ id }),
     });
+    setFillChunks({ do_text: r.do_text, say_text: r.say_text, think_text: r.think_text });
     const lines = [
       r.do_text ? `动作：${r.do_text}` : "动作：",
       r.say_text ? `对白：${r.say_text}` : "",
@@ -712,7 +743,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setDiscussDraft(lines.join("\n") || "动作：");
     setDiscussOpen(true);
     setFillPending(true);
-  }, [state?.selected]);
+  }, [state?.selected, intent]);
+
+  const applyFillPart = useCallback(async (field: "do_text" | "say_text" | "think_text") => {
+    const id = state?.selected;
+    const chunk = fillChunks?.[field];
+    if (!id || !chunk) return;
+    if (field === "do_text") setDoText(chunk);
+    if (field === "say_text") setSayText(chunk);
+    if (field === "think_text") setThinkText(chunk);
+    await api("/api/drafts/patch", { method: "POST", body: JSON.stringify({ id, [field]: chunk }) });
+    setToast("已写入此框，仍是草稿");
+  }, [state?.selected, fillChunks]);
 
   const addDelta = useCallback(async (entity_id: string, attr: string, value: string, clock_from = 0) => {
     const id = state?.selected || state?.selected_canon;
@@ -736,23 +778,41 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     await refresh();
   }, [state, refresh]);
 
-  const addKnow = useCallback(async (who: string, fact: string, cert = "knows", truth?: string) => {
+  const addKnow = useCallback(async (who: string, fact: string, cert = "knows", truth?: string, method?: string, source?: string) => {
     const id = state?.selected || state?.selected_canon;
     if (!id) return;
-    const row = { person_id: who, fact, certainty: cert, truth_value: truth || null };
+    const row = {
+      person_id: who,
+      fact,
+      certainty: cert,
+      truth_value: truth || null,
+      method: method || null,
+      source_person: source || null,
+    };
     const scene = state?.drafts.find((d) => d.id === id);
-    const canon = state?.committed.find((b) => b.id === id);
+    const canonRow = state?.committed.find((b) => b.id === id);
     if (scene) {
       await api("/api/drafts/patch", {
         method: "POST",
         body: JSON.stringify({ id, knowledge_writes: [...(scene.draft.knowledge_writes || []), row] }),
       });
-    } else if (canon) {
+    } else if (canonRow) {
       await api(`/api/beats/${encodeURIComponent(id)}/revise`, {
         method: "POST",
-        body: JSON.stringify({ knowledge_writes: [...(canon.knowledge_writes || []), row] }),
+        body: JSON.stringify({ knowledge_writes: [...(canonRow.knowledge_writes || []), row] }),
       });
     }
+    await refresh();
+  }, [state, refresh]);
+
+  const addPromiseOp = useCallback(async (promiseId: string, op: string) => {
+    const id = state?.selected;
+    if (!id) return;
+    const scene = state?.drafts.find((d) => d.id === id);
+    if (!scene) return;
+    const cur = [...(scene.draft.promise_ops || [])];
+    cur.push({ promise_id: promiseId, op });
+    await api("/api/drafts/patch", { method: "POST", body: JSON.stringify({ id, promise_ops: cur }) });
     await refresh();
   }, [state, refresh]);
 
@@ -948,6 +1008,27 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const currentColId = state?.selected_col || selectedScene?.column_id || state?.columns[state.window_start]?.id || "";
 
+  useEffect(() => {
+    const id = state?.selected;
+    if (!id) return;
+    if (![...dirty.current].some((k) => ["do", "say", "think", "intent", "shift", "title", "cause"].includes(k))) return;
+    const t = window.setTimeout(() => {
+      const body: Record<string, unknown> = { id };
+      if (dirty.current.has("do")) body.do_text = doText;
+      if (dirty.current.has("say")) body.say_text = sayText;
+      if (dirty.current.has("think")) body.think_text = thinkText;
+      if (dirty.current.has("intent")) body.intent = intent;
+      if (dirty.current.has("shift")) body.value_shift = valueShift;
+      if (dirty.current.has("title")) body.title = sceneTitle;
+      if (dirty.current.has("cause")) body.cause_beat = causeBeat || undefined;
+      setSaveStatus("保存中");
+      api("/api/drafts/patch", { method: "POST", body: JSON.stringify(body) })
+        .then(() => setSaveStatus("已存"))
+        .catch(() => setSaveStatus("没存上"));
+    }, 800);
+    return () => window.clearTimeout(t);
+  }, [doText, sayText, thinkText, intent, valueShift, sceneTitle, causeBeat, state?.selected]);
+
   const value: Store = {
     route,
     q,
@@ -996,6 +1077,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     craftMsg,
     mentionOpen,
     mentionQ,
+    mentionField,
+    slashField,
+    cmd,
+    saveStatus,
+    committing,
+    fillChunks,
     presencePicker,
     setIntent: (v) => { dirty.current.add("intent"); setIntent(v); },
     setPlaceId: (v) => { dirty.current.add("place"); setPlaceId(v); },
@@ -1004,13 +1091,23 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       dirty.current.add("do");
       setDoText(v);
       const at = v.match(/@([^\s@]*)$/);
-      if (at) {
-        setMentionOpen(true);
-        setMentionQ(at[1]);
-      } else setMentionOpen(false);
+      if (at) { setMentionOpen(true); setMentionQ(at[1]); setMentionField("do_text"); }
+      else if (mentionField === "do_text") setMentionOpen(false);
     },
-    setSayText: (v) => { dirty.current.add("say"); setSayText(v); },
-    setThinkText: (v) => { dirty.current.add("think"); setThinkText(v); },
+    setSayText: (v) => {
+      dirty.current.add("say");
+      setSayText(v);
+      const at = v.match(/@([^\s@]*)$/);
+      if (at) { setMentionOpen(true); setMentionQ(at[1]); setMentionField("say_text"); }
+      else if (mentionField === "say_text") setMentionOpen(false);
+    },
+    setThinkText: (v) => {
+      dirty.current.add("think");
+      setThinkText(v);
+      const at = v.match(/@([^\s@]*)$/);
+      if (at) { setMentionOpen(true); setMentionQ(at[1]); setMentionField("think_text"); }
+      else if (mentionField === "think_text") setMentionOpen(false);
+    },
     setValueShift: (v) => { dirty.current.add("shift"); setValueShift(v); },
     setCauseBeat: (v) => { dirty.current.add("cause"); setCauseBeat(v); },
     setTellingOrd: (v) => { dirty.current.add("telling"); setTellingOrd(v); },
@@ -1055,6 +1152,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     fillFake,
     addDelta,
     addKnow,
+    addPromiseOp,
+    applyFillPart,
+    setSlashField,
+    setCmd,
+    clearMention: () => { setMentionOpen(false); setMentionQ(""); setMentionField(null); },
     preview,
     confirmChange,
     cancelChange,

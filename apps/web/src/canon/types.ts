@@ -299,6 +299,7 @@ export type SceneCard = {
   tracks?: PersonTrack[];
   deltas?: Delta[];
   knowledge_writes?: KnowledgeWrite[];
+  promise_ops?: PromiseOp[];
   visible_to?: string[] | null;
 };
 
@@ -326,6 +327,7 @@ export function asScene(b: Beat): SceneCard {
     tracks: b.tracks,
     deltas: b.deltas,
     knowledge_writes: b.knowledge_writes,
+    promise_ops: b.promise_ops,
     visible_to: b.visible_to,
   };
 }
@@ -354,6 +356,7 @@ export function asDraftScene(d: UiDraft): SceneCard {
     tracks: b.tracks,
     deltas: b.deltas,
     knowledge_writes: b.knowledge_writes,
+    promise_ops: b.promise_ops,
     visible_to: b.visible_to,
   };
 }

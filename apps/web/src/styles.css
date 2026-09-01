@@ -235,6 +235,12 @@ button.big { font-size: 16px; padding: 10px 18px; }
 .prog-table { width: 100%; border-collapse: collapse; }
 .prog-table th, .prog-table td { border: 1px solid var(--line); padding: 4px; }
 .scene-open { display: flex; gap: 4px; margin-bottom: 8px; }
+.save-dot.saving { color: var(--mute); }
+.save-dot.saved { color: var(--brass); }
+.slash-pop, .fill-chunks { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0; }
+button.primary.warn { box-shadow: 0 0 0 2px var(--warn); }
+.field-head { display: flex; justify-content: space-between; align-items: center; }
+textarea.grow { min-height: 4.5em; }
 .dossier-full { max-width: 760px; margin: 0 auto; }
 .filter-banner button { margin-left: 8px; }
 @media (max-width: 1023px) {

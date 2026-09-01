@@ -85,7 +85,7 @@ export function Topbar() {
       </details>
       <button data-testid="open-timeline" type="button" onClick={() => s.setLook(s.look === "时间轴" ? null : "时间轴")}>时间轴</button>
       <button data-testid="open-library" type="button" onClick={s.goLibrary}>设定库</button>
-      <button data-testid="open-cmd" type="button" title="命令面板 ⌘K">/</button>
+      <button data-testid="open-cmd" type="button" title="命令面板 ⌘K" onClick={() => s.setCmdOpen(true)}>/</button>
       <select
         data-testid="person-lens"
         aria-label="只看谁"

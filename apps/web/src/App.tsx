@@ -10,6 +10,7 @@ import { LibraryPage } from "./pages/LibraryPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { DossierPage } from "./pages/DossierPage";
 import { Dialogs } from "./pages/Dialogs";
+import { CommandPalette } from "./shell/CommandPalette";
 
 function Shell() {
   const s = useStore();
@@ -41,6 +42,7 @@ function Shell() {
           </div>
         </div>
       )}
+      <CommandPalette open={s.cmdOpen} onClose={() => s.setCmdOpen(false)} />
       <Dialogs />
     </div>
   );

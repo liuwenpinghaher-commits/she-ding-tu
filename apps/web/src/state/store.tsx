@@ -81,6 +81,8 @@ export interface Store {
   committing: boolean;
   fillChunks: { do_text?: string; say_text?: string; think_text?: string } | null;
   presencePicker: string | null;
+  cmdOpen: boolean;
+  setCmdOpen: (v: boolean) => void;
   setIntent: (v: string) => void;
   setPlaceId: (v: string) => void;
   setSceneTitle: (v: string) => void;
@@ -227,6 +229,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [committing, setCommitting] = useState(false);
   const [fillChunks, setFillChunks] = useState<{ do_text?: string; say_text?: string; think_text?: string } | null>(null);
   const [presencePicker, setPresencePicker] = useState<string | null>(null);
+  const [cmdOpen, setCmdOpen] = useState(false);
   const refreshGen = useRef(0);
   const editorSel = useRef<string | null>(null);
   const dirty = useRef<Set<string>>(new Set());
@@ -990,6 +993,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       if (e.key.toLowerCase() === "t" && !["INPUT", "TEXTAREA", "SELECT"].includes((e.target as HTMLElement)?.tagName)) {
         setLook(q.look === "时间轴" ? null : "时间轴");
       }
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setCmdOpen(true);
+      }
+      if (e.key === "/" && !["INPUT", "TEXTAREA", "SELECT"].includes((e.target as HTMLElement)?.tagName)) {
+        e.preventDefault();
+        setCmdOpen(true);
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -1084,6 +1095,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     committing,
     fillChunks,
     presencePicker,
+    cmdOpen,
+    setCmdOpen,
     setIntent: (v) => { dirty.current.add("intent"); setIntent(v); },
     setPlaceId: (v) => { dirty.current.add("place"); setPlaceId(v); },
     setSceneTitle: (v) => { dirty.current.add("title"); setSceneTitle(v); },

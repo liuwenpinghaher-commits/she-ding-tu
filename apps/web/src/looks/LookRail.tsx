@@ -246,11 +246,11 @@ function RelationsLook({ open }: { open: boolean }) {
     api(`/api/relations?person=${encodeURIComponent(person)}`)
       .then((x) => setGraph(x as RelGraph))
       .catch(() => setGraph(null));
-    api(`/api/dossier/${encodeURIComponent(person)}`)
-      .then((d: {
-        relations_setup?: Array<{ other_name?: string; other?: string; label?: string; kind: string }>;
-        relations_from_scenes?: Array<{ other: string; beat_id?: string; label?: string }>;
-      }) => {
+    api<{
+      relations_setup?: Array<{ other_name?: string; other?: string; label?: string; kind: string }>;
+      relations_from_scenes?: Array<{ other: string; beat_id?: string; label?: string }>;
+    }>(`/api/dossier/${encodeURIComponent(person)}`)
+      .then((d) => {
         setSetup(d.relations_setup || []);
         setFromScenes(d.relations_from_scenes || []);
       })

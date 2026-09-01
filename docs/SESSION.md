@@ -12,6 +12,8 @@
 
 **新壳已接入口（2026-09-01 夜）：** `apps/web` 构建产物由 `setting-api` 挂到 `127.0.0.1:8787`。打开只出 Vite（`#root`），旧单文件在 `archive/stripboard/`，产品路径已死。e2e 16/16 打新前端（含 F40 26 步、渡口六条、逻辑线、ui-contract）。本轮能走：书架 → 打开书 → 三栏；写下一场（本场任务必填）→ 写入此框 → 写入正史（必须人点）；场页贴逻辑线 + 过滤薄条（不算进算出这一刻）；看法不卸分场条；白板默认关、画了不进正史、点引用的场跳回分场条；本页 1–6；确认变更。未齐项仍标未落地，见完整方案第 12 / 15 节。逻辑线仍不算进算出这一刻。看法不改正史。分场条关不掉。
 
+**腾讯部署机（2026-09-01 核实）：** SSH 主机 `scribe3-demo`（`ubuntu@82.157.130.140`，本机 `~/.ssh/config` 绑 `en0`）。仓在 `/home/ubuntu/projects/she-ding-tu`（不是铜炉 `/opt/scribe3`，也不是旧记录里的 `/home/admin/projects/she-ding-tu`）。服务 `setting-api` 听 `127.0.0.1:8787`，未挂公网；本机打开：`ssh -L 8787:127.0.0.1:8787 scribe3-demo` 再访 `http://127.0.0.1:8787`。重启：`/home/ubuntu/projects/she-ding-tu/logs/restart.sh`（只在机上，不进 git）。GitHub 由 **Mac 直推**；腾讯不要直连 GitHub（慢），更新用本机 `rsync`/`git bundle` 经 SSH 送过去。填场密钥只在机上 `.env`。给阿里云 Grok 的可粘贴交接：[`handoff-aliyun-grok.md`](./handoff-aliyun-grok.md)。
+
 ## 当前状态（2026-08-31）
 
 **分场条主面曾按《界面交互全面优化》三期落在单文件上（历史）。** 那一截交互合同已迁到 `apps/web`。产品入口不再是 `apps/stripboard/index.html`。全高出场表、连线图作法必有，打开仍不是默认主面。
@@ -24,7 +26,7 @@
 
 **GitHub 同期合入（2026-08-31）：** 复制证据改口（1.x=`library`）；`/api/fill-live` 有密钥会真调模型，不自动写入历史；知情穿帮标黄；伏笔瞎跳挡住；删历史后这一刻不再带那场变化。讨论落盘（`/api/talk`）、铺场建议与落为预场（`/api/plan-suggest` / `/api/plan-apply`）。界面：瘦顶栏、右栏跟选择走、空书第一屏、本场任务在写下一场、写入此框在讨论面。方案：[`plans/2026-08-31-审计核实与改造方案.md`](./plans/2026-08-31-审计核实与改造方案.md)、[`plans/2026-08-31-合成计划-单场闭环与倒推铺场.md`](./plans/2026-08-31-合成计划-单场闭环与倒推铺场.md)、[`plans/2026-08-31-设定图-界面交互全面优化.md`](./plans/2026-08-31-设定图-界面交互全面优化.md)。
 
-工作目录：本机预览用 `/Users/miaoma/Downloads/写作设定项目`；部署机仓 `/home/admin/projects/she-ding-tu`。填场密钥只在各机 `.env`，模型 `qwen3.8-flash`。服务默认 `127.0.0.1:8787`，未挂公网。
+工作目录：本机预览用 `/Users/miaoma/Downloads/写作设定项目`；腾讯部署机仓 `/home/ubuntu/projects/she-ding-tu`（主机 `scribe3-demo`）。填场密钥只在各机 `.env`，模型 `qwen3.8-flash`。服务默认 `127.0.0.1:8787`，未挂公网。
 
 ## 当前状态（2026-08-30 夜更正）
 

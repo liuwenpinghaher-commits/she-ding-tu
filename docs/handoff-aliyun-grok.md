@@ -27,7 +27,8 @@
 
 - 仓库：https://github.com/liuwenpinghaher-commits/she-ding-tu
 - 分支：`main`
-- 前端+方案提交：`7c454312b9c88102eba74a72ecc74276d67a0881`（`feat: 用 Vite 新前端替换旧单文件入口，并纳入逻辑线、白板与现行方案。`）
+- 前端+三份方案：`7c454312b9c88102eba74a72ecc74276d67a0881`
+- 交接文档 + SESSION 部署句：`0d1475f`（本文件进仓的那次；push 后以 `origin/main` 为准）
 - 必须已在远程的方案：`docs/plans/2026-09-01-设定图-前端完整方案.md`、`docs/plans/2026-09-01-设定图-前端架构-正史与逻辑线.md`、`docs/plans/2026-09-01-设定图-界面与交互彻底重构.md`、`docs/SESSION.md`、本文件。
 - 你在阿里云：`git clone` / `git pull` 这个 GitHub 仓干活。不要在铜炉仓里改。改完 commit + `git push origin HEAD`。不要 `--force`，不要 skip hooks，不要提交 `.env`、`data/books/`、`vendor/narra/target/`、`node_modules`。
 

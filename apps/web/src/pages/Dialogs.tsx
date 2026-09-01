@@ -105,7 +105,7 @@ export function Dialogs() {
           </div>
         </div>
       )}
-      <DossierPage />
+      {s.route.kind !== "dossier" && <DossierPage />}
     </>
   );
 }

@@ -1,10 +1,12 @@
 import { useState } from "react";
 import { useStore } from "../state/store";
+import { isPaused, threadSpan } from "../lenses/threads";
 
 export function ScenePage() {
   const s = useStore();
   const draft = !!s.state?.selected;
   const canon = !!s.state?.selected_canon;
+  const chrome = s.sceneChrome;
   const [deltaEnt, setDeltaEnt] = useState("");
   const [deltaAttr, setDeltaAttr] = useState("");
   const [deltaVal, setDeltaVal] = useState("");
@@ -24,8 +26,14 @@ export function ScenePage() {
   const knows = scene?.knowledge_writes || [];
   const ents = s.state?.all_entities || s.state?.entities || [];
 
+  const commitWhy = !draft
+    ? "没有选中的草稿，不能写入正史"
+    : !s.intent.trim()
+      ? "没有本场任务，不能写入正史"
+      : "点了才变成后面能用的历史";
+
   return (
-    <aside className="right-rail">
+    <aside className={`right-rail scene-${chrome}`}>
       <div data-testid="sidebar" className="muted">{s.sidebar || (s.state?.world ? `t=${s.state.world.t}` : "本场规定情境")}</div>
       <div data-testid="moment-col" className="muted">{s.sidebar.includes("t=") ? s.sidebar : (s.state?.world ? `t=${s.state.world.t}` : "")}</div>
       <div data-testid="moment-body">{s.sidebar.includes("t=") ? s.sidebar : (s.state?.world ? `t=${s.state.world.t}` : s.sidebar)}</div>
@@ -44,12 +52,29 @@ export function ScenePage() {
         <label>私下 <input type="radio" name="vis" data-testid="vis-private" checked={s.visPrivate} onChange={() => s.setVisPrivate(true)} /></label>
         <input data-testid="visible-to" placeholder="私下谁会看见，逗号分隔" value={s.visibleTo} onChange={(e) => s.setVisibleTo(e.target.value)} />
       </div>
+      <div className="scene-open">
+        <button type="button" data-testid="scene-dock" onClick={() => s.setOpen(null)}>就地</button>
+        <button type="button" data-testid="scene-side" onClick={() => s.setOpen("side")}>侧开</button>
+        <button type="button" data-testid="scene-full" onClick={() => s.setOpen("full")}>整页</button>
+      </div>
       <div data-testid="scene-threads">
         {threads.length === 0 && <span>未归线</span>}
         {threads.map((t) => {
           const name = catalog.find((x) => x.id === t.id)?.name || t.id;
-          return <div key={t.id} data-testid={`scene-thread-${name}`}>{name} · {t.role || "推进"}</div>;
+          const span = scene ? threadSpan(s.scenes, t.id) : null;
+          const enter = scene && span?.first === scene.id;
+          const exit = scene && span?.last === scene.id;
+          const pause = scene ? isPaused(scene, t.id) : false;
+          return (
+            <div key={t.id} data-testid={`scene-thread-${name}`}>
+              {name} · {t.role || "推进"}
+              {enter ? " · 从这里起" : ""}
+              {exit ? " · 收到这里" : ""}
+              {pause ? " · 暂停" : ""}
+            </div>
+          );
         })}
+        <p className="muted">入线 / 出线是推出来的，不用填。</p>
         <select data-testid="thread-pick" value={threadPick} onChange={(e) => setThreadPick(e.target.value)}>
           <option value="">选一条线</option>
           {catalog.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
@@ -119,7 +144,8 @@ export function ScenePage() {
       )}
       <button data-testid="talk" type="button" onClick={() => s.runTalk("intent", s.intent)}>讨论</button>
       <button data-testid="fill-fake" type="button" onClick={s.fillFake}>假模型填场</button>
-      <button data-testid="commit" className="primary" type="button" disabled={!draft} onClick={s.commit}>写入正史</button>
+      <p className="muted" data-testid="commit-why">{commitWhy}</p>
+      <button data-testid="commit" className="primary" type="button" disabled={!draft} title={commitWhy} onClick={s.commit}>写入正史</button>
       <button data-testid="revise" type="button" disabled={!canon} onClick={s.revise}>改这一场</button>
       <div data-testid="revise-msg">{s.reviseMsg}</div>
       <button data-testid="delete-canon" type="button" disabled={!canon} onClick={s.deleteCanon}>删已正史</button>

@@ -164,6 +164,36 @@ export interface BookCard {
   committed: number;
   drafts: number;
   opened_at: number;
+  last_intent?: string;
+}
+
+export interface DossierPayload {
+  id: string;
+  kind: string;
+  name: string;
+  profile?: Record<string, string>;
+  appearances?: { id: string; column_id: string; intent: string; status: string; draft?: boolean }[];
+  beats?: { id: string; column_id: string; intent: string; status: string }[];
+  windows_readonly?: { attr: string; value: string; clock_from?: number }[];
+  knows_readonly?: string[];
+  wrong_beliefs_readonly?: string[];
+  promises_readonly?: { id?: string; name: string; status: string }[];
+  relations_setup?: Array<{
+    id?: string;
+    kind: string;
+    direction?: string;
+    other?: string;
+    other_name?: string;
+    label?: string;
+    note?: string;
+  }>;
+  relations_from_scenes?: Array<{
+    kind: string;
+    other: string;
+    beat_id?: string;
+    label?: string;
+    readonly?: boolean;
+  }>;
 }
 
 export interface BookList {

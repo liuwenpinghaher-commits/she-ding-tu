@@ -1,11 +1,20 @@
 import { useState } from "react";
 import { useStore } from "../state/store";
+import { threadColor, unlinedCount } from "../lenses/threads";
 
 export function Topbar() {
   const s = useStore();
   const book = s.state?.book || "";
   const n = s.state?.n ?? 1;
+  const start = s.state?.window_start || 0;
+  const total = s.state?.columns.length || 1;
   const [name, setName] = useState("");
+  const atStart = start <= 0;
+  const atEnd = start + n >= total;
+  const catalog = s.state?.threads || [];
+  const unlined = unlinedCount(s.scenes);
+  const colLabel = s.selectedScene?.intent || (start + 1 ? `第 ${start + 1} 列` : "");
+
   return (
     <header className="topbar">
       <span className="brand">设定图</span>
@@ -25,16 +34,35 @@ export function Topbar() {
       <button data-testid="create-book" type="button" onClick={() => name.trim() && s.createBook(name.trim())}>创建书</button>
       <button data-testid="open-book" type="button" onClick={() => name.trim() && s.openBook(name.trim())}>打开书</button>
       <span data-testid="book-label">{book}</span>
+      {book && <span className="muted nowrap">{colLabel}</span>}
       <button data-testid="open-shelf" type="button" onClick={s.goShelf}>书架</button>
       <button data-testid="open-craft" type="button" disabled={!book} onClick={() => s.setCraftOpen(true)}>书页</button>
-      <button data-testid="prev" type="button" aria-label="窗口往左一列" disabled={(s.state?.window_start || 0) <= 0} onClick={() => s.setWindow({ start: Math.max(0, (s.state?.window_start || 0) - 1) })}>‹</button>
-      <button data-testid="minus" type="button" aria-label="本页少显示一列" disabled={n <= 1} onClick={() => s.setWindow({ n: n - 1 })}>−</button>
-      <span className="col-count">本页 <span data-testid="col-count">{n}</span> / <span id="col-total">{s.state?.columns.length || 1}</span> 列</span>
-      <button data-testid="plus" type="button" aria-label="本页多显示一列" disabled={n >= 6} onClick={() => s.setWindow({ n: n + 1 })}>+</button>
-      <button data-testid="next" type="button" aria-label="窗口往右一列" disabled={(s.state?.window_start || 0) + n >= (s.state?.columns.length || 1)} onClick={() => s.setWindow({ start: (s.state?.window_start || 0) + 1 })}>›</button>
-      <button data-testid="density-sparse" type="button" onClick={() => s.setWindow({ density: "sparse" })}>疏</button>
-      <button data-testid="density-mid" type="button" onClick={() => s.setWindow({ density: "mid" })}>中</button>
-      <button data-testid="density-dense" type="button" onClick={() => s.setWindow({ density: "dense" })}>密</button>
+      <button data-testid="open-settings" type="button" disabled={!book} onClick={s.goSettings}>书的设定</button>
+
+      <div className="window-widget" data-testid="window-widget" title="只改本页看几列，不加列，不写库">
+        <button data-testid="prev" type="button" aria-label="窗口往左一列" disabled={atStart} onClick={() => s.setWindow({ start: Math.max(0, start - 1) })}>‹</button>
+        <button data-testid="minus" type="button" aria-label="本页少显示一列" disabled={n <= 1} onClick={() => s.setWindow({ n: n - 1 })}>−</button>
+        <details className="n-menu">
+          <summary>
+            <span data-testid="col-count">{n}</span> 列
+            <span className="muted"> / {total}</span>
+          </summary>
+          {[1, 2, 3, 4, 5, 6].map((k) => (
+            <button
+              key={k}
+              type="button"
+              data-n={k}
+              onClick={() => s.setWindow({ n: k })}
+            >{k}{k === 2 ? " 疏" : k === 4 ? " 中" : k === 6 ? " 密" : ""}</button>
+          ))}
+        </details>
+        <button data-testid="plus" type="button" aria-label="本页多显示一列" disabled={n >= 6} onClick={() => s.setWindow({ n: n + 1 })}>+</button>
+        <button data-testid="next" type="button" aria-label="窗口往右一列" disabled={atEnd} onClick={() => s.setWindow({ start: start + 1 })}>›</button>
+        <button data-testid="density-sparse" type="button" className={n === 2 ? "on" : ""} onClick={() => s.setWindow({ density: "sparse" })}>疏</button>
+        <button data-testid="density-mid" type="button" className={n === 4 ? "on" : ""} onClick={() => s.setWindow({ density: "mid" })}>中</button>
+        <button data-testid="density-dense" type="button" className={n === 6 ? "on" : ""} onClick={() => s.setWindow({ density: "dense" })}>密</button>
+      </div>
+
       <input data-testid="intent" placeholder="本场任务" value={s.intent} onChange={(e) => s.setIntent(e.target.value)} />
       <input data-testid="place-id" placeholder="本场地点" value={s.placeId} onChange={(e) => s.setPlaceId(e.target.value)} />
       <button
@@ -58,7 +86,12 @@ export function Topbar() {
       <button data-testid="open-timeline" type="button" onClick={() => s.setLook(s.look === "时间轴" ? null : "时间轴")}>时间轴</button>
       <button data-testid="open-library" type="button" onClick={s.goLibrary}>设定库</button>
       <button data-testid="open-cmd" type="button" title="命令面板 ⌘K">/</button>
-      <select data-testid="person-lens" aria-label="只看谁" defaultValue="">
+      <select
+        data-testid="person-lens"
+        aria-label="只看谁"
+        value={s.q.who || ""}
+        onChange={(e) => s.setWho(e.target.value || null)}
+      >
         <option value="">只看某人</option>
         {(s.state?.people || []).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
       </select>
@@ -77,11 +110,23 @@ export function Topbar() {
         <button data-testid="plant-promise" type="button">埋伏笔</button>
       </details>
       {book && (
-        <span data-testid="thread-strip" className="thread-strip">
-          {(s.state?.threads || []).map((t) => (
-            <button key={t.id} type="button" data-testid={`thread-${t.name}`} onClick={() => s.setLine(s.line === t.name ? null : t.name)}>{t.name}</button>
+        <span data-testid="thread-strip" className="thread-strip" tabIndex={-1} id="thread-strip">
+          {catalog.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              data-testid={`thread-${t.name}`}
+              className={s.line === t.name || s.line === t.id ? "on" : ""}
+              style={{ borderColor: threadColor(t) }}
+              onClick={() => s.setLine(s.line === t.name || s.line === t.id ? null : t.name)}
+            >{t.type === "主线" ? "主线 " : ""}{t.name}</button>
           ))}
-          <button type="button" data-testid="thread-unlined" onClick={() => s.setLine(s.line === "__unlined__" ? null : "__unlined__")}>未归线</button>
+          <button
+            type="button"
+            data-testid="thread-unlined"
+            className={s.line === "__unlined__" ? "on" : ""}
+            onClick={() => s.setLine(s.line === "__unlined__" ? null : "__unlined__")}
+          >未归线 {unlined}</button>
           <button type="button" data-testid="thread-all" onClick={() => s.setLine(null)}>显示全部</button>
         </span>
       )}

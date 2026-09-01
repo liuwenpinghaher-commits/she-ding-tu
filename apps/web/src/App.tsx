@@ -8,6 +8,7 @@ import { ShelfPage } from "./pages/ShelfPage";
 import { NewBookPage } from "./pages/NewBookPage";
 import { LibraryPage } from "./pages/LibraryPage";
 import { SettingsPage } from "./pages/SettingsPage";
+import { DossierPage } from "./pages/DossierPage";
 import { Dialogs } from "./pages/Dialogs";
 
 function Shell() {
@@ -15,9 +16,10 @@ function Shell() {
   const r = s.route;
   const fullPage = r.kind === "shelf" || r.kind === "new" || r.kind === "library" || r.kind === "settings" || r.kind === "export";
   const showBoard = r.kind === "board" || r.kind === "scene" || r.kind === "dossier" || (!fullPage && !!s.state?.book);
+  const chrome = s.sceneChrome;
 
   return (
-    <div className="app">
+    <div className={`app chrome-${chrome}`}>
       <Topbar />
       {s.banner && <div className="banner">{s.banner}</div>}
       {(r.kind === "shelf" || !s.state?.book) && r.kind !== "new" && r.kind !== "library" && r.kind !== "settings" && <ShelfPage />}
@@ -26,7 +28,8 @@ function Shell() {
       </div>
       {r.kind === "library" && <LibraryPage />}
       {r.kind === "settings" && <SettingsPage />}
-      {showBoard && s.state?.book && (
+      {r.kind === "dossier" && <DossierPage mode="full" />}
+      {showBoard && s.state?.book && r.kind !== "dossier" && (
         <div className="work">
           <LeftRail />
           <div className="board-wrap">

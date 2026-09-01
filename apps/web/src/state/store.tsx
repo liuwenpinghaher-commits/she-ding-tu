@@ -14,6 +14,7 @@ import type {
   BookCard,
   BookCraft,
   BookList,
+  DossierPayload,
   Entity,
   SceneCard,
   SetupRel,
@@ -62,7 +63,9 @@ export interface Store {
   exportIncludeDrafts: boolean;
   dossierOpen: boolean;
   dossierName: string;
+  dossierPayload: DossierPayload | null;
   dossierRels: SetupRel[];
+  sceneChrome: "dock" | "side" | "full";
   delBookOpen: boolean;
   delBookName: string;
   delBookType: string;
@@ -89,14 +92,17 @@ export interface Store {
   setDelBookType: (v: string) => void;
   setLook: (look: string | null) => void;
   setLine: (line: string | null) => void;
+  setWho: (who: string | null) => void;
+  setOpen: (open: string | null) => void;
   goShelf: () => void;
   goNew: () => void;
   goBoard: (book?: string, extra?: Partial<BoardQuery>) => void;
   goLibrary: () => void;
   goSettings: () => void;
+  openBookTo: (name: string, dest: "board" | "settings" | "library" | "export") => Promise<void>;
   refreshBooks: () => Promise<void>;
   refresh: () => Promise<void>;
-  createBook: (name: string, extra?: { premise?: string; clock?: string }) => Promise<void>;
+  createBook: (name: string, extra?: { premise?: string; clock?: string; minute?: number; tick?: number; format?: string }) => Promise<void>;
   openBook: (name: string) => Promise<void>;
   deleteBook: (name: string, confirm: string) => Promise<void>;
   writeNext: () => Promise<void>;
@@ -193,6 +199,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [exportIncludeDrafts, setExportIncludeDrafts] = useState(true);
   const [dossierOpen, setDossierOpen] = useState(false);
   const [dossierName, setDossierName] = useState("");
+  const [dossierPayload, setDossierPayload] = useState<DossierPayload | null>(null);
   const [dossierRels, setDossierRels] = useState<SetupRel[]>([]);
   const [delBookOpen, setDelBookOpen] = useState(false);
   const [delBookName, setDelBookName] = useState("");
@@ -316,6 +323,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           s: live.s || st.selected || st.selected_canon,
           n: st.n,
           start: st.window_start,
+          who: live.who,
+          open: live.open,
         };
         writeHash(boardHash(st.book, extra));
       }
@@ -336,7 +345,26 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       if (!book) return;
       if (state?.book === book) return;
       api<BookList>(`/api/books/${encodeURIComponent(book)}/open`, { method: "POST", body: "{}" })
-        .then(() => refresh())
+        .then(async () => {
+          const live = parseHash(location.hash).q;
+          const sceneId = route.kind === "scene" ? route.scene : live.s;
+          if (live.n != null || live.start != null) {
+            await api("/api/window", { method: "POST", body: JSON.stringify({ n: live.n, start: live.start, density: live.n === 2 ? "sparse" : live.n === 6 ? "dense" : live.n === 4 ? "mid" : undefined }) });
+          }
+          if (sceneId) {
+            try {
+              const st = await api<UiState>("/api/state");
+              const isDraft = (st.drafts || []).some((d) => d.id === sceneId);
+              await api("/api/select", { method: "POST", body: JSON.stringify(isDraft ? { draft_id: sceneId } : { canon_id: sceneId }) });
+            } catch {
+              /* 场不在则忽略 */
+            }
+          }
+          if (live.who) {
+            await api("/api/lens", { method: "POST", body: JSON.stringify({ person: live.who }) });
+          }
+          await refresh();
+        })
         .catch((e) => setBanner(String(e.message || e)));
     }
   }, [route, refresh, state?.book]);
@@ -374,14 +402,62 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     writeHash(boardHash(name, { ...q, line, n: state.n, start: state.window_start }));
   }, [state, q]);
 
-  const createBook = useCallback(async (name: string, extra?: { premise?: string; clock?: string }) => {
+  const setWho = useCallback((who: string | null) => {
+    const name = state?.book;
+    if (!name) return;
+    writeHash(boardHash(name, { ...q, who, n: state.n, start: state.window_start }));
+    api("/api/lens", { method: "POST", body: JSON.stringify({ person: who || "" }) }).catch(() => {});
+  }, [state, q]);
+
+  const setOpen = useCallback((open: string | null) => {
+    const name = state?.book;
+    const sel = state?.selected || state?.selected_canon;
+    if (!name) return;
+    if (open === "full" && sel) {
+      writeHash(`#/b/${encodeURIComponent(name)}/s/${encodeURIComponent(sel)}`);
+      return;
+    }
+    writeHash(boardHash(name, { ...q, open, s: q.s || sel, n: state.n, start: state.window_start }));
+  }, [state, q]);
+
+  const createBook = useCallback(async (name: string, extra?: { premise?: string; clock?: string; minute?: number; tick?: number; format?: string }) => {
     const body: Record<string, unknown> = { name };
     if (extra?.premise) body.premise = extra.premise;
     if (extra?.clock) body.clock_origin_label = extra.clock;
+    if (extra?.minute) body.clock_origin_minute = extra.minute;
+    if (extra?.format) body.clock_format = extra.format;
     await api("/api/books", { method: "POST", body: JSON.stringify(body) });
+    if (extra?.tick || extra?.minute || extra?.format) {
+      await api(`/api/books/${encodeURIComponent(name)}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          minutes_per_tick: extra.tick,
+          clock_origin_minute: extra.minute,
+          clock_format: extra.format,
+          clock_origin_label: extra.clock,
+          premise: extra.premise,
+        }),
+      }).catch(() => {});
+    }
     await refreshBooks();
     writeHash(boardHash(name, { n: 1, start: 0 }));
     await refresh();
+  }, [refresh, refreshBooks]);
+
+  const openBookTo = useCallback(async (name: string, dest: "board" | "settings" | "library" | "export") => {
+    await api(`/api/books/${encodeURIComponent(name)}/open`, { method: "POST", body: "{}" });
+    if (dest === "settings") writeHash(`#/b/${encodeURIComponent(name)}/settings`);
+    else if (dest === "library") writeHash(`#/b/${encodeURIComponent(name)}/library`);
+    else if (dest === "export") {
+      writeHash(boardHash(name));
+      setExportOpen(true);
+    } else writeHash(boardHash(name));
+    await refresh();
+    await refreshBooks();
+    if (dest === "export") {
+      const md = await apiText("/api/export");
+      setExportOut(md);
+    }
   }, [refresh, refreshBooks]);
 
   const openBook = useCallback(async (name: string) => {
@@ -410,7 +486,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [intent, placeId, refresh]);
 
   const writeParallel = useCallback(async () => {
-    const col = state?.selected_col || state?.columns[state.window_start]?.id;
+    const selectedId = state?.selected || state?.selected_canon;
+    const fromScene = [...(state?.drafts || []).map((d) => ({ id: d.id, column_id: d.draft.column_id })), ...(state?.committed || []).map((b) => ({ id: b.id, column_id: b.column_id }))].find((x) => x.id === selectedId);
+    const col = fromScene?.column_id || state?.selected_col || state?.columns[state.window_start]?.id;
     const c = (state?.columns || []).find((x) => x.id === col);
     await api("/api/write-parallel", {
       method: "POST",
@@ -718,11 +796,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setDossierName(name);
     setDossierOpen(true);
     try {
-      const d = await api<{
+      const d = await api<DossierPayload & {
         relations?: SetupRel[];
         rels?: SetupRel[];
-        relations_setup?: Array<{ id?: string; kind: string; other_name?: string; other?: string; direction?: string }>;
       }>(`/api/dossier/${encodeURIComponent(name)}`);
+      setDossierPayload(d);
       const setup = (d.relations_setup || []).map((r) => ({
         id: r.id || `${r.kind}-${r.other}`,
         kind: r.kind,
@@ -732,6 +810,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       }));
       setDossierRels(setup.length ? setup : (d.relations || d.rels || []));
     } catch {
+      setDossierPayload(null);
       setDossierRels([]);
     }
   }, []);
@@ -829,8 +908,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       if (e.key === "[" ) setWindow({ start: Math.max(0, (state?.window_start || 0) - 1) });
       if (e.key === "]" ) setWindow({ start: (state?.window_start || 0) + 1 });
       if (e.key === "Escape" && !["INPUT", "TEXTAREA", "SELECT"].includes((e.target as HTMLElement)?.tagName)) {
-        if (q.line) setLine(null);
+        if (route.kind === "scene" || q.open === "full") setOpen("side");
+        else if (q.open === "side") setOpen(null);
         else if (q.look) setLook(null);
+        else if (q.line) setLine(null);
+        else if (dossierOpen) setDossierOpen(false);
+      }
+      if (e.key === " " && !["INPUT", "TEXTAREA", "SELECT", "BUTTON", "SUMMARY"].includes((e.target as HTMLElement)?.tagName)) {
+        e.preventDefault();
+        setOpen(q.open === "side" ? "full" : "side");
+      }
+      if (e.key.toLowerCase() === "l" && !["INPUT", "TEXTAREA", "SELECT"].includes((e.target as HTMLElement)?.tagName)) {
+        document.getElementById("thread-strip")?.focus();
       }
       if (e.key.toLowerCase() === "n" && !["INPUT", "TEXTAREA", "SELECT"].includes((e.target as HTMLElement)?.tagName)) {
         document.querySelector<HTMLInputElement>("[data-testid=intent]")?.focus();
@@ -844,7 +933,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [undo, setWindow, state?.window_start, q.line, q.look, setLine, setLook]);
+  }, [undo, setWindow, state?.window_start, q.line, q.look, q.open, route.kind, setLine, setLook, setOpen, dossierOpen]);
 
   const scenes = useMemo<SceneCard[]>(() => {
     const committed = (state?.committed || []).map(asScene);
@@ -888,6 +977,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     toast,
     look: q.look,
     line: q.line,
+    sceneChrome: (route.kind === "scene" || q.open === "full" ? "full" : q.open === "side" ? "side" : "dock") as "dock" | "side" | "full",
     craftOpen,
     exportOpen,
     pasteOpen,
@@ -896,6 +986,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     exportIncludeDrafts,
     dossierOpen,
     dossierName,
+    dossierPayload,
     dossierRels,
     delBookOpen,
     delBookName,
@@ -931,6 +1022,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setDelBookType,
     setLook,
     setLine,
+    setWho,
+    setOpen,
     goShelf,
     goNew,
     goBoard,
@@ -940,6 +1033,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     refresh,
     createBook,
     openBook,
+    openBookTo,
     deleteBook,
     writeNext,
     writeParallel,
@@ -1001,6 +1095,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     w.jump = (i: number) => { void setWindow({ start: i }); };
     return () => { delete w.jump; };
   }, [setWindow]);
+
+  useEffect(() => {
+    if (route.kind === "dossier") openDossier(route.entity).catch(() => {});
+  }, [route, openDossier]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

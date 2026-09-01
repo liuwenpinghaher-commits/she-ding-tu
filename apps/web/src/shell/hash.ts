@@ -43,7 +43,8 @@ export function parseHash(hash: string): { route: Route; q: BoardQuery } {
       return { route: { kind: "dossier", book, entity: decodeURIComponent(parts[3]) }, q: boardQ };
     }
     if (parts[2] === "s" && parts[3]) {
-      return { route: { kind: "scene", book, scene: decodeURIComponent(parts[3]) }, q: boardQ };
+      const scene = decodeURIComponent(parts[3]);
+      return { route: { kind: "scene", book, scene }, q: { ...boardQ, s: boardQ.s || scene, open: boardQ.open || "full" } };
     }
     return { route: { kind: "board", book }, q: boardQ };
   }

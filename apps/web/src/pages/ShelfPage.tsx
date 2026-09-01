@@ -1,13 +1,14 @@
 import { useState } from "react";
 import { useStore } from "../state/store";
 import { formatOpened } from "../lenses/window";
+import type { BookCard } from "../canon/types";
 
 export function ShelfPage() {
   const s = useStore();
-  const fallback = (s.books.books || []).map((name) => ({
+  const fallback: BookCard[] = (s.books.books || []).map((name) => ({
     name, premise: "", columns: 1, committed: 0, drafts: 0, opened_at: 0, last_intent: "",
   }));
-  const byName = new Map<string, (typeof fallback)[number]>();
+  const byName = new Map<string, BookCard>();
   for (const b of fallback) byName.set(b.name, b);
   for (const b of s.books.items || []) byName.set(b.name, b);
   const items = [...byName.values()].sort((a, b) => (b.opened_at || 0) - (a.opened_at || 0) || b.name.localeCompare(a.name));

@@ -1,5 +1,5 @@
 import { expect } from "@playwright/test";
-import { test } from "./helpers";
+import { test, pressUndo } from "./helpers";
 
 test("删书须打书名；草稿撤销；总表；键盘改本页列数", async ({ page }) => {
   test.setTimeout(90000);
@@ -23,7 +23,7 @@ test("删书须打书名；草稿撤销；总表；键盘改本页列数", async
   await page.getByTestId("delta-val").fill("船娘");
   await page.getByTestId("add-delta").click();
   await expect(page.getByTestId("delta-list")).toContainText("密信");
-  await page.keyboard.press("Meta+z");
+  await pressUndo(page);
   await expect(page.getByTestId("delta-list")).not.toContainText("密信");
 
   await page.locator("#more-menu").evaluate((el: HTMLDetailsElement) => { el.open = true; });

@@ -12,8 +12,11 @@ export async function selectDraftCard(page: Page) {
 /** 关掉确认变更浮层并取消服务端未确认结构改动，避免上一测泄漏挡住创建书。reload 后要看见确认变更时不要走这条。 */
 export async function dismissPending(page: Page) {
   await page.evaluate(async () => {
-    const d = document.getElementById("confirm-dlg") as HTMLDialogElement | null;
-    if (d?.open) d.close();
+    document.querySelectorAll("dialog[open]").forEach((el) => {
+      try { (el as HTMLDialogElement).close(); } catch { /* ignore */ }
+    });
+    const ae = document.activeElement as HTMLElement | null;
+    if (ae && ae !== document.body && typeof ae.blur === "function") ae.blur();
     try {
       await fetch("/api/structure/cancel", {
         method: "POST",
@@ -23,7 +26,30 @@ export async function dismissPending(page: Page) {
     } catch {
       /* 服务未开或未开书时忽略 */
     }
+    try {
+      await fetch("/api/lens", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ person: null }),
+      });
+    } catch {
+      /* 无透镜接口或未开书时忽略 */
+    }
   });
+}
+
+/** 热键撤销：先点出输入框，Meta 与 Control 都发一次（Linux 测机 Meta 有时不到）。 */
+export async function pressUndo(page: Page) {
+  const list = page.getByTestId("delta-list");
+  if (await list.count()) await list.click();
+  else {
+    await page.evaluate(() => {
+      const ae = document.activeElement as HTMLElement | null;
+      if (ae && typeof ae.blur === "function") ae.blur();
+    });
+  }
+  await page.keyboard.press("Meta+z");
+  await page.keyboard.press("Control+z");
 }
 
 export const test = base.extend({

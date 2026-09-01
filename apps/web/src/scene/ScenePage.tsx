@@ -315,6 +315,9 @@ function DeltaBlock({
           <div key={i}>{deltaLine(d, ents, originLabel, originMinute, format)} · {d.entity_id} {d.attr} {d.value}</div>
         ))}
       </div>
+      {s.undoStack.length > 0 && (
+        <button type="button" data-testid="undo" onClick={() => s.undo()}>撤销本场变化</button>
+      )}
       <input list="delta-ent-list" data-testid="delta-ent" placeholder="谁/什么" value={deltaEnt} onChange={(e) => { setDeltaEnt(e.target.value); setHint(""); }} />
       <datalist id="delta-ent-list">{present.map((e) => <option key={e.id} value={e.name} />)}</datalist>
       {picked && !inScene && (

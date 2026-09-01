@@ -236,6 +236,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [searchEmpty, setSearchEmpty] = useState(false);
   const [searchQ, setSearchQ] = useState("");
   const [undoStack, setUndoStack] = useState<Array<{ kind: string; payload: unknown }>>([]);
+  const undoStackRef = useRef(undoStack);
+  undoStackRef.current = undoStack;
   const [toast, setToast] = useState("");
   const [craftOpen, setCraftOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
@@ -554,6 +556,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         }),
       }).catch(() => {});
     }
+    undoStackRef.current = [];
+    setUndoStack([]);
     await refreshBooks();
     writeHash(boardHash(name, { n: 1, start: 0 }));
     await refresh();
@@ -577,6 +581,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const openBook = useCallback(async (name: string) => {
     await api(`/api/books/${encodeURIComponent(name)}/open`, { method: "POST", body: "{}" });
+    undoStackRef.current = [];
+    setUndoStack([]);
     writeHash(boardHash(name));
     await refresh();
   }, [refresh]);
@@ -962,7 +968,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const canon = state?.committed.find((b) => b.id === id);
     const prev = [...((scene?.draft.deltas || canon?.deltas || []) as { entity_id: string }[])];
     const row = { entity_id, attr, value, clock_from, clock_to: null };
-    setUndoStack((s) => [...s, { kind: "delta", payload: { id, deltas: prev } }]);
+    setUndoStack((s) => {
+      const next = [...s, { kind: "delta", payload: { id, deltas: prev } }];
+      undoStackRef.current = next;
+      return next;
+    });
     if (scene) {
       await api("/api/drafts/patch", {
         method: "POST",
@@ -975,6 +985,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       });
     }
     await refresh();
+    try { (document.activeElement as HTMLElement | null)?.blur(); } catch { /* ignore */ }
   }, [state, refresh]);
 
   const addKnow = useCallback(async (who: string, fact: string, cert = "knows", truth?: string, method?: string, source?: string) => {
@@ -1142,21 +1153,38 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [state?.selected, intent, refresh]);
 
   const undo = useCallback(async () => {
-    const last = undoStack[undoStack.length - 1];
+    const last = undoStackRef.current[undoStackRef.current.length - 1];
     if (!last) return;
-    setUndoStack((s) => s.slice(0, -1));
+    undoStackRef.current = undoStackRef.current.slice(0, -1);
+    setUndoStack(undoStackRef.current);
     if (last.kind === "delta") {
       const p = last.payload as { id: string; deltas: unknown };
       await api("/api/drafts/patch", { method: "POST", body: JSON.stringify({ id: p.id, deltas: p.deltas }) });
       await refresh();
     }
-  }, [undoStack, refresh]);
+  }, [refresh]);
+  const undoRef = useRef(undo);
+  undoRef.current = undo;
+
+  useEffect(() => {
+    const onUndoKey = (e: KeyboardEvent) => {
+      if (e.shiftKey) return;
+      const z = e.key === "z" || e.key === "Z" || e.code === "KeyZ";
+      if ((e.metaKey || e.ctrlKey) && z) {
+        e.preventDefault();
+        e.stopPropagation();
+        void undoRef.current();
+      }
+    };
+    window.addEventListener("keydown", onUndoKey, true);
+    return () => window.removeEventListener("keydown", onUndoKey, true);
+  }, []);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "z") {
+      if ((e.metaKey || e.ctrlKey) && (e.key === "z" || e.key === "Z" || e.code === "KeyZ") && !e.shiftKey) {
         e.preventDefault();
-        undo();
+        void undoRef.current();
         return;
       }
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
@@ -1165,8 +1193,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         return;
       }
       if (cmdOpen) return;
-      if (document.querySelector(".dialog-back, dialog[open]")) return;
+      const modal = document.querySelector(".dialog-back, dialog[open]");
       const typing = ["INPUT", "TEXTAREA", "SELECT"].includes((e.target as HTMLElement)?.tagName);
+      if (modal && !typing && e.key !== "Escape") return;
       if (e.altKey && e.key >= "1" && e.key <= "6") {
         e.preventDefault();
         setWindow({ n: Number(e.key) });

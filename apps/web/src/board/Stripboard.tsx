@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useStore } from "../state/store";
 import {
   bandThread,
@@ -54,6 +54,7 @@ export function Stripboard() {
   const showBanner = !!s.q.line && visibleFull.length === 0 && s.scenes.some((sc) => visible.some((c) => c.id === sc.column_id));
   const [hover, setHover] = useState<number | null>(null);
   const chapStarts = new Set((craft?.chapters || []).map((ch) => ch.start_column));
+  const winDrag = useRef<{ i: number; start: number; x: number; moved: boolean } | null>(null);
 
   return (
     <div className="board-wrap">
@@ -83,7 +84,34 @@ export function Stripboard() {
               onFocus={() => setHover(i)}
               onBlur={() => setHover(null)}
               onKeyDown={(e) => { if (e.key === "Enter") s.jumpTooth(i); }}
-              onClick={() => s.jumpTooth(i)}
+              onMouseDown={(e) => {
+                if (e.button !== 0) return;
+                winDrag.current = { i, start, x: e.clientX, moved: false };
+                const onMove = (ev: MouseEvent) => {
+                  if (!winDrag.current) return;
+                  if (Math.abs(ev.clientX - winDrag.current.x) > 4) winDrag.current.moved = true;
+                };
+                const onUp = (ev: MouseEvent) => {
+                  window.removeEventListener("mousemove", onMove);
+                  window.removeEventListener("mouseup", onUp);
+                  const d = winDrag.current;
+                  winDrag.current = null;
+                  if (!d) return;
+                  if (!d.moved) {
+                    s.jumpTooth(i);
+                    return;
+                  }
+                  const delta = Math.round((ev.clientX - d.x) / 12);
+                  const maxStart = Math.max(0, cols.length - n);
+                  const next = Math.max(0, Math.min(maxStart, d.start + delta));
+                  if (next !== d.start) void s.setWindow({ start: next });
+                };
+                window.addEventListener("mousemove", onMove);
+                window.addEventListener("mouseup", onUp);
+              }}
+              onClick={(e) => {
+                if (winDrag.current?.moved) e.preventDefault();
+              }}
             />
           );
         })}
@@ -133,7 +161,10 @@ export function Stripboard() {
                   scenes={s.scenes}
                   labelOf={(id) => ents.find((e) => e.id === id || e.name === id)?.name || id}
                   onSelect={() => s.selectScene(sc.id, sc.draft)}
-                  onDrop={(id) => s.addPresence(id, sc.draft ? sc.id : undefined)}
+                  onDrop={(id) => {
+                    if (id.startsWith("presence:")) return;
+                    s.addPresence(id, sc.draft ? sc.id : undefined);
+                  }}
                 />
               ))}
               <div
@@ -188,6 +219,7 @@ function SceneCardView({
   const names = hoverLines(sc, catalog);
   const [tip, setTip] = useState(false);
   const tri = density >= 5;
+  const store = useStore();
 
   return (
     <article
@@ -247,9 +279,27 @@ function SceneCardView({
           {density <= 2 && sc.think_text && <div data-testid="card-think">{sc.think_text}</div>}
           {density >= 5 && warn && <span data-testid="warn-dot">·</span>}
           <div>
-            {sc.presences.map((p) => (
-              <span key={p.entity_id} className="chip" data-testid={`chip-${labelOf(p.entity_id)}`}>{labelOf(p.entity_id)}</span>
-            ))}
+            {sc.presences.map((p) => {
+              const name = labelOf(p.entity_id);
+              const on = store.selectedChip?.entityId === p.entity_id && store.selectedChip.sceneId === sc.id;
+              return (
+                <span
+                  key={p.entity_id}
+                  className={`chip${on ? " on" : ""}`}
+                  data-testid={`chip-${name}`}
+                  draggable
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    store.setSelectedChip({ entityId: p.entity_id, sceneId: sc.id, draft: sc.draft });
+                    store.openDossier(name);
+                  }}
+                  onDragStart={(e) => {
+                    e.stopPropagation();
+                    e.dataTransfer.setData("text/plain", `presence:${p.entity_id}:${sc.id}:${sc.draft ? "1" : "0"}`);
+                  }}
+                >{name}</span>
+              );
+            })}
           </div>
         </>
       )}

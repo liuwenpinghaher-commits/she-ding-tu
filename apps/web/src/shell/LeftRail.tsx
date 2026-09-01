@@ -20,7 +20,19 @@ export function LeftRail() {
   const [speech, setSpeech] = useState("");
   const pageIds = new Set((s.state?.entities || []).map((e) => e.id));
   return (
-    <aside id="rail" className="left-rail" data-testid="left-rail">
+    <aside
+      id="rail"
+      className="left-rail"
+      data-testid="left-rail"
+      onDragOver={(e) => e.preventDefault()}
+      onDrop={(e) => {
+        e.preventDefault();
+        const raw = e.dataTransfer.getData("text/plain");
+        if (!raw.startsWith("presence:")) return;
+        const [, entityId, sceneId, draftFlag] = raw.split(":");
+        if (entityId) s.removePresence(entityId, sceneId, draftFlag === "1");
+      }}
+    >
       <input data-testid="ent-search" type="search" placeholder="搜全书人物、地点、规则…" value={s.searchQ} onChange={(e) => s.setSearchQ(e.target.value)} aria-label="搜全书" />
       <div>
         <button id="rail-create" type="button" data-testid="rail-create" onClick={() => setExpand((v) => !v)}>新建</button>

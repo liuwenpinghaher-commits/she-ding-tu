@@ -8,6 +8,12 @@ export function ShelfPage() {
     name, premise: "", columns: 1, committed: 0, drafts: 0, opened_at: 0, last_intent: "",
   })))].sort((a, b) => (b.opened_at || 0) - (a.opened_at || 0) || b.name.localeCompare(a.name));
   const [menu, setMenu] = useState<string | null>(null);
+  const [q, setQ] = useState("");
+  const shown = items.filter((b) => {
+    const needle = q.trim();
+    if (!needle) return true;
+    return b.name.includes(needle) || (b.premise || "").includes(needle) || (b.last_intent || "").includes(needle);
+  });
   return (
     <div className="page" data-testid="shelf">
       <h1>书架</h1>
@@ -20,8 +26,10 @@ export function ShelfPage() {
       {items.length > 0 && (
         <>
           <button type="button" data-testid="shelf-new" onClick={s.goNew}>新建书</button>
+          <input data-testid="shelf-q" type="search" placeholder="搜书名、主脑、最后一场" value={q} onChange={(e) => setQ(e.target.value)} aria-label="搜书架" />
+          {q.trim() && shown.length === 0 && <p className="muted" data-testid="shelf-empty">没有这本书</p>}
           <div className="grid" data-testid="shelf-grid">
-            {items.map((b) => (
+            {shown.map((b) => (
               <article key={b.name} className="book-card" onClick={() => s.openBook(b.name)}>
                 <h2>{b.name}</h2>
                 <p>{b.premise || "还没写主脑"}</p>

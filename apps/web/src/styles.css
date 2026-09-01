@@ -189,7 +189,11 @@ dialog {
 .field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; }
 .grow { min-height: 72px; resize: vertical; width: 100%; }
 .ent { display: flex; align-items: center; gap: 6px; padding: 4px 0; cursor: grab; }
-.chip { display: inline-block; padding: 1px 6px; margin: 2px; border: 1px solid var(--line); border-radius: 10px; }
+.chip { display: inline-block; padding: 1px 6px; margin: 2px; border: 1px solid var(--line); border-radius: 10px; cursor: grab; }
+.chip.on { border-color: var(--brass); background: var(--panel-2); }
+.sit-blocks { font-size: 12px; display: flex; flex-direction: column; gap: 4px; margin: 8px 0; padding: 8px; border: 1px solid var(--line); }
+.sit-blocks strong { margin-right: 6px; color: var(--mute); font-weight: 600; }
+button.ghost.on { outline: 1px solid var(--brass); }
 .track-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--line); display: inline-block; margin-right: 4px; }
 .track-dot.on { background: var(--brass); }
 .whiteboard { position: relative; height: 100%; min-height: 320px; background: #1a1713; overflow: hidden; }

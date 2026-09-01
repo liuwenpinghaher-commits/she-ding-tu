@@ -26,6 +26,28 @@ import { boardHash, parseHash, writeHash, type BoardQuery, type Route } from "..
 
 type TalkPending = { field: string; text: string } | null;
 
+export type SitPacket = {
+  intent: string;
+  last_value_shift: string;
+  stakes: string[];
+  knowledge_gaps: string[];
+  wrong_beliefs: string[];
+  reader_knows: string[];
+  reader_irony: string[];
+  open_promises: { name: string }[];
+};
+
+const EMPTY_SIT: SitPacket = {
+  intent: "",
+  last_value_shift: "",
+  stakes: [],
+  knowledge_gaps: [],
+  wrong_beliefs: [],
+  reader_knows: [],
+  reader_irony: [],
+  open_promises: [],
+};
+
 export interface Store {
   route: Route;
   q: BoardQuery;
@@ -33,6 +55,9 @@ export interface Store {
   state: UiState | null;
   banner: string;
   sidebar: string;
+  sit: SitPacket;
+  selectedChip: { entityId: string; sceneId: string; draft: boolean } | null;
+  setSelectedChip: (c: { entityId: string; sceneId: string; draft: boolean } | null) => void;
   intent: string;
   placeId: string;
   sceneTitle: string;
@@ -130,6 +155,7 @@ export interface Store {
   selectScene: (id: string, draft: boolean) => Promise<void>;
   addEntity: (kind: string, name: string, profile?: Record<string, string>) => Promise<void>;
   addPresence: (entityId: string, sceneId?: string) => Promise<void>;
+  removePresence: (entityId: string, sceneId?: string, draft?: boolean) => Promise<void>;
   patchScene: (body: Record<string, unknown>) => Promise<void>;
   commit: () => Promise<void>;
   revise: () => Promise<void>;
@@ -240,6 +266,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [editingCanon, setEditingCanon] = useState(false);
   const [planBones, setPlanBones] = useState<Array<{ serial?: boolean; intent: string; presence?: string[]; necessity?: string }>>([]);
   const [planNotice, setPlanNotice] = useState("");
+  const [sit, setSit] = useState<SitPacket>(EMPTY_SIT);
+  const [selectedChip, setSelectedChip] = useState<{ entityId: string; sceneId: string; draft: boolean } | null>(null);
   const refreshGen = useRef(0);
   const editorSel = useRef<string | null>(null);
   const dirty = useRef<Set<string>>(new Set());
@@ -312,11 +340,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     try {
       const r = await api<{
         packet?: {
+          intent?: string;
           last_value_shift?: string | null;
           knowledge_gaps?: string[];
           stakes?: string[];
           open_promises?: { name: string }[];
           wrong_beliefs?: string[];
+          reader_knows?: string[];
+          reader_irony?: string[];
         };
       }>("/api/circumstances");
       const pkt = r.packet;
@@ -330,6 +361,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       if (pkt?.open_promises?.length) bits.push(pkt.open_promises.map((p) => p.name).join(" "));
       if ((st?.promises || []).length) bits.push((st?.promises || []).map((p) => p.name).join(" "));
       if (bits.length > 1) setSidebar(bits.join(" · "));
+      const lastShift = pkt?.last_value_shift || [last?.value_shift, last?.intent].filter(Boolean).join(" ");
+      setSit({
+        intent: pkt?.intent || "",
+        last_value_shift: lastShift || "",
+        stakes: pkt?.stakes || [],
+        knowledge_gaps: pkt?.knowledge_gaps || [],
+        wrong_beliefs: pkt?.wrong_beliefs || [],
+        reader_knows: pkt?.reader_knows || [],
+        reader_irony: pkt?.reader_irony || [],
+        open_promises: (pkt?.open_promises || []).slice(0, 5),
+      });
     } catch {
       /* 未选草稿时接口可空 */
     }
@@ -621,6 +663,24 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     });
     await refresh();
   }, [refresh, state?.selected]);
+
+  const removePresence = useCallback(async (entityId: string, sceneId?: string, draft?: boolean) => {
+    const id = sceneId || state?.selected || state?.selected_canon;
+    if (!id) return;
+    const isDraft = draft ?? (!!state?.drafts?.some((d) => d.id === id));
+    try {
+      await api("/api/presence", {
+        method: "POST",
+        body: JSON.stringify(isDraft
+          ? { draft_id: id, entity_id: entityId, action: "remove" }
+          : { canon_id: id, entity_id: entityId, action: "remove" }),
+      });
+      setSelectedChip(null);
+      await refresh();
+    } catch (e) {
+      setToast(e instanceof Error ? e.message : "拿不掉");
+    }
+  }, [refresh, state?.selected, state?.selected_canon, state?.drafts]);
 
   const patchScene = useCallback(async (body: Record<string, unknown>) => {
     const id = state?.selected;
@@ -1092,6 +1152,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         undo();
         return;
       }
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setCmdOpen((v) => !v);
+        return;
+      }
+      if (cmdOpen) return;
       const typing = ["INPUT", "TEXTAREA", "SELECT"].includes((e.target as HTMLElement)?.tagName);
       if (e.altKey && e.key >= "1" && e.key <= "6") {
         e.preventDefault();
@@ -1134,18 +1200,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       if (e.key.toLowerCase() === "t" && !["INPUT", "TEXTAREA", "SELECT"].includes((e.target as HTMLElement)?.tagName)) {
         setLook(q.look === "时间轴" ? null : "时间轴");
       }
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
-        e.preventDefault();
-        setCmdOpen(true);
-      }
       if (e.key === "/" && !["INPUT", "TEXTAREA", "SELECT"].includes((e.target as HTMLElement)?.tagName)) {
         e.preventDefault();
         setCmdOpen(true);
       }
+      if (!typing && e.key === "Delete" && selectedChip) {
+        e.preventDefault();
+        void removePresence(selectedChip.entityId, selectedChip.sceneId, selectedChip.draft);
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [undo, setWindow, state, q.line, q.look, q.open, route.kind, setLine, setLook, setOpen, dossierOpen, cmdOpen, selectScene]);
+  }, [undo, setWindow, state, q.line, q.look, q.open, route.kind, setLine, setLook, setOpen, dossierOpen, cmdOpen, selectScene, selectedChip, removePresence]);
 
   const scenes = useMemo<SceneCard[]>(() => {
     const committed = (state?.committed || []).map(asScene);
@@ -1188,6 +1254,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     state,
     banner,
     sidebar,
+    sit,
+    selectedChip,
+    setSelectedChip,
     intent,
     placeId,
     sceneTitle,
@@ -1303,6 +1372,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     selectScene,
     addEntity,
     addPresence,
+    removePresence,
     patchScene,
     commit,
     revise,

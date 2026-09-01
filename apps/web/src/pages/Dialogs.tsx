@@ -79,6 +79,19 @@ export function Dialogs() {
             </p>
             <label><input type="checkbox" data-testid="export-include-drafts" checked={s.exportIncludeDrafts} onChange={(e) => s.setExportIncludeDrafts(e.target.checked)} /> 含草稿</label>
             <button data-testid="export-run" type="button" onClick={() => s.loadExport(s.exportIncludeDrafts)}>导出</button>
+            <button
+              data-testid="export-download"
+              type="button"
+              disabled={!s.exportOut}
+              onClick={() => {
+                const blob = new Blob([s.exportOut], { type: "text/markdown;charset=utf-8" });
+                const a = document.createElement("a");
+                a.href = URL.createObjectURL(blob);
+                a.download = `${s.state?.book || "设定图"}.md`;
+                a.click();
+                URL.revokeObjectURL(a.href);
+              }}
+            >下载 .md</button>
             <pre data-testid="export-out">{s.exportOut}</pre>
             <button data-testid="export-close" type="button" onClick={() => s.setExportOpen(false)}>关闭</button>
           </div>

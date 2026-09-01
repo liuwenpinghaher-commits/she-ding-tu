@@ -16,6 +16,7 @@ import type { Entity } from "../canon/types";
 
 export function ScenePage() {
   const s = useStore();
+  const [ignoreSug, setIgnoreSug] = useState(false);
   const draft = !!s.state?.selected;
   const canonId = s.state?.selected_canon || "";
   const canon = !draft && !!(s.state?.committed || []).some((b) => b.id === canonId);
@@ -44,6 +45,7 @@ export function ScenePage() {
 
   const commitDisabled = !draft || !s.intent.trim() || blocking.length > 0 || s.committing;
   const locked = canon && !s.editingCanon;
+  const sit = s.sit;
 
   return (
     <aside className={`right-rail scene-${chrome}`}>
@@ -51,10 +53,20 @@ export function ScenePage() {
       <div data-testid="moment-col" className="muted">{s.sidebar.includes("t=") ? s.sidebar : (s.state?.world ? `t=${s.state.world.t}` : "")}</div>
       <div data-testid="moment-body">{s.sidebar.includes("t=") ? s.sidebar : (s.state?.world ? `t=${s.state.world.t}` : s.sidebar)}</div>
       <div data-testid="knows-list">{JSON.stringify(s.state?.world?.knows || {})}</div>
-      <div data-testid="promise-suggest">
-        建议本场对伏笔做哪一件
-        <button type="button" data-testid="ignore-suggest">忽略</button>
-      </div>
+      <section data-testid="sit-blocks" className="sit-blocks">
+        <div data-testid="sit-task"><strong>本场任务</strong> {s.intent || sit.intent || "还没有"}</div>
+        <div data-testid="sit-shift"><strong>上场转折</strong> {sit.last_value_shift || "还没有"}</div>
+        <div data-testid="sit-world"><strong>世界账</strong> {sit.stakes.length ? sit.stakes.join("；") : "还没有"}</div>
+        <div data-testid="sit-people"><strong>人物账</strong> {[...sit.knowledge_gaps, ...sit.wrong_beliefs].join("；") || "还没有"}</div>
+        <div data-testid="sit-reader"><strong>读者账</strong> {[...sit.reader_knows, ...sit.reader_irony].slice(0, 8).join("；") || "还没有"}</div>
+        <div data-testid="sit-promises"><strong>未收伏笔</strong> {sit.open_promises.length ? sit.open_promises.map((p) => p.name).join("、") : "没有未收的"}</div>
+      </section>
+      {!ignoreSug && (
+        <div data-testid="promise-suggest">
+          建议本场对伏笔做哪一件
+          <button type="button" data-testid="ignore-suggest" onClick={() => setIgnoreSug(true)}>忽略</button>
+        </div>
+      )}
       <div className="scene-open">
         <button type="button" data-testid="scene-dock" onClick={() => s.setOpen(null)}>就地</button>
         <button type="button" data-testid="scene-side" onClick={() => s.setOpen("side")}>侧开</button>

@@ -1214,6 +1214,23 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     await refresh();
   }, [state, refresh]);
 
+  const writeClock = useCallback(async (id: string, draft: boolean, clockFrom: number, clockTo: number, follow = false) => {
+    try {
+      await api("/api/clocks", {
+        method: "POST",
+        body: JSON.stringify({ id, draft, clock_from: clockFrom, clock_to: clockTo, follow }),
+      });
+      return "clocks" as const;
+    } catch {
+      if (!draft) throw new Error("改钟没写上");
+      await api("/api/drafts/patch", {
+        method: "POST",
+        body: JSON.stringify({ id, clock_from: clockFrom, clock_to: clockTo }),
+      });
+      return "patch" as const;
+    }
+  }, []);
+
   const shiftSceneClock = useCallback(async (id: string, draft: boolean, clockFrom: number, clockTo: number) => {
     const all = [...(state?.committed || []).map(asScene), ...(state?.drafts || []).map(asDraftScene)];
     const sc = all.find((x) => x.id === id);
@@ -1228,14 +1245,25 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       }
       pushUndo({ kind: "clocks", payload: snaps });
     }
-    await api("/api/clocks", {
-      method: "POST",
-      body: JSON.stringify({ id, draft, clock_from: clockFrom, clock_to: clockTo, follow: followDependents }),
-    });
+    try {
+      const via = await writeClock(id, draft, clockFrom, clockTo, followDependents);
+      if (via === "patch" && followDependents && sc) {
+        const dlt = clockFrom - sc.clock_from;
+        if (dlt) {
+          for (const x of all) {
+            if (x.id === id || !x.draft || x.clock_from < sc.clock_to) continue;
+            await writeClock(x.id, true, x.clock_from + dlt, x.clock_to + dlt, false);
+          }
+        }
+      }
+    } catch (e) {
+      setBanner(e instanceof Error ? e.message : "改钟没写上");
+      return;
+    }
     const moved = followDependents ? all.filter((x) => x.id !== id && x.clock_from >= (sc?.clock_to ?? 0)).length : 0;
     setToast(moved > 0 ? `已改钟，带着 ${moved} 场` : "已改钟");
     await refresh();
-  }, [refresh, state, followDependents]);
+  }, [refresh, state, followDependents, writeClock]);
 
   const createNear = useCallback(async (id: string, where: "copy" | "above" | "below") => {
     const all = [...(state?.committed || []).map(asScene), ...(state?.drafts || []).map(asDraftScene)];
@@ -1252,14 +1280,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       body: JSON.stringify({ intent: label, place_id: sc?.place_id || placeId || undefined }),
     });
     if (r.id) {
-      await api("/api/clocks", {
-        method: "POST",
-        body: JSON.stringify({ id: r.id, draft: true, clock_from: t, clock_to: t + dur, follow: false }),
-      });
+      await writeClock(r.id, true, t, t + dur, false);
       await api("/api/select", { method: "POST", body: JSON.stringify({ draft_id: r.id }) });
     }
     await refresh();
-  }, [state, placeId, refresh]);
+  }, [state, placeId, refresh, writeClock]);
 
   const createAtClock = useCallback(async (t: number) => {
     const label = intent.trim() || "新场";
@@ -1268,15 +1293,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       body: JSON.stringify({ intent: label, place_id: placeId || undefined }),
     });
     if (r.id) {
-      await api("/api/clocks", {
-        method: "POST",
-        body: JSON.stringify({ id: r.id, draft: true, clock_from: Math.max(0, t), clock_to: Math.max(0, t) + 60, follow: false }),
-      });
+      const from = Math.max(0, t);
+      await writeClock(r.id, true, from, from + 60, false);
       await api("/api/select", { method: "POST", body: JSON.stringify({ draft_id: r.id }) });
     }
     await refresh();
     return r.id;
-  }, [intent, placeId, refresh]);
+  }, [intent, placeId, refresh, writeClock]);
 
   const reorderTelling = useCallback(async (fromId: string, toIndex: number) => {
     await api("/api/telling", { method: "POST", body: JSON.stringify({ beat_id: fromId, telling_ord: toIndex + 1 }) });
@@ -1403,17 +1426,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       if (last.kind === "clocks") {
         const snaps = last.payload as Array<{ id: string; draft: boolean; clock_from: number; clock_to: number }>;
         for (const p of snaps) {
-          await api("/api/clocks", {
-            method: "POST",
-            body: JSON.stringify({ id: p.id, draft: p.draft, clock_from: p.clock_from, clock_to: p.clock_to, follow: false }),
-          });
+          await writeClock(p.id, p.draft, p.clock_from, p.clock_to, false);
         }
         await refresh();
         return;
       }
       if (last.kind === "clock") {
         const p = last.payload as { id: string; draft: boolean; clock_from: number; clock_to: number };
-        await api("/api/clocks", { method: "POST", body: JSON.stringify({ id: p.id, draft: p.draft, clock_from: p.clock_from, clock_to: p.clock_to, follow: false }) });
+        await writeClock(p.id, p.draft, p.clock_from, p.clock_to, false);
         await refresh();
         return;
       }
@@ -1444,7 +1464,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       undoStackRef.current = stack;
       setUndoStack(stack);
     }
-  }, [refresh, state]);
+  }, [refresh, state, writeClock]);
   const undoRef = useRef(undo);
   undoRef.current = undo;
 

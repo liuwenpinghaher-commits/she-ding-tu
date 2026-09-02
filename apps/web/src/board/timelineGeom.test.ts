@@ -9,6 +9,7 @@ import {
   followMovedCount,
   intervalLabel,
   packRows,
+  minutesFromDrag,
   pan,
   pxForScale,
   resizeSpan,
@@ -25,6 +26,14 @@ describe("时间轴几何", () => {
     const vp = { origin: 0, pxPerMinute: 2, width: 800 };
     assert.equal(clockToX(30, vp), 60);
     assert.equal(xToClock(60, vp), 30);
+  });
+
+  it("高缩放拖几像素也至少改一分钟", () => {
+    assert.equal(minutesFromDrag(80, 16), 5);
+    assert.equal(minutesFromDrag(80, 11.5), 7);
+    assert.equal(minutesFromDrag(3, 16), 0);
+    assert.equal(minutesFromDrag(8, 16), 1);
+    assert.equal(minutesFromDrag(-8, 16), -1);
   });
 
   it("条的宽度跟时长成正比", () => {

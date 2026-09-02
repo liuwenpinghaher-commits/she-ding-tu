@@ -395,8 +395,9 @@ textarea.grow { min-height: 4.5em; }
 .tl-row-lane { position: relative; height: 88px; border-bottom: 1px solid var(--panel-2); }
 .tl-bar {
   position: absolute; top: 12px; height: 64px; border-radius: 6px;
-  background: var(--canvas); border: 1px solid var(--line); overflow: hidden;
-  box-shadow: 0 1px 2px var(--shadow); cursor: pointer;
+  background: var(--canvas); border: 1px solid var(--line); overflow: visible;
+  box-shadow: 0 1px 2px var(--shadow); cursor: pointer; z-index: 3;
+  touch-action: none;
 }
 .tl-bar .band { height: 6px; width: 100%; bottom: auto; }
 .tl-bar.selected { border-color: var(--accent); background: var(--accent-fill); }
@@ -462,10 +463,10 @@ textarea.grow { min-height: 4.5em; }
 .tl-deps line.ok { stroke: #89B558; }
 .tl-deps line.bad { stroke: #DF627A; }
 .tl-tools {
-  display: none; position: absolute; right: 4px; top: 8px; gap: 2px; z-index: 3;
+  display: none; position: absolute; left: 4px; top: 100%; margin-top: 2px; gap: 2px; z-index: 4;
   pointer-events: auto;
 }
-.tl-bar:hover .tl-tools { display: flex; }
+.tl-bar:hover .tl-tools, .tl-bar.selected .tl-tools { display: flex; }
 .tl-tools button { font-size: 10px; padding: 1px 4px; background: var(--panel); }
 .tl-follow-n {
   position: absolute; right: 4px; bottom: 4px; font-size: 10px;

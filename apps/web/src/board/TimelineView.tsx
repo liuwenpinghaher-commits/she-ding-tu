@@ -10,6 +10,7 @@ import {
   followMovedCount,
   intervalLabel,
   packRows,
+  minutesFromDrag,
   pan,
   pxForScale,
   resizeSpan,
@@ -51,6 +52,7 @@ export function TimelineView() {
   const [cardLines, setCardLines] = useState(2);
   const [showPlace, setShowPlace] = useState(true);
   const measureFrom = useRef<number | null>(null);
+  const lastDragStart = useRef(0);
   const book = s.state?.book || "";
   const cols = s.state?.columns || [];
   const craft = s.state?.craft;
@@ -235,7 +237,11 @@ export function TimelineView() {
     return scenes.find((x) => x.id === id) || null;
   };
 
-  const startMove = (e: React.MouseEvent, sc: SceneCard, edge?: "from" | "to") => {
+  const startMove = (e: React.PointerEvent | React.MouseEvent, sc: SceneCard, edge?: "from" | "to") => {
+    if ((e.target as HTMLElement).closest("button, .tl-tools")) return;
+    const now = performance.now();
+    if (now - lastDragStart.current < 80) return;
+    lastDragStart.current = now;
     e.preventDefault();
     e.stopPropagation();
     if (e.altKey && e.shiftKey) {
@@ -250,7 +256,7 @@ export function TimelineView() {
       return;
     }
     if (isLocked(book, sc.id)) {
-      s.selectScene(sc.id, sc.draft);
+      void s.selectScene(sc.id, sc.draft);
       return;
     }
     const startX = e.clientX;
@@ -260,10 +266,16 @@ export function TimelineView() {
     const fromLane = (e.currentTarget as HTMLElement).closest(".tl-row-lane") as HTMLElement | null;
     const n = s.followDependents ? followMovedCount(s.scenes, sc) : 0;
     setDragN(n > 0 ? n : null);
-    const onMove = (ev: MouseEvent) => {
+    try {
+      const pid = "pointerId" in e ? e.pointerId : undefined;
+      if (pid != null) (e.currentTarget as HTMLElement).setPointerCapture(pid);
+    } catch { /* ignore */ }
+    const ppm = vp.pxPerMinute;
+    let finished = false;
+    const onMove = (ev: { clientX: number; shiftKey: boolean }) => {
       const dx = ev.clientX - startX;
-      let delta = Math.round(dx / vp.pxPerMinute);
-      if (ev.shiftKey) delta = snapClock(origFrom + delta, tickStep(vp.pxPerMinute)) - origFrom;
+      let delta = minutesFromDrag(dx, ppm);
+      if (ev.shiftKey) delta = snapClock(origFrom + delta, tickStep(ppm)) - origFrom;
       if (edge) {
         const next = resizeSpan(origFrom, origTo, edge, edge === "from" ? origFrom + delta : origTo + delta);
         paintPreview(sc.id, next.from, next.to);
@@ -272,12 +284,16 @@ export function TimelineView() {
         paintPreview(sc.id, next.from, next.to);
       }
     };
-    const onUp = (ev: MouseEvent) => {
+    const onUp = (ev: { clientX: number; clientY: number; shiftKey: boolean }) => {
+      if (finished) return;
+      finished = true;
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseup", onUp);
       setDragN(null);
       const dx = ev.clientX - startX;
-      if (Math.abs(dx) < 3) {
+      if (Math.abs(dx) < 4) {
         if (nest) {
           const over = barUnder(ev.clientX, ev.clientY);
           if (over && over.id !== sc.id) {
@@ -286,7 +302,7 @@ export function TimelineView() {
           }
           return;
         }
-        s.selectScene(sc.id, sc.draft);
+        void s.selectScene(sc.id, sc.draft);
         return;
       }
       if (nest) {
@@ -300,17 +316,15 @@ export function TimelineView() {
       const lane = (document.elementFromPoint(ev.clientX, ev.clientY) as HTMLElement | null)?.closest(".tl-row-lane") as HTMLElement | null;
       const entityId = lane?.dataset.entity;
       if (entityId && entityId !== fromLane?.dataset.entity) void s.addPresence(entityId, sc.id);
-      if (Math.abs(dx) < 3) {
-        s.selectScene(sc.id, sc.draft);
-        return;
-      }
-      let delta = Math.round(dx / vp.pxPerMinute);
-      if (ev.shiftKey) delta = snapClock(origFrom + delta, tickStep(vp.pxPerMinute)) - origFrom;
+      let delta = minutesFromDrag(dx, ppm);
+      if (ev.shiftKey) delta = snapClock(origFrom + delta, tickStep(ppm)) - origFrom;
       const next = edge
         ? resizeSpan(origFrom, origTo, edge, edge === "from" ? origFrom + delta : origTo + delta)
         : shiftSpan(origFrom, origTo, delta);
       void s.shiftSceneClock(sc.id, sc.draft, next.from, next.to);
     };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
     window.addEventListener("mousemove", onMove);
     window.addEventListener("mouseup", onUp);
   };
@@ -578,7 +592,12 @@ export function TimelineView() {
                   data-testid={`card-${sc.id}`}
                   className={`tl-bar card${compact || point ? " marker" : ""}${point ? " point" : ""}${sc.draft ? " draft" : " canon"}${on ? " selected" : ""}${thin ? " thin" : ""}${nested ? " nested" : ""}${locked ? " locked" : ""}`}
                   style={{ left: r.left, width: point ? 14 : r.width, top: 12 + (rows.get(sc.id) ?? 0) * 72 + (nested ? 8 : 0) }}
+                  onPointerDown={(e) => startMove(e, sc)}
                   onMouseDown={(e) => startMove(e, sc)}
+                  onClick={(e) => {
+                    if ((e.target as HTMLElement).closest("button, .tl-tools, .tl-edge")) return;
+                    void s.selectScene(sc.id, sc.draft);
+                  }}
                   onDragOver={(e) => e.preventDefault()}
                   onDrop={(e) => {
                     e.preventDefault();
@@ -612,8 +631,8 @@ export function TimelineView() {
                     <button type="button" data-testid={`tl-lock-${sc.id}`} onMouseDown={(e) => e.stopPropagation()} onClick={() => { toggleLock(book, sc.id); setTick((x) => x + 1); }}>{locked ? "解锁" : "锁定"}</button>
                   </div>
                   {dragN != null && on && <span className="tl-follow-n" data-testid="tl-follow-n">还将移动 {dragN} 场</span>}
-                  <span className="tl-edge from" onMouseDown={(e) => startMove(e, sc, "from")} />
-                  <span className="tl-edge to" onMouseDown={(e) => startMove(e, sc, "to")} />
+                  <span className="tl-edge from" onPointerDown={(e) => startMove(e, sc, "from")} onMouseDown={(e) => startMove(e, sc, "from")} />
+                  <span className="tl-edge to" onPointerDown={(e) => startMove(e, sc, "to")} onMouseDown={(e) => startMove(e, sc, "to")} />
                 </article>
               );
             })}

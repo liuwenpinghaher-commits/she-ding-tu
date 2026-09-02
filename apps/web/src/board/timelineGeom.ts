@@ -79,6 +79,14 @@ export function shiftSpan(from: number, to: number, delta: number): { from: numb
   return { from: nf, to: nf + dur };
 }
 
+/** 拖了几像素换成几分钟。高缩放时不足 1 分钟也按 1 分钟算，避免拖了条钟不动。 */
+export function minutesFromDrag(dx: number, pxPerMinute: number): number {
+  const ppm = Math.max(0.00004, pxPerMinute);
+  let d = Math.round(dx / ppm);
+  if (d === 0 && Math.abs(dx) >= 4) d = dx > 0 ? 1 : -1;
+  return d;
+}
+
 export function resizeSpan(
   from: number,
   to: number,

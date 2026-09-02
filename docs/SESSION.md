@@ -2,6 +2,10 @@
 
 > 新会话先读 [`../AGENTS.md`](../AGENTS.md) + 本文件。对人说话用 [`设定图-v1.md`](./设定图-v1.md)「用语」。
 
+## 当前状态（2026-09-02）
+
+**新裁决环境=本机 8787，重建入口 `scripts/rebuild_ferry.py`。** 腾讯部署机内存僵死已弃用。本机仓库 `~/projects/she-ding-tu`，入口 `127.0.0.1:8787`（nginx → `last_intent_proxy` `:8790` / `setting-api` `:8788`），一键重启 `logs/restart.sh`。《渡口》不进 git（`data/books/` 忽略），新环境跑 `python3 scripts/rebuild_ferry.py` 即可按 API 重放（书名精确=渡口，主脑「渡口夜里，铜牌三日，刀在抽屉。」，7 列，正史含「阿禾在城里等信」与「阿禾在城门口等到天亮」，草稿同句供书架 last_intent）。e2e：`cd e2e && SETTING_URL=http://127.0.0.1:8787 npx playwright test --workers=1`。
+
 ## 当前状态（2026-09-01）
 
 **Aeon 照抄方案（已按用户纠正，待开工）：** [`plans/2026-09-01-设定图-Aeon交互与界面照抄方案.md`](./plans/2026-09-01-设定图-Aeon交互与界面照抄方案.md)。时间轴与分场条同级，**新书默认打开时间轴**（按钟比例、可缩放、可拖）；颜色全抄 Aeon 亮色壳，丢掉黄铜。旧前端合同里挡手的交互有利就改。算出这一刻 / Narra / 写入正史（草稿→正史）仍守。

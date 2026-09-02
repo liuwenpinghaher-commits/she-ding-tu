@@ -190,9 +190,11 @@ button[aria-pressed="true"] { background: var(--bg-subtle); color: var(--text); 
   margin: 0;
   opacity: 0.02;
   overflow: hidden;
-  font-size: 8px;
+  font-size: 0;
   line-height: 10px;
+  color: transparent;
   flex: 0 0 10px;
+  border: 0;
 }
 .probe {
   position: absolute;
@@ -348,8 +350,9 @@ span.mini-window[data-testid="mini-window"] {
 .card.ellipsis { background: repeating-linear-gradient(45deg, var(--bg-canvas), var(--bg-canvas) 6px, var(--stripe) 6px, var(--stripe) 12px); }
 .card.thin { height: 10px; padding: 0; overflow: hidden; opacity: 0.7; }
 .card.selected { box-shadow: 0 0 0 2px var(--brand); background: var(--bg-selected); }
-.stripboard .card.draft { outline: 1px dashed var(--line-strong); outline-offset: -1px; box-shadow: none; }
-.stripboard .card.selected { outline: none; }
+.stripboard .card { border: none; outline: none; }
+.stripboard .card.draft { background: var(--bg-panel); box-shadow: var(--shadow-1); }
+.stripboard .card.selected { box-shadow: 0 0 0 2px var(--brand); background: var(--bg-selected); }
 .band { position: absolute; left: 0; top: 0; bottom: 0; width: 4px; }
 .band.unlined { background: var(--unlined); width: 2px; }
 .fold {
@@ -494,6 +497,10 @@ details summary { cursor: pointer; }
   background: var(--bg-subtle);
   border-radius: var(--radius-1);
   padding: 0 var(--space-2) var(--space-2);
+}
+.acc-scene[open] {
+  max-height: 38vh;
+  overflow: auto;
 }
 .acc > summary {
   font-weight: 600;

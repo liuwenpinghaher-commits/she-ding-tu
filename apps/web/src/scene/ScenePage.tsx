@@ -72,7 +72,7 @@ export function ScenePage() {
       <div data-testid="moment-body" className="probe" aria-hidden="true">{clockProbe || sideRaw}</div>
       <div data-testid="knows-list" className="probe" aria-hidden="true">{JSON.stringify(s.state?.world?.knows || {})}</div>
 
-      <details className="acc" open>
+      <details className="acc acc-scene" open>
         <summary>场页</summary>
       <section data-testid="sit-blocks" className="sit-blocks">
         <div data-testid="sit-task"><strong>本场任务</strong> {s.intent || sit.intent || "还没有"}</div>

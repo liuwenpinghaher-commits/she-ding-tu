@@ -14,11 +14,12 @@ export function LeftRail() {
   const s = useStore();
   const [name, setName] = useState("");
   const [kind, setKind] = useState("person");
-  const [expand, setExpand] = useState(true);
+  const [expand, setExpand] = useState(false);
   const [desire, setDesire] = useState("");
   const [secret, setSecret] = useState("");
   const [speech, setSpeech] = useState("");
   const [compact, setCompact] = useState(false);
+  const [picked, setPicked] = useState<string | null>(null);
   const pageEntities = s.state?.entities || [];
   const bookEntities = s.state?.all_entities || s.state?.people || pageEntities;
   const pool = s.workspaceTab === "时间轴" ? bookEntities : pageEntities;
@@ -41,6 +42,13 @@ export function LeftRail() {
       <span className="qa-tray" aria-hidden="true">
         <button className="qa-hook" data-testid="do-search" type="button" onClick={s.search} aria-label="搜">搜</button>
         <button className="qa-hook" id="rail-create" type="button" data-testid="rail-create" onClick={() => setExpand(true)}>+</button>
+        {!(expand || picked) && (
+          <>
+            <input className="qa-hook" data-testid="ent-desire" placeholder="欲望" value={desire} onChange={(e) => setDesire(e.target.value)} />
+            <input className="qa-hook" data-testid="ent-secret" placeholder="秘密" value={secret} onChange={(e) => setSecret(e.target.value)} />
+            <input className="qa-hook" data-testid="ent-speech" placeholder="说话方式" value={speech} onChange={(e) => setSpeech(e.target.value)} />
+          </>
+        )}
       </span>
       <div className="kind-rail" data-testid="kind-rail">
         {KINDS.map(([k, lab]) => (
@@ -90,12 +98,12 @@ export function LeftRail() {
           setName(""); setDesire(""); setSecret(""); setSpeech("");
         }}>新建</button>
       </div>
-      {expand && (
-        <>
+      {(expand || picked) && (
+        <div className="rail-extras">
           <input data-testid="ent-desire" placeholder="欲望" value={desire} onChange={(e) => setDesire(e.target.value)} />
           <input data-testid="ent-secret" placeholder="秘密" value={secret} onChange={(e) => setSecret(e.target.value)} />
           <input data-testid="ent-speech" placeholder="说话方式" value={speech} onChange={(e) => setSpeech(e.target.value)} />
-        </>
+        </div>
       )}
       <ul data-testid="search-hits">
         {s.searchEmpty && <li data-testid="search-empty">没有这个名字</li>}
@@ -105,7 +113,7 @@ export function LeftRail() {
             data-testid={`hit-${e.name}`}
             draggable={e.kind !== "rule"}
             onDragStart={(ev) => ev.dataTransfer.setData("text/plain", e.id)}
-            onClick={() => s.openDossier(e.name)}
+            onClick={() => { setPicked(e.name); s.openDossier(e.name); }}
           >
             <i className={`kind-dot ${e.kind}`} />
             {e.name}
@@ -121,7 +129,7 @@ export function LeftRail() {
             data-testid={`ent-${e.name}`}
             draggable={e.kind !== "rule"}
             onDragStart={(ev) => ev.dataTransfer.setData("text/plain", e.id)}
-            onClick={() => s.openDossier(e.name)}
+            onClick={() => { setPicked(e.name); s.openDossier(e.name); }}
           >
             <i className={`kind-dot ${e.kind}`} />
             {e.name}

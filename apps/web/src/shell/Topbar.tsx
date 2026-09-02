@@ -49,6 +49,32 @@ export function Topbar() {
         <span className="qa-hook" data-testid="book-label">{book}</span>
         <input className="qa-hook" data-testid="intent" placeholder="本场任务" value={s.intent} onChange={(e) => s.setIntent(e.target.value)} />
         <input className="qa-hook" data-testid="place-id" placeholder="本场地点" value={s.placeId} onChange={(e) => s.setPlaceId(e.target.value)} />
+        <button className="qa-hook" data-testid="add-parallel" type="button" onClick={s.writeParallel}>在本列再写一场</button>
+        <button className="qa-hook" data-testid="add-column" type="button" onClick={s.addColumn}>加列</button>
+        <button className="qa-hook" data-testid="open-library" type="button" onClick={s.goLibrary}>设定库</button>
+        <button className="qa-hook" data-testid="open-cmd" type="button" onClick={() => s.setCmdOpen(true)}>/</button>
+        <select className="qa-hook" data-testid="person-lens" aria-label="只看谁" value={s.q.who || ""} onChange={(e) => s.setWho(e.target.value || null)}>
+          <option value="">只看某人</option>
+          {(s.state?.people || []).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+        </select>
+        <details className="qa-hook" id="look-menu" data-testid="look-menu"><summary>看法</summary></details>
+        <button className="qa-hook" type="button" data-look="进度" data-testid="open-progress" onClick={() => s.setLook("进度")}>支线进度</button>
+        <button className="qa-hook" type="button" data-look="轨迹" data-testid="open-track" onClick={() => s.setLook("轨迹")}>支线轨迹</button>
+        <button className="qa-hook" type="button" data-look="出场" data-testid="look-occupancy" onClick={() => s.setLook("出场")}>出场</button>
+        <button className="qa-hook" type="button" data-look="关系" data-testid="look-relations" onClick={() => s.setLook("关系")}>关系</button>
+        <button className="qa-hook" type="button" data-testid="open-whiteboard" onClick={() => s.setLook("白板")}>白板</button>
+        <details className="qa-hook" id="more-menu" data-testid="more-menu"><summary>更多</summary></details>
+        <button className="qa-hook" data-testid="remove-column" type="button" onClick={s.removeColumn}>减列</button>
+        <button className="qa-hook" data-testid="merge-columns" type="button" onClick={s.mergeColumns}>合并列</button>
+        <button className="qa-hook" data-testid="swap-columns" type="button" onClick={s.swapColumns}>换列位置</button>
+        <button className="qa-hook" data-testid="ellipsis" type="button" onClick={s.makeEllipsis}>省略场</button>
+        <button className="qa-hook" data-testid="occupancy" type="button" onClick={() => s.setLook("出场")}>出场</button>
+        <button className="qa-hook" data-testid="open-table" type="button" onClick={() => s.setLook("总表")}>总表</button>
+        <button className="qa-hook" data-testid="relations" type="button" onClick={() => s.setLook("关系")}>关系</button>
+        <button className="qa-hook" data-testid="reading-order" type="button" aria-pressed={s.state?.reading_order ? "true" : "false"} onClick={s.toggleReadingOrder}>按读序排</button>
+        <button className="qa-hook" data-testid="export" type="button" onClick={() => { s.setExportOpen(true); s.loadExport(s.exportIncludeDrafts); }}>导出</button>
+        <button className="qa-hook" data-testid="paste" type="button" onClick={() => s.setPasteOpen(true)}>丢一段草稿</button>
+        <button className="qa-hook" data-testid="plant-promise" type="button">埋伏笔</button>
       </span>
       <span className="brand">设定图</span>
       <ThemeToggle />
@@ -65,7 +91,7 @@ export function Topbar() {
       </select>
       <details className="book-menu" id="book-menu">
         <summary>书</summary>
-        <div className="book-menu-panel">
+        <div className="flyout book-menu-panel">
           <input placeholder="书名" value={name} onChange={(e) => setBookName(e.target.value)} />
           <button type="button" onClick={createBook}>创建书</button>
           <button type="button" onClick={openTyped}>打开书</button>
@@ -75,28 +101,36 @@ export function Topbar() {
         </div>
       </details>
 
-      <div className="seg window-widget" data-testid="window-widget" title="只改本页看几列，不加列，不写库">
-        <button data-testid="prev" type="button" aria-label="窗口往左一列" disabled={atStart} onClick={() => s.setWindow({ start: Math.max(0, start - 1) })}>‹</button>
-        <button data-testid="minus" type="button" aria-label="本页少显示一列" disabled={n <= 1} onClick={() => s.setWindow({ n: n - 1 })}>−</button>
-        <details className="n-menu">
-          <summary>
-            <span data-testid="col-count">{n}</span> 列
-            <span className="muted"> / {total}</span>
-          </summary>
-          {Array.from({ length: maxN }, (_, i) => i + 1).map((k) => (
-            <button
-              key={k}
-              type="button"
-              data-n={k}
-              onClick={() => s.setWindow({ n: k })}
-            >{k}{k === 2 ? " 疏" : k === 4 ? " 中" : k === 6 ? " 密" : ""}</button>
-          ))}
-        </details>
-        <button data-testid="plus" type="button" aria-label="本页多显示一列" disabled={n >= maxN} onClick={() => s.setWindow({ n: n + 1 })}>+</button>
-        <button data-testid="next" type="button" aria-label="窗口往右一列" disabled={atEnd} onClick={() => s.setWindow({ start: start + 1 })}>›</button>
-        <button data-testid="density-sparse" type="button" className={n === 2 ? "on" : ""} onClick={() => s.setWindow({ density: "sparse" })}>疏</button>
-        <button data-testid="density-mid" type="button" className={n === 4 ? "on" : ""} onClick={() => s.setWindow({ density: "mid" })}>中</button>
-        <button data-testid="density-dense" type="button" className={n === 6 ? "on" : ""} onClick={() => s.setWindow({ density: "dense" })}>密</button>
+      <div className="win-seg" data-testid="window-widget" title="只改本页看几列，不加列，不写库">
+        <div className="win-group">
+          <button data-testid="prev" type="button" aria-label="窗口往左一列" disabled={atStart} onClick={() => s.setWindow({ start: Math.max(0, start - 1) })}>‹</button>
+          <button data-testid="next" type="button" aria-label="窗口往右一列" disabled={atEnd} onClick={() => s.setWindow({ start: start + 1 })}>›</button>
+        </div>
+        <div className="win-group">
+          <button data-testid="minus" type="button" aria-label="本页少显示一列" disabled={n <= 1} onClick={() => s.setWindow({ n: n - 1 })}>−</button>
+          <details className="n-menu">
+            <summary>
+              <span data-testid="col-count">{n}</span>
+              <span className="muted">/{total}</span>
+            </summary>
+            <div className="flyout">
+              {Array.from({ length: maxN }, (_, i) => i + 1).map((k) => (
+                <button
+                  key={k}
+                  type="button"
+                  data-n={k}
+                  onClick={() => s.setWindow({ n: k })}
+                >{k}{k === 2 ? " 疏" : k === 4 ? " 中" : k === 6 ? " 密" : ""}</button>
+              ))}
+            </div>
+          </details>
+          <button data-testid="plus" type="button" aria-label="本页多显示一列" disabled={n >= maxN} onClick={() => s.setWindow({ n: n + 1 })}>+</button>
+        </div>
+        <div className="win-group">
+          <button data-testid="density-sparse" type="button" className={n === 2 ? "on" : ""} onClick={() => s.setWindow({ density: "sparse" })}>疏</button>
+          <button data-testid="density-mid" type="button" className={n === 4 ? "on" : ""} onClick={() => s.setWindow({ density: "mid" })}>中</button>
+          <button data-testid="density-dense" type="button" className={n === 6 ? "on" : ""} onClick={() => s.setWindow({ density: "dense" })}>密</button>
+        </div>
       </div>
       <button
         data-testid="write-next"
@@ -106,42 +140,33 @@ export function Topbar() {
         title={!s.intent.trim() ? "没有本场任务不准写下一场" : "写下一场"}
         onClick={s.writeNext}
       >写下一场</button>
-      <span className="topbar-cluster">
-        <button data-testid="add-parallel" type="button" onClick={s.writeParallel}>在本列再写一场</button>
-        <button data-testid="add-column" type="button" onClick={s.addColumn}>加列</button>
-      </span>
-      <details id="look-menu" data-testid="look-menu">
-        <summary>看法</summary>
-        <button type="button" data-look="进度" data-testid="open-progress" onClick={() => s.setLook("进度")}>支线进度</button>
-        <button type="button" data-look="轨迹" data-testid="open-track" onClick={() => s.setLook("轨迹")}>支线轨迹</button>
-        <button type="button" data-look="出场" data-testid="look-occupancy" onClick={() => s.setLook("出场")}>出场</button>
-        <button type="button" data-look="关系" data-testid="look-relations" onClick={() => s.setLook("关系")}>关系</button>
-        <button type="button" data-testid="open-whiteboard" onClick={() => s.setLook("白板")}>白板</button>
-      </details>
-      <button data-testid="open-library" type="button" onClick={s.goLibrary}>设定库</button>
-      <button data-testid="open-cmd" type="button" title="命令面板 ⌘K" onClick={() => s.setCmdOpen(true)}>/</button>
-      <select
-        data-testid="person-lens"
-        aria-label="只看谁"
-        value={s.q.who || ""}
-        onChange={(e) => s.setWho(e.target.value || null)}
-      >
-        <option value="">只看某人</option>
-        {(s.state?.people || []).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-      </select>
-      <details id="more-menu" data-testid="more-menu">
-        <summary>更多</summary>
-        <button data-testid="remove-column" type="button" onClick={s.removeColumn}>减列</button>
-        <button data-testid="merge-columns" type="button" onClick={s.mergeColumns}>合并列</button>
-        <button data-testid="swap-columns" type="button" onClick={s.swapColumns}>换列位置</button>
-        <button data-testid="ellipsis" type="button" onClick={s.makeEllipsis}>省略场</button>
-        <button data-testid="occupancy" type="button" onClick={() => s.setLook("出场")}>出场</button>
-        <button data-testid="open-table" type="button" onClick={() => s.setLook("总表")}>总表</button>
-        <button data-testid="relations" type="button" onClick={() => s.setLook("关系")}>关系</button>
-        <button data-testid="reading-order" type="button" aria-pressed={s.state?.reading_order ? "true" : "false"} onClick={s.toggleReadingOrder}>按读序排</button>
-        <button data-testid="export" type="button" onClick={() => { s.setExportOpen(true); s.loadExport(s.exportIncludeDrafts); }}>导出</button>
-        <button data-testid="paste" type="button" onClick={() => s.setPasteOpen(true)}>丢一段草稿</button>
-        <button data-testid="plant-promise" type="button">埋伏笔</button>
+      <details className="ops-menu">
+        <summary>⋯ 操作 ▾</summary>
+        <div className="flyout ops-menu-panel">
+          <button type="button" onClick={s.writeParallel}>在本列再写一场</button>
+          <button type="button" onClick={s.addColumn}>加列</button>
+          <button type="button" onClick={s.goLibrary}>设定库</button>
+          <button type="button" onClick={() => s.setLook("进度")}>支线进度</button>
+          <button type="button" onClick={() => s.setLook("轨迹")}>支线轨迹</button>
+          <button type="button" onClick={() => s.setLook("出场")}>出场</button>
+          <button type="button" onClick={() => s.setLook("关系")}>关系</button>
+          <button type="button" onClick={() => s.setLook("白板")}>白板</button>
+          <label className="muted">只看谁
+            <select value={s.q.who || ""} onChange={(e) => s.setWho(e.target.value || null)}>
+              <option value="">只看某人</option>
+              {(s.state?.people || []).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+          </label>
+          <button type="button" onClick={s.removeColumn}>减列</button>
+          <button type="button" onClick={s.mergeColumns}>合并列</button>
+          <button type="button" onClick={s.swapColumns}>换列位置</button>
+          <button type="button" onClick={s.makeEllipsis}>省略场</button>
+          <button type="button" onClick={() => s.setLook("总表")}>总表</button>
+          <button type="button" aria-pressed={s.state?.reading_order ? "true" : "false"} onClick={s.toggleReadingOrder}>按读序排</button>
+          <button type="button" onClick={() => { s.setExportOpen(true); s.loadExport(s.exportIncludeDrafts); }}>导出</button>
+          <button type="button" onClick={() => s.setPasteOpen(true)}>丢一段草稿</button>
+          <button type="button" onClick={() => s.setCmdOpen(true)}>/</button>
+        </div>
       </details>
       {book && (
         <span data-testid="thread-strip" className="thread-strip" tabIndex={-1} id="thread-strip">

@@ -72,7 +72,7 @@ export function ScenePage() {
       <div data-testid="moment-body" className="probe" aria-hidden="true">{clockProbe || sideRaw}</div>
       <div data-testid="knows-list" className="probe" aria-hidden="true">{JSON.stringify(s.state?.world?.knows || {})}</div>
 
-      <details className="acc acc-scene" open>
+      <details className="acc" open>
         <summary>场页</summary>
       <section data-testid="sit-blocks" className="sit-blocks">
         <div data-testid="sit-task"><strong>本场任务</strong> {s.intent || sit.intent || "还没有"}</div>
@@ -93,55 +93,6 @@ export function ScenePage() {
         <button type="button" data-testid="scene-side" onClick={() => s.setOpen("side")}>侧开</button>
         <button type="button" data-testid="scene-full" onClick={() => s.setOpen("full")}>整页</button>
       </div>
-      <div className="field">
-        {locked && <p className="muted">这场已是正史。要点「改这一场」才动。第几次写入正史不会重编号。</p>}
-        <label>场次 <input data-testid="scene-title" value={s.sceneTitle} readOnly={locked} onChange={(e) => s.setSceneTitle(e.target.value)} /></label>
-      </div>
-      <div className="field">
-        <div className="field-head"><span>价值转折</span><button type="button" data-testid="talk-shift" onClick={() => s.runTalk("value_shift", s.valueShift)}>讨论</button></div>
-        <input data-testid="value-shift" value={s.valueShift} readOnly={locked} onChange={(e) => s.setValueShift(e.target.value)} placeholder="价值转折" />
-      </div>
-      <div data-testid="tracks" />
-      <GrowField label="动作" testid="do-text" talkId="talk-do" field="do_text" value={s.doText} onChange={s.setDoText} ents={ents} locked={locked} />
-      <GrowField label="对白" testid="say-text" talkId="talk-say" field="say_text" value={s.sayText} onChange={s.setSayText} ents={ents} locked={locked} />
-      <GrowField label="内心" testid="think-text" talkId="talk-think" field="think_text" value={s.thinkText} onChange={s.setThinkText} ents={ents} locked={locked} />
-      <span className={`save-dot${s.saveStatus === "保存中" ? " saving" : s.saveStatus === "已存" ? " saved" : ""}`} data-testid="save-dot">{s.saveStatus}</span>
-      <div data-testid="knowledge-warn" className={yellow ? "" : "hidden"}>{yellow ? "有标黄，仍可写入正史" : ""}</div>
-      {(s.discussOpen || s.discussDraft) && (
-        <div data-testid="discuss-panel">
-          <p className="muted">正在讨论：{FIELD_LABEL[s.talkPending?.field || ""] || s.talkPending?.field || "这一格"} · {scene?.intent || ""}</p>
-          <p className="muted">讨论不是历史</p>
-          <div data-testid="discuss-draft">{s.discussDraft}</div>
-          {s.fillChunks && (
-            <div className="fill-chunks">
-              {s.fillChunks.do_text && <button type="button" data-testid="fill-apply-do" onClick={() => s.applyFillPart("do_text")}>用动作</button>}
-              {s.fillChunks.say_text && <button type="button" data-testid="fill-apply-say" onClick={() => s.applyFillPart("say_text")}>用对白</button>}
-              {s.fillChunks.think_text && <button type="button" data-testid="fill-apply-think" onClick={() => s.applyFillPart("think_text")}>用内心</button>}
-            </div>
-          )}
-          <button data-testid="write-box" type="button" disabled={!s.talkPending && !s.fillPending} onClick={s.writeBox}>写入此框</button>
-        </div>
-      )}
-      <button data-testid="talk" type="button" onClick={() => s.runTalk("intent", s.intent)}>讨论</button>
-      <PlanBlock />
-      <button data-testid="fill-fake" type="button" disabled={!s.intent.trim()} title={!s.intent.trim() ? "先写一行本场任务" : "模型填这一场"} onClick={s.fillFake}>假模型填场</button>
-      <p className="muted" data-testid="commit-why">{s.committing ? "正在写入…" : commitWhy}</p>
-      <button
-        data-testid="commit"
-        className={`primary${yellow ? " warn" : ""}`}
-        type="button"
-        disabled={commitDisabled}
-        title={commitWhy}
-        onClick={s.commit}
-      >{s.committing ? "正在写入…" : "写入正史"}</button>
-      <button
-        data-testid="revise"
-        type="button"
-        disabled={!canon}
-        onClick={() => { if (s.editingCanon) s.revise(); else s.setEditingCanon(true); }}
-      >{s.editingCanon ? "写入这次改动" : "改这一场"}</button>
-      <div data-testid="revise-msg">{s.reviseMsg}</div>
-      <button data-testid="delete-canon" type="button" disabled={!canon} onClick={s.deleteCanon}>删已正史</button>
       </details>
 
       <details className="acc" open>
@@ -208,6 +159,55 @@ export function ScenePage() {
       <KnowBlock people={peopleHere} ents={ents} knows={knows} deltas={deltas} />
       <PromiseBlock pops={pops} />
       </details>
+      <div className="field">
+        {locked && <p className="muted">这场已是正史。要点「改这一场」才动。第几次写入正史不会重编号。</p>}
+        <label>场次 <input data-testid="scene-title" value={s.sceneTitle} readOnly={locked} onChange={(e) => s.setSceneTitle(e.target.value)} /></label>
+      </div>
+      <div className="field">
+        <div className="field-head"><span>价值转折</span><button type="button" data-testid="talk-shift" onClick={() => s.runTalk("value_shift", s.valueShift)}>讨论</button></div>
+        <input data-testid="value-shift" value={s.valueShift} readOnly={locked} onChange={(e) => s.setValueShift(e.target.value)} placeholder="价值转折" />
+      </div>
+      <div data-testid="tracks" />
+      <GrowField label="动作" testid="do-text" talkId="talk-do" field="do_text" value={s.doText} onChange={s.setDoText} ents={ents} locked={locked} />
+      <GrowField label="对白" testid="say-text" talkId="talk-say" field="say_text" value={s.sayText} onChange={s.setSayText} ents={ents} locked={locked} />
+      <GrowField label="内心" testid="think-text" talkId="talk-think" field="think_text" value={s.thinkText} onChange={s.setThinkText} ents={ents} locked={locked} />
+      <span className={`save-dot${s.saveStatus === "保存中" ? " saving" : s.saveStatus === "已存" ? " saved" : ""}`} data-testid="save-dot">{s.saveStatus}</span>
+      <div data-testid="knowledge-warn" className={yellow ? "" : "hidden"}>{yellow ? "有标黄，仍可写入正史" : ""}</div>
+      {(s.discussOpen || s.discussDraft) && (
+        <div data-testid="discuss-panel">
+          <p className="muted">正在讨论：{FIELD_LABEL[s.talkPending?.field || ""] || s.talkPending?.field || "这一格"} · {scene?.intent || ""}</p>
+          <p className="muted">讨论不是历史</p>
+          <div data-testid="discuss-draft">{s.discussDraft}</div>
+          {s.fillChunks && (
+            <div className="fill-chunks">
+              {s.fillChunks.do_text && <button type="button" data-testid="fill-apply-do" onClick={() => s.applyFillPart("do_text")}>用动作</button>}
+              {s.fillChunks.say_text && <button type="button" data-testid="fill-apply-say" onClick={() => s.applyFillPart("say_text")}>用对白</button>}
+              {s.fillChunks.think_text && <button type="button" data-testid="fill-apply-think" onClick={() => s.applyFillPart("think_text")}>用内心</button>}
+            </div>
+          )}
+          <button data-testid="write-box" type="button" disabled={!s.talkPending && !s.fillPending} onClick={s.writeBox}>写入此框</button>
+        </div>
+      )}
+      <button data-testid="talk" type="button" onClick={() => s.runTalk("intent", s.intent)}>讨论</button>
+      <PlanBlock />
+      <button data-testid="fill-fake" type="button" disabled={!s.intent.trim()} title={!s.intent.trim() ? "先写一行本场任务" : "模型填这一场"} onClick={s.fillFake}>假模型填场</button>
+      <p className="muted" data-testid="commit-why">{s.committing ? "正在写入…" : commitWhy}</p>
+      <button
+        data-testid="commit"
+        className={`primary${yellow ? " warn" : ""}`}
+        type="button"
+        disabled={commitDisabled}
+        title={commitWhy}
+        onClick={s.commit}
+      >{s.committing ? "正在写入…" : "写入正史"}</button>
+      <button
+        data-testid="revise"
+        type="button"
+        disabled={!canon}
+        onClick={() => { if (s.editingCanon) s.revise(); else s.setEditingCanon(true); }}
+      >{s.editingCanon ? "写入这次改动" : "改这一场"}</button>
+      <div data-testid="revise-msg">{s.reviseMsg}</div>
+      <button data-testid="delete-canon" type="button" disabled={!canon} onClick={s.deleteCanon}>删已正史</button>
       {s.presencePicker && (
         <div>
           {ents.filter((e) => e.kind === "person").map((e) => (

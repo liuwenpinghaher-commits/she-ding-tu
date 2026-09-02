@@ -498,9 +498,9 @@ details summary { cursor: pointer; }
   border-radius: var(--radius-1);
   padding: 0 var(--space-2) var(--space-2);
 }
-.acc-scene[open] {
-  max-height: 38vh;
-  overflow: auto;
+.acc-nested {
+  background: var(--bg-panel);
+  margin: var(--space-2) 0;
 }
 .acc > summary {
   font-weight: 600;

@@ -122,7 +122,7 @@ export function setConstraint(book: string, laterId: string, earlierId: string |
   return next;
 }
 
-export type NarFolder = { id: string; title: string; sceneIds: string[] };
+export type NarFolder = { id: string; title: string; sceneIds: string[]; kind?: "act" | "chapter" };
 
 export function loadFolders(book: string): NarFolder[] {
   return loadJson<NarFolder[]>(folderKey(book), []);

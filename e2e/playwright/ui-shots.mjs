@@ -56,6 +56,14 @@ await openTab("轨迹");
 await page.getByTestId("look-track").waitFor();
 await page.screenshot({ path: path.join(outDir, "08-subway.png") });
 
+await openTab("讲述序");
+await page.getByTestId("narrative-view").waitFor();
+await page.screenshot({ path: path.join(outDir, "09-narrative.png") });
+
+await openTab("白板");
+await page.getByTestId("whiteboard").waitFor();
+await page.screenshot({ path: path.join(outDir, "10-whiteboard.png") });
+
 await openTab("时间轴");
 await page.getByTestId("theme-toggle").click();
 await page.waitForTimeout(200);

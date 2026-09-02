@@ -87,6 +87,8 @@ export interface Store {
   followDependents: boolean;
   tabFilter: TabFilter | null;
   setTabFilter: (f: TabFilter | null) => void;
+  splitFilter: TabFilter | null;
+  setSplitFilter: (f: TabFilter | null) => void;
   splitLock: boolean;
   setSplitLock: (v: boolean) => void;
   leftKind: string | null;
@@ -270,6 +272,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   };
   const [followDependents, setFollowDependentsState] = useState(true);
   const [tabFilter, setTabFilter] = useState<TabFilter | null>(null);
+  const [splitFilter, setSplitFilter] = useState<TabFilter | null>(null);
   const [splitLock, setSplitLock] = useState(false);
   const [leftKind, setLeftKind] = useState<string | null>(null);
   const [toast, setToast] = useState("");
@@ -1304,9 +1307,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [intent, placeId, refresh, writeClock]);
 
   const reorderTelling = useCallback(async (fromId: string, toIndex: number) => {
-    await api("/api/telling", { method: "POST", body: JSON.stringify({ beat_id: fromId, telling_ord: toIndex + 1 }) });
+    const draft = (state?.drafts || []).some((d) => d.id === fromId);
+    const ord = toIndex + 1;
+    if (draft) {
+      await api("/api/drafts/patch", { method: "POST", body: JSON.stringify({ id: fromId, telling_ord: ord }) });
+    } else {
+      await api("/api/telling", { method: "POST", body: JSON.stringify({ beat_id: fromId, telling_ord: ord }) });
+    }
     await refresh();
-  }, [refresh]);
+  }, [refresh, state?.drafts]);
 
   const batchTelling = useCallback(async (ids: string[]) => {
     const all = [...(state?.committed || []).map(asScene), ...(state?.drafts || []).map(asDraftScene)];
@@ -1657,6 +1666,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     splitTab: isWorkspaceTab(q.split) ? q.split : null,
     followDependents,
     tabFilter,
+    splitFilter,
     splitLock,
     leftKind,
     line: q.line,
@@ -1732,6 +1742,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setSplit,
     setFollowDependents,
     setTabFilter,
+    setSplitFilter,
     setSplitLock,
     setLeftKind,
     setLine,

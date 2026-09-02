@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "../state/store";
+import { usePane } from "./PaneCtx";
 import { formatClock } from "../lenses/window";
 import { extraCount, isThinCard, personOnScene, primaryThread, threadColor } from "../lenses/threads";
 import {
@@ -58,9 +59,11 @@ export function TimelineView() {
   const craft = s.state?.craft;
   const ents = s.state?.all_entities || s.state?.entities || [];
   const catalog = s.state?.threads || [];
-  const who = s.tabFilter?.who || s.q.who;
-  const line = s.tabFilter?.line || s.q.line;
-  const status = s.tabFilter?.status || statusFilter;
+  const paneId = usePane();
+  const paneFilter = paneId === "split" ? s.splitFilter : s.tabFilter;
+  const who = paneFilter?.who || s.q.who;
+  const line = paneFilter?.line || s.q.line;
+  const status = paneFilter?.status || statusFilter;
 
   const scenes = useMemo(() => {
     return s.scenes.filter((sc) => {
@@ -72,7 +75,7 @@ export function TimelineView() {
       }
       return true;
     });
-  }, [s.scenes, status, who, line, ents, catalog]);
+  }, [s.scenes, status, who, line, ents, catalog, paneFilter]);
 
   const span = useMemo(() => {
     const clocks = [

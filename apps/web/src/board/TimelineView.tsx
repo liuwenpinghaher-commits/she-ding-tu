@@ -52,7 +52,7 @@ export function TimelineView() {
   const [cardLines, setCardLines] = useState(2);
   const [showPlace, setShowPlace] = useState(true);
   const measureFrom = useRef<number | null>(null);
-  const lastDragStart = useRef(0);
+  const draggingNow = useRef(false);
   const book = s.state?.book || "";
   const cols = s.state?.columns || [];
   const craft = s.state?.craft;
@@ -239,9 +239,7 @@ export function TimelineView() {
 
   const startMove = (e: React.PointerEvent | React.MouseEvent, sc: SceneCard, edge?: "from" | "to") => {
     if ((e.target as HTMLElement).closest("button, .tl-tools")) return;
-    const now = performance.now();
-    if (now - lastDragStart.current < 80) return;
-    lastDragStart.current = now;
+    if (draggingNow.current) return;
     e.preventDefault();
     e.stopPropagation();
     if (e.altKey && e.shiftKey) {
@@ -259,6 +257,7 @@ export function TimelineView() {
       void s.selectScene(sc.id, sc.draft);
       return;
     }
+    draggingNow.current = true;
     const startX = e.clientX;
     const origFrom = sc.clock_from;
     const origTo = sc.clock_to;
@@ -287,6 +286,7 @@ export function TimelineView() {
     const onUp = (ev: { clientX: number; clientY: number; shiftKey: boolean }) => {
       if (finished) return;
       finished = true;
+      draggingNow.current = false;
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
       window.removeEventListener("mousemove", onMove);
@@ -451,9 +451,15 @@ export function TimelineView() {
           type="button"
           data-testid="tl-from-to"
           onClick={() => {
-            const a = Number(fromRaw);
-            const b = Number(toRaw);
+            let a = Number(fromRaw);
+            let b = Number(toRaw);
             if (!Number.isFinite(a) || !Number.isFinite(b)) return;
+            if (a === b) b = a + 60;
+            if (a > b) {
+              const t = a;
+              a = b;
+              b = t;
+            }
             setVp(viewportFromTo(a, b, vp.width));
           }}
         >套上</button>
@@ -626,8 +632,8 @@ export function TimelineView() {
                   )}
                   <div className="tl-tools">
                     <button type="button" data-testid={`tl-copy-${sc.id}`} onMouseDown={(e) => e.stopPropagation()} onClick={() => s.createNear(sc.id, "copy")}>复制</button>
-                    <button type="button" onMouseDown={(e) => e.stopPropagation()} onClick={() => s.createNear(sc.id, "above")}>在上建</button>
-                    <button type="button" onMouseDown={(e) => e.stopPropagation()} onClick={() => s.createNear(sc.id, "below")}>在下建</button>
+                    <button type="button" data-testid={`tl-above-${sc.id}`} onMouseDown={(e) => e.stopPropagation()} onClick={() => s.createNear(sc.id, "above")}>在上建</button>
+                    <button type="button" data-testid={`tl-below-${sc.id}`} onMouseDown={(e) => e.stopPropagation()} onClick={() => s.createNear(sc.id, "below")}>在下建</button>
                     <button type="button" data-testid={`tl-lock-${sc.id}`} onMouseDown={(e) => e.stopPropagation()} onClick={() => { toggleLock(book, sc.id); setTick((x) => x + 1); }}>{locked ? "解锁" : "锁定"}</button>
                   </div>
                   {dragN != null && on && <span className="tl-follow-n" data-testid="tl-follow-n">还将移动 {dragN} 场</span>}

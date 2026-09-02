@@ -399,7 +399,7 @@ textarea.grow { min-height: 4.5em; }
   box-shadow: 0 1px 2px var(--shadow); cursor: pointer; z-index: 3;
   touch-action: none;
 }
-.tl-bar .band { height: 6px; width: 100%; bottom: auto; }
+.tl-bar .band { height: 6px; width: 100%; bottom: auto; pointer-events: none; }
 .tl-bar.selected { border-color: var(--accent); background: var(--accent-fill); }
 .tl-bar.draft { border-style: dashed; }
 .tl-bar-title { padding: 8px 8px 2px; font-weight: 600; font-size: 13px; display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden; }

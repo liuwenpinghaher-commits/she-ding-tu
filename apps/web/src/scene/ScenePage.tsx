@@ -384,7 +384,7 @@ function GrowField({
   const s = useStore();
   const rows = Math.max(3, value.split("\n").length);
   return (
-    <div className="field" style={{ position: "relative" }}>
+    <div className="field">
       <div className="field-head">
         <span>{label}</span>
         <button type="button" data-testid={talkId} onClick={() => s.runTalk(field, value)}>讨论</button>

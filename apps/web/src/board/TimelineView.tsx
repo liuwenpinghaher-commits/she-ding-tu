@@ -658,7 +658,7 @@ export function TimelineView() {
           </div>
           );
         })}
-        {scenes.length === 0 && <p className="muted" style={{ padding: 24 }}>还没有场。双击空白处建草稿。</p>}
+        {scenes.length === 0 && <p className="muted" style={{ padding: "var(--space-5)" }}>还没有场。双击空白处建草稿。</p>}
         {measure && (
           <div className="tl-measure" data-testid="tl-measure" style={{ left: measurePos.x, top: 8 }}>{measure}</div>
         )}

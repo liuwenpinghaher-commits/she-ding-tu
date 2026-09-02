@@ -400,7 +400,7 @@ dialog[open] {
   box-shadow: var(--shadow-2);
 }
 .dialog h3, dialog h3 { font-size: var(--text-title); font-weight: 600; margin: 0 0 var(--space-3); }
-.field { display: flex; flex-direction: column; gap: var(--space-1); margin-bottom: var(--space-2); }
+.field { display: flex; flex-direction: column; gap: var(--space-1); margin-bottom: var(--space-2); position: relative; }
 .grow { min-height: 72px; resize: vertical; width: 100%; }
 .ent { display: flex; align-items: center; gap: 6px; padding: var(--space-1) 0; cursor: grab; }
 .chip { display: inline-block; padding: 1px 6px; margin: 2px; background: var(--bg-subtle); border-radius: 10px; cursor: grab; }

@@ -94,6 +94,10 @@ export function ScenePage() {
         <button type="button" data-testid="scene-full" onClick={() => s.setOpen("full")}>整页</button>
       </div>
       <div className="field">
+        <label>本场任务 <input value={s.intent} onChange={(e) => s.setIntent(e.target.value)} placeholder="本场任务" /></label>
+        <label>本场地点 <input value={s.placeId} onChange={(e) => s.setPlaceId(e.target.value)} placeholder="本场地点" /></label>
+      </div>
+      <div className="field">
         {locked && <p className="muted">这场已是正史。要点「改这一场」才动。第几次写入正史不会重编号。</p>}
         <label>场次 <input data-testid="scene-title" value={s.sceneTitle} readOnly={locked} onChange={(e) => s.setSceneTitle(e.target.value)} /></label>
       </div>

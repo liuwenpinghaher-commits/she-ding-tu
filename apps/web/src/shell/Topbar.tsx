@@ -46,10 +46,12 @@ export function Topbar() {
         <button className="qa-hook" data-testid="open-shelf" type="button" onClick={s.goShelf}>书架</button>
         <button className="qa-hook" data-testid="open-craft" type="button" disabled={!book} onClick={() => s.setCraftOpen(true)}>书页</button>
         <button className="qa-hook" data-testid="open-settings" type="button" disabled={!book} onClick={s.goSettings}>书的设定</button>
+        <span className="qa-hook" data-testid="book-label">{book}</span>
+        <input className="qa-hook" data-testid="intent" placeholder="本场任务" value={s.intent} onChange={(e) => s.setIntent(e.target.value)} />
+        <input className="qa-hook" data-testid="place-id" placeholder="本场地点" value={s.placeId} onChange={(e) => s.setPlaceId(e.target.value)} />
       </span>
       <span className="brand">设定图</span>
       <ThemeToggle />
-      <span className="muted">›</span>
       <select
         data-testid="book-list"
         aria-label="切换书"
@@ -61,7 +63,6 @@ export function Topbar() {
           <option key={b} value={b}>{b}</option>
         ))}
       </select>
-      <span data-testid="book-label" className="muted nowrap">{book}</span>
       <details className="book-menu" id="book-menu">
         <summary>书</summary>
         <div className="book-menu-panel">
@@ -74,7 +75,7 @@ export function Topbar() {
         </div>
       </details>
 
-      <div className="window-widget" data-testid="window-widget" title="只改本页看几列，不加列，不写库">
+      <div className="seg window-widget" data-testid="window-widget" title="只改本页看几列，不加列，不写库">
         <button data-testid="prev" type="button" aria-label="窗口往左一列" disabled={atStart} onClick={() => s.setWindow({ start: Math.max(0, start - 1) })}>‹</button>
         <button data-testid="minus" type="button" aria-label="本页少显示一列" disabled={n <= 1} onClick={() => s.setWindow({ n: n - 1 })}>−</button>
         <details className="n-menu">
@@ -97,9 +98,6 @@ export function Topbar() {
         <button data-testid="density-mid" type="button" className={n === 4 ? "on" : ""} onClick={() => s.setWindow({ density: "mid" })}>中</button>
         <button data-testid="density-dense" type="button" className={n === 6 ? "on" : ""} onClick={() => s.setWindow({ density: "dense" })}>密</button>
       </div>
-
-      <input data-testid="intent" placeholder="本场任务" value={s.intent} onChange={(e) => s.setIntent(e.target.value)} />
-      <input data-testid="place-id" placeholder="本场地点" value={s.placeId} onChange={(e) => s.setPlaceId(e.target.value)} />
       <button
         data-testid="write-next"
         className="primary"

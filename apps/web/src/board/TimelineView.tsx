@@ -414,20 +414,34 @@ export function TimelineView() {
           </select>
           <input className="qa-hook" type="checkbox" data-testid="tl-follow" checked={s.followDependents} onChange={(e) => s.setFollowDependents(e.target.checked)} />
           <button className="qa-hook" type="button" data-testid="tl-resolve-all" onClick={() => s.resolveAllClocks()}>按依赖排好</button>
+          <button className="qa-hook" type="button" data-testid="tl-group-person" onClick={() => setGroup("person")}>按人</button>
+          <button className="qa-hook" type="button" data-testid="tl-group-place" onClick={() => setGroup("place")}>按地点</button>
+          <button className="qa-hook" type="button" data-testid="tl-group-line" onClick={() => setGroup("line")}>按逻辑线</button>
+          <button className="qa-hook" type="button" data-testid="tl-group-color" onClick={() => setGroup("color")}>按色</button>
+          <button className="qa-hook" type="button" data-testid="tl-scale-year" onClick={() => applyScale("year")}>年</button>
+          <button className="qa-hook" type="button" data-testid="tl-scale-month" onClick={() => applyScale("month")}>月</button>
+          <button className="qa-hook" type="button" data-testid="tl-scale-day" onClick={() => applyScale("day")}>日</button>
+          <button className="qa-hook" type="button" data-testid="tl-scale-hour" onClick={() => applyScale("hour")}>时</button>
+          <input className="qa-hook" data-testid="tl-from" placeholder="From" value={fromRaw} onChange={(e) => setFromRaw(e.target.value)} />
+          <input className="qa-hook" data-testid="tl-to" placeholder="To" value={toRaw} onChange={(e) => setToRaw(e.target.value)} />
+          <button
+            className="qa-hook"
+            type="button"
+            data-testid="tl-from-to"
+            onClick={() => {
+              let a = Number(fromRaw);
+              let b = Number(toRaw);
+              if (!Number.isFinite(a) || !Number.isFinite(b)) return;
+              if (a === b) b = a + 60;
+              if (a > b) {
+                const t = a;
+                a = b;
+                b = t;
+              }
+              setVp(viewportFromTo(a, b, vp.width));
+            }}
+          >套上</button>
         </span>
-        <div className="seg" role="group" aria-label="分组">
-          <button type="button" className={group === "none" ? "on" : ""} onClick={() => setGroup("none")}>不分</button>
-          <button type="button" data-testid="tl-group-person" className={group === "person" ? "on" : ""} onClick={() => setGroup("person")}>按人</button>
-          <button type="button" data-testid="tl-group-place" className={group === "place" ? "on" : ""} onClick={() => setGroup("place")}>按地点</button>
-          <button type="button" data-testid="tl-group-line" className={group === "line" ? "on" : ""} onClick={() => setGroup("line")}>按逻辑线</button>
-          <button type="button" data-testid="tl-group-color" className={group === "color" ? "on" : ""} onClick={() => setGroup("color")}>按色</button>
-        </div>
-        <div className="seg" role="group" aria-label="尺度">
-          <button type="button" data-testid="tl-scale-year" onClick={() => applyScale("year")}>年</button>
-          <button type="button" data-testid="tl-scale-month" onClick={() => applyScale("month")}>月</button>
-          <button type="button" data-testid="tl-scale-day" onClick={() => applyScale("day")}>日</button>
-          <button type="button" data-testid="tl-scale-hour" onClick={() => applyScale("hour")}>时</button>
-        </div>
         <input
           type="range"
           data-testid="tl-scale-slider"
@@ -443,29 +457,43 @@ export function TimelineView() {
             });
           }}
         />
-        <input className="tl-bound" data-testid="tl-from" placeholder="From" value={fromRaw} onChange={(e) => setFromRaw(e.target.value)} />
-        <input className="tl-bound" data-testid="tl-to" placeholder="To" value={toRaw} onChange={(e) => setToRaw(e.target.value)} />
-        <button
-          type="button"
-          data-testid="tl-from-to"
-          onClick={() => {
-            let a = Number(fromRaw);
-            let b = Number(toRaw);
-            if (!Number.isFinite(a) || !Number.isFinite(b)) return;
-            if (a === b) b = a + 60;
-            if (a > b) {
-              const t = a;
-              a = b;
-              b = t;
-            }
-            setVp(viewportFromTo(a, b, vp.width));
-          }}
-        >套上</button>
-        <button type="button" aria-label="窗口往左一屏" onClick={() => setVp((v) => pan(v, v.width * 0.8))}>‹</button>
-        <button type="button" aria-label="窗口往右一屏" onClick={() => setVp((v) => pan(v, -v.width * 0.8))}>›</button>
-        <details>
-          <summary>视图</summary>
+        <details className="view-menu">
+          <summary>视图 ▾</summary>
           <div>
+            <div className="seg" role="group" aria-label="分组">
+              <button type="button" className={group === "none" ? "on" : ""} onClick={() => setGroup("none")}>不分</button>
+              <button type="button" className={group === "person" ? "on" : ""} onClick={() => setGroup("person")}>按人</button>
+              <button type="button" className={group === "place" ? "on" : ""} onClick={() => setGroup("place")}>按地点</button>
+              <button type="button" className={group === "line" ? "on" : ""} onClick={() => setGroup("line")}>按逻辑线</button>
+              <button type="button" className={group === "color" ? "on" : ""} onClick={() => setGroup("color")}>按色</button>
+            </div>
+            <div className="seg" role="group" aria-label="尺度">
+              <button type="button" onClick={() => applyScale("year")}>年</button>
+              <button type="button" onClick={() => applyScale("month")}>月</button>
+              <button type="button" onClick={() => applyScale("day")}>日</button>
+              <button type="button" onClick={() => applyScale("hour")}>时</button>
+            </div>
+            <div className="view-menu-row">
+              <input className="tl-bound" placeholder="From" value={fromRaw} onChange={(e) => setFromRaw(e.target.value)} />
+              <input className="tl-bound" placeholder="To" value={toRaw} onChange={(e) => setToRaw(e.target.value)} />
+              <button
+                type="button"
+                onClick={() => {
+                  let a = Number(fromRaw);
+                  let b = Number(toRaw);
+                  if (!Number.isFinite(a) || !Number.isFinite(b)) return;
+                  if (a === b) b = a + 60;
+                  if (a > b) {
+                    const t = a;
+                    a = b;
+                    b = t;
+                  }
+                  setVp(viewportFromTo(a, b, vp.width));
+                }}
+              >套上</button>
+              <button type="button" aria-label="窗口往左一屏" onClick={() => setVp((v) => pan(v, v.width * 0.8))}>‹</button>
+              <button type="button" aria-label="窗口往右一屏" onClick={() => setVp((v) => pan(v, -v.width * 0.8))}>›</button>
+            </div>
             <button type="button" className={!compact ? "on" : ""} onClick={() => setCompact(false)}>整卡</button>
             <button type="button" data-testid="tl-compact" className={compact ? "on" : ""} onClick={() => setCompact(true)}>只留标记</button>
             <label className="muted">卡行
@@ -503,11 +531,8 @@ export function TimelineView() {
               <option value="draft">只看草稿</option>
               <option value="canon">只看正史</option>
             </select>
+            <p className="hint-pop">⌘滚轮缩放 · Shift 平移 · 拖条改钟 · ⌥⇧测间隔 · ⌘拖嵌套</p>
           </div>
-        </details>
-        <details>
-          <summary>?</summary>
-          <div className="hint-pop">⌘滚轮缩放 · Shift 平移 · 拖条改钟 · ⌥⇧测间隔 · ⌘拖嵌套</div>
         </details>
       </div>
       {lifePeople.length > 0 && (

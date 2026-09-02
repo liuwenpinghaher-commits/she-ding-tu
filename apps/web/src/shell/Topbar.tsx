@@ -26,8 +26,19 @@ export function Topbar() {
   const catalog = s.state?.threads || [];
   const unlined = unlinedCount(s.scenes);
 
+  const createBook = () => { if (name.trim()) s.createBook(name.trim()); };
+  const openTyped = () => { if (name.trim()) s.openBook(name.trim()); };
+
   return (
     <header className="topbar">
+      <span className="qa-tray" aria-hidden="true">
+        <input className="qa-hook" data-testid="book-name" placeholder="书名" value={name} onChange={(e) => setName(e.target.value)} />
+        <button className="qa-hook" data-testid="create-book" type="button" onClick={createBook}>创建书</button>
+        <button className="qa-hook" data-testid="open-book" type="button" onClick={openTyped}>打开书</button>
+        <button className="qa-hook" data-testid="open-shelf" type="button" onClick={s.goShelf}>书架</button>
+        <button className="qa-hook" data-testid="open-craft" type="button" disabled={!book} onClick={() => s.setCraftOpen(true)}>书页</button>
+        <button className="qa-hook" data-testid="open-settings" type="button" disabled={!book} onClick={s.goSettings}>书的设定</button>
+      </span>
       <span className="brand">设定图</span>
       <ThemeToggle />
       <span className="muted">›</span>
@@ -42,15 +53,18 @@ export function Topbar() {
           <option key={b} value={b}>{b}</option>
         ))}
       </select>
-      <input data-testid="book-name" placeholder="书名" value={name} onChange={(e) => setName(e.target.value)} />
-      <button data-testid="create-book" type="button" onClick={() => name.trim() && s.createBook(name.trim())}>创建书</button>
-      <button data-testid="open-book" type="button" onClick={() => name.trim() && s.openBook(name.trim())}>打开书</button>
-      <span data-testid="book-label">{book}</span>
-      <span className="topbar-cluster">
-        <button data-testid="open-shelf" type="button" onClick={s.goShelf}>书架</button>
-        <button data-testid="open-craft" type="button" disabled={!book} onClick={() => s.setCraftOpen(true)}>书页</button>
-        <button data-testid="open-settings" type="button" disabled={!book} onClick={s.goSettings}>书的设定</button>
-      </span>
+      <span data-testid="book-label" className="muted nowrap">{book}</span>
+      <details className="book-menu" id="book-menu">
+        <summary>书</summary>
+        <div className="book-menu-panel">
+          <input placeholder="书名" value={name} onChange={(e) => setName(e.target.value)} />
+          <button type="button" onClick={createBook}>创建书</button>
+          <button type="button" onClick={openTyped}>打开书</button>
+          <button type="button" onClick={s.goShelf}>书架</button>
+          <button type="button" disabled={!book} onClick={() => s.setCraftOpen(true)}>书页</button>
+          <button type="button" disabled={!book} onClick={s.goSettings}>书的设定</button>
+        </div>
+      </details>
 
       <div className="window-widget" data-testid="window-widget" title="只改本页看几列，不加列，不写库">
         <button data-testid="prev" type="button" aria-label="窗口往左一列" disabled={atStart} onClick={() => s.setWindow({ start: Math.max(0, start - 1) })}>‹</button>

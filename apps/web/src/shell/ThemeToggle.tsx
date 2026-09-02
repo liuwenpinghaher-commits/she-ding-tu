@@ -15,6 +15,7 @@ export function ThemeToggle() {
   return (
     <button
       type="button"
+      className="theme-toggle"
       data-testid="theme-toggle"
       aria-pressed={light ? "true" : "false"}
       aria-label={light ? "切到暗色主题" : "切到亮色主题"}

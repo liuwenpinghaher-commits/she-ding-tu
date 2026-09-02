@@ -82,22 +82,6 @@ export function ScenePage() {
         <div data-testid="sit-reader"><strong>读者账</strong> {[...sit.reader_knows, ...sit.reader_irony].slice(0, 8).join("；") || "还没有"}</div>
         <div data-testid="sit-promises"><strong>未收伏笔</strong> {sit.open_promises.length ? sit.open_promises.map((p) => p.name).join("、") : "没有未收的"}</div>
       </section>
-      {scene && (
-        <div data-testid="scene-clock" className="muted">
-          {formatClock(scene.clock_from, craft?.clock_origin_label, craft?.clock_origin_minute, craft?.clock_format)}
-          {" – "}
-          {formatClock(scene.clock_to, craft?.clock_origin_label, craft?.clock_origin_minute, craft?.clock_format)}
-          <label className="follow-toggle">
-            <input
-              type="checkbox"
-              data-testid="clock-lock"
-              checked={isLocked(s.state?.book || "", scene.id)}
-              onChange={() => { toggleLock(s.state?.book || "", scene.id); setLockTick((n) => n + 1); }}
-            />
-            日期锁定
-          </label>
-        </div>
-      )}
       {!ignoreSug && (
         <div data-testid="promise-suggest">
           建议本场对伏笔做哪一件
@@ -162,6 +146,22 @@ export function ScenePage() {
 
       <details className="acc" open>
         <summary>时间</summary>
+      {scene && (
+        <div data-testid="scene-clock" className="muted">
+          {formatClock(scene.clock_from, craft?.clock_origin_label, craft?.clock_origin_minute, craft?.clock_format)}
+          {" – "}
+          {formatClock(scene.clock_to, craft?.clock_origin_label, craft?.clock_origin_minute, craft?.clock_format)}
+          <label className="follow-toggle">
+            <input
+              type="checkbox"
+              data-testid="clock-lock"
+              checked={isLocked(s.state?.book || "", scene.id)}
+              onChange={() => { toggleLock(s.state?.book || "", scene.id); setLockTick((n) => n + 1); }}
+            />
+            日期锁定
+          </label>
+        </div>
+      )}
       {scene && <ColorBlock book={s.state?.book || ""} sceneId={scene.id} onChange={() => setLockTick((n) => n + 1)} />}
       {scene && (
         <GapBlock

@@ -403,6 +403,18 @@ export function TimelineView() {
   return (
     <div className="timeline-view" data-testid="timeline" ref={wrap}>
       <div className="view-header">
+        <span className="qa-tray" aria-hidden="true">
+          <button className="qa-hook" type="button" data-testid="tl-scale-book" onClick={() => setVp(defaultViewport(span.min, span.max, vp.width))}>全书</button>
+          <button className="qa-hook" type="button" data-testid="tl-life" onClick={() => setShowLife((v) => !v)}>寿命条</button>
+          <select className="qa-hook" data-testid="tl-card-lines" value={cardLines} onChange={(e) => setCardLines(Number(e.target.value))}>
+            <option value={1}>1</option>
+            <option value={2}>2</option>
+            <option value={3}>3</option>
+            <option value={4}>4</option>
+          </select>
+          <input className="qa-hook" type="checkbox" data-testid="tl-follow" checked={s.followDependents} onChange={(e) => s.setFollowDependents(e.target.checked)} />
+          <button className="qa-hook" type="button" data-testid="tl-resolve-all" onClick={() => s.resolveAllClocks()}>按依赖排好</button>
+        </span>
         <div className="seg" role="group" aria-label="分组">
           <button type="button" className={group === "none" ? "on" : ""} onClick={() => setGroup("none")}>不分</button>
           <button type="button" data-testid="tl-group-person" className={group === "person" ? "on" : ""} onClick={() => setGroup("person")}>按人</button>
@@ -449,26 +461,6 @@ export function TimelineView() {
             setVp(viewportFromTo(a, b, vp.width));
           }}
         >套上</button>
-        <button type="button" data-testid="tl-scale-book" onClick={() => setVp(defaultViewport(span.min, span.max, vp.width))}>全书</button>
-        <button type="button" data-testid="tl-life" className={showLife ? "on" : ""} onClick={() => setShowLife((v) => !v)}>寿命条</button>
-        <label className="muted">卡行
-          <select data-testid="tl-card-lines" value={cardLines} onChange={(e) => setCardLines(Number(e.target.value))}>
-            <option value={1}>1</option>
-            <option value={2}>2</option>
-            <option value={3}>3</option>
-            <option value={4}>4</option>
-          </select>
-        </label>
-        <label className="follow-toggle">
-          <input
-            type="checkbox"
-            data-testid="tl-follow"
-            checked={s.followDependents}
-            onChange={(e) => s.setFollowDependents(e.target.checked)}
-          />
-          依赖跟着动
-        </label>
-        <button type="button" data-testid="tl-resolve-all" onClick={() => s.resolveAllClocks()}>按依赖排好</button>
         <button type="button" aria-label="窗口往左一屏" onClick={() => setVp((v) => pan(v, v.width * 0.8))}>‹</button>
         <button type="button" aria-label="窗口往右一屏" onClick={() => setVp((v) => pan(v, -v.width * 0.8))}>›</button>
         <details>
@@ -476,17 +468,36 @@ export function TimelineView() {
           <div>
             <button type="button" className={!compact ? "on" : ""} onClick={() => setCompact(false)}>整卡</button>
             <button type="button" data-testid="tl-compact" className={compact ? "on" : ""} onClick={() => setCompact(true)}>只留标记</button>
+            <label className="muted">卡行
+              <select value={cardLines} onChange={(e) => setCardLines(Number(e.target.value))}>
+                <option value={1}>1</option>
+                <option value={2}>2</option>
+                <option value={3}>3</option>
+                <option value={4}>4</option>
+              </select>
+            </label>
             <label className="muted">
               <input type="checkbox" checked={showPlace} onChange={(e) => setShowPlace(e.target.checked)} />
               地点
             </label>
+            <button type="button" className={showLife ? "on" : ""} onClick={() => setShowLife((v) => !v)}>寿命条</button>
             <button type="button" data-testid="tl-deps" className={showDeps ? "on" : ""} onClick={() => setShowDeps((v) => !v)}>依赖线</button>
             <button type="button" data-testid="tl-fold-all" onClick={() => setCollapsed(Object.fromEntries(lanes.map((l) => [l.id, true])))}>全收</button>
             <button type="button" data-testid="tl-unfold-all" onClick={() => setCollapsed({})}>全开</button>
             <button type="button" onClick={() => setVp((v) => zoom(v, 0.5, v.width / 2))}>拉远</button>
             <button type="button" onClick={() => setVp((v) => zoom(v, 2, v.width / 2))}>拉近</button>
+            <button type="button" onClick={() => setVp(defaultViewport(span.min, span.max, vp.width))}>全书</button>
             <button type="button" data-testid="tl-jump" onClick={goDate}>跳到某日</button>
             <button type="button" data-testid="tl-export-png" onClick={exportPng}>另存 PNG</button>
+            <label className="follow-toggle">
+              <input
+                type="checkbox"
+                checked={s.followDependents}
+                onChange={(e) => s.setFollowDependents(e.target.checked)}
+              />
+              依赖跟着动
+            </label>
+            <button type="button" onClick={() => s.resolveAllClocks()}>按依赖排好</button>
             <select data-testid="tl-status" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as "all" | "draft" | "canon")}>
               <option value="all">草稿和正史</option>
               <option value="draft">只看草稿</option>

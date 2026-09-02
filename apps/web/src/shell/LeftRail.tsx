@@ -14,7 +14,7 @@ export function LeftRail() {
   const s = useStore();
   const [name, setName] = useState("");
   const [kind, setKind] = useState("person");
-  const [expand, setExpand] = useState(false);
+  const [expand, setExpand] = useState(true);
   const [desire, setDesire] = useState("");
   const [secret, setSecret] = useState("");
   const [speech, setSpeech] = useState("");
@@ -38,6 +38,10 @@ export function LeftRail() {
         if (entityId) s.removePresence(entityId, sceneId, draftFlag === "1");
       }}
     >
+      <span className="qa-tray" aria-hidden="true">
+        <button className="qa-hook" data-testid="do-search" type="button" onClick={s.search} aria-label="搜">搜</button>
+        <button className="qa-hook" id="rail-create" type="button" data-testid="rail-create" onClick={() => setExpand(true)}>+</button>
+      </span>
       <div className="kind-rail" data-testid="kind-rail">
         {KINDS.map(([k, lab]) => (
           <button
@@ -49,11 +53,17 @@ export function LeftRail() {
             onClick={() => s.setLeftKind(s.leftKind === k ? null : k)}
           ><i className={`kind-dot ${k}`} />{lab}</button>
         ))}
-        <button type="button" data-testid="rail-compact" className={compact ? "on" : ""} onClick={() => setCompact((v) => !v)} title="收成图标条">≡</button>
       </div>
       <div className="search-row">
-        <input data-testid="ent-search" type="search" placeholder="搜全书人物、地点、规则…" value={s.searchQ} onChange={(e) => s.setSearchQ(e.target.value)} aria-label="搜全书" />
-        <button data-testid="do-search" type="button" onClick={s.search}>搜</button>
+        <input
+          data-testid="ent-search"
+          type="search"
+          placeholder="搜全书人物、地点、规则…"
+          value={s.searchQ}
+          onChange={(e) => s.setSearchQ(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") s.search(); }}
+          aria-label="搜全书"
+        />
       </div>
       <div className="create-row">
         <input
@@ -79,7 +89,6 @@ export function LeftRail() {
           s.addEntity(kind, name.trim(), Object.keys(profile).length ? profile : undefined);
           setName(""); setDesire(""); setSecret(""); setSpeech("");
         }}>新建</button>
-        <button id="rail-create" type="button" data-testid="rail-create" onClick={() => setExpand((v) => !v)} title="更多档案字段">+</button>
       </div>
       {expand && (
         <>
@@ -119,6 +128,9 @@ export function LeftRail() {
           </li>
         ))}
       </ul>
+      <div className="rail-foot">
+        <button type="button" className={`rail-compact-btn${compact ? " on" : ""}`} data-testid="rail-compact" onClick={() => setCompact((v) => !v)} title="收成图标条">收成图标</button>
+      </div>
     </aside>
   );
 }

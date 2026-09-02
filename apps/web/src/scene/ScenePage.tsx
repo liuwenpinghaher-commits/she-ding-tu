@@ -68,9 +68,9 @@ export function ScenePage() {
   return (
     <aside className={`right-rail scene-${chrome}`}>
       <div data-testid="sidebar" className="muted">{sidebarText}</div>
-      <div data-testid="moment-col" className="probe">{clockProbe || sideRaw}</div>
-      <div data-testid="moment-body" className="probe">{clockProbe || sideRaw}</div>
-      <div data-testid="knows-list" className="probe">{JSON.stringify(s.state?.world?.knows || {})}</div>
+      <div data-testid="moment-col" className="probe" aria-hidden="true">{clockProbe || sideRaw}</div>
+      <div data-testid="moment-body" className="probe" aria-hidden="true">{clockProbe || sideRaw}</div>
+      <div data-testid="knows-list" className="probe" aria-hidden="true">{JSON.stringify(s.state?.world?.knows || {})}</div>
 
       <details className="acc" open>
         <summary>场页</summary>

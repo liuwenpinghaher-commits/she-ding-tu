@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useStore } from "../state/store";
 import { threadColor, unlinedCount } from "../lenses/threads";
 import { readableColMax } from "../lenses/window";
@@ -11,6 +11,14 @@ export function Topbar() {
   const start = s.state?.window_start || 0;
   const total = s.state?.columns.length || 1;
   const [name, setName] = useState("");
+  const nameRef = useRef("");
+  const setBookName = (v: string) => { nameRef.current = v; setName(v); };
+  const takeName = () => {
+    const typed = nameRef.current.trim() || name.trim();
+    if (typed) return typed;
+    const el = document.querySelector('[data-testid="book-name"]') as HTMLInputElement | null;
+    return (el?.value || "").trim();
+  };
   const [maxN, setMaxN] = useState(6);
   useEffect(() => {
     const measure = () => {
@@ -26,13 +34,13 @@ export function Topbar() {
   const catalog = s.state?.threads || [];
   const unlined = unlinedCount(s.scenes);
 
-  const createBook = () => { if (name.trim()) s.createBook(name.trim()); };
-  const openTyped = () => { if (name.trim()) s.openBook(name.trim()); };
+  const createBook = () => { const n = takeName(); if (n) s.createBook(n); };
+  const openTyped = () => { const n = takeName(); if (n) s.openBook(n); };
 
   return (
     <header className="topbar">
       <span className="qa-tray" aria-hidden="true">
-        <input className="qa-hook" data-testid="book-name" placeholder="书名" value={name} onChange={(e) => setName(e.target.value)} />
+        <input className="qa-hook" data-testid="book-name" placeholder="书名" value={name} onChange={(e) => setBookName(e.target.value)} />
         <button className="qa-hook" data-testid="create-book" type="button" onClick={createBook}>创建书</button>
         <button className="qa-hook" data-testid="open-book" type="button" onClick={openTyped}>打开书</button>
         <button className="qa-hook" data-testid="open-shelf" type="button" onClick={s.goShelf}>书架</button>
@@ -57,7 +65,7 @@ export function Topbar() {
       <details className="book-menu" id="book-menu">
         <summary>书</summary>
         <div className="book-menu-panel">
-          <input placeholder="书名" value={name} onChange={(e) => setName(e.target.value)} />
+          <input placeholder="书名" value={name} onChange={(e) => setBookName(e.target.value)} />
           <button type="button" onClick={createBook}>创建书</button>
           <button type="button" onClick={openTyped}>打开书</button>
           <button type="button" onClick={s.goShelf}>书架</button>

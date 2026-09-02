@@ -119,6 +119,39 @@ body {
 input[type="checkbox"], input[type="radio"], input[type="range"] {
   accent-color: var(--text);
 }
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  height: 16px;
+}
+input[type="range"]::-webkit-slider-runnable-track {
+  height: 4px;
+  background: var(--line-strong);
+  border-radius: 2px;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--text);
+  border: 2px solid var(--bg-canvas);
+  margin-top: -5px;
+}
+input[type="range"]::-moz-range-track {
+  height: 4px;
+  background: var(--line-strong);
+  border-radius: 2px;
+}
+input[type="range"]::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--text);
+  border: 2px solid var(--bg-canvas);
+}
 body::before {
   content: "";
   pointer-events: none;
@@ -317,7 +350,14 @@ span.mini-window[data-testid="mini-window"] {
   padding: var(--space-3);
 }
 .left-rail { border-right: 1px solid var(--line); position: relative; }
-.right-rail { border-left: 1px solid var(--line); }
+.right-rail {
+  border-left: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+.right-rail > [data-testid="sidebar"] { flex: 0 0 auto; }
 .board-wrap { display: flex; flex-direction: column; min-width: 0; min-height: 0; flex: 1; }
 .ruler { display: flex; border-bottom: 1px solid var(--line); }
 .ruler-col { flex: 1; padding: 6px var(--space-2); cursor: pointer; }
@@ -329,7 +369,8 @@ span.mini-window[data-testid="mini-window"] {
   padding: var(--space-2);
   position: relative;
 }
-.col + .col { box-shadow: none; }
+.col + .col { box-shadow: none; border: none; }
+.stripboard .col, .stripboard .col + .col { box-shadow: none; border: none; }
 .col-handle {
   position: absolute; right: 0; top: 0; bottom: 0; width: 6px; cursor: ew-resize;
   background: transparent;
@@ -343,15 +384,16 @@ span.mini-window[data-testid="mini-window"] {
   cursor: pointer;
   position: relative;
   border-radius: var(--radius-1);
-  box-shadow: var(--shadow-1);
+  box-shadow: none;
 }
-.card.draft { box-shadow: var(--shadow-1); }
-.card.canon { box-shadow: var(--shadow-1); }
+.card.draft { background: var(--bg-panel); box-shadow: none; }
+.card.canon { box-shadow: none; }
 .card.ellipsis { background: repeating-linear-gradient(45deg, var(--bg-canvas), var(--bg-canvas) 6px, var(--stripe) 6px, var(--stripe) 12px); }
 .card.thin { height: 10px; padding: 0; overflow: hidden; opacity: 0.7; }
 .card.selected { box-shadow: 0 0 0 2px var(--brand); background: var(--bg-selected); }
-.stripboard .card { border: none; outline: none; }
-.stripboard .card.draft { background: var(--bg-panel); box-shadow: var(--shadow-1); }
+.stripboard .card { border: none; outline: none; box-shadow: none; background: var(--bg-canvas); }
+.stripboard .card.draft { background: var(--bg-panel); box-shadow: none; }
+.stripboard .card.canon { background: var(--bg-subtle); box-shadow: none; }
 .stripboard .card.selected { box-shadow: 0 0 0 2px var(--brand); background: var(--bg-selected); }
 .band { position: absolute; left: 0; top: 0; bottom: 0; width: 4px; }
 .band.unlined { background: var(--unlined); width: 2px; }
@@ -493,10 +535,13 @@ button.ghost.on { background: var(--bg-selected); color: var(--text); }
 .banner { background: var(--warn-bg); color: var(--warn); padding: 6px var(--space-3); }
 details summary { cursor: pointer; }
 .acc {
-  margin: var(--space-2) 0;
+  margin: 0 0 var(--space-1);
   background: var(--bg-subtle);
   border-radius: var(--radius-1);
   padding: 0 var(--space-2) var(--space-2);
+  flex: 1 1 0;
+  min-height: 72px;
+  overflow: auto;
 }
 .acc-nested {
   background: var(--bg-panel);
@@ -508,6 +553,10 @@ details summary { cursor: pointer; }
   padding: var(--space-2) 0;
   color: var(--text);
   list-style: none;
+  position: sticky;
+  top: 0;
+  background: var(--bg-subtle);
+  z-index: 1;
 }
 .acc > summary::-webkit-details-marker { display: none; }
 .acc > summary::before { content: "▸ "; color: var(--text-aux); }

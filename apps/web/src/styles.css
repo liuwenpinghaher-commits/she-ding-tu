@@ -787,13 +787,15 @@ textarea.grow { min-height: 4.5em; }
   padding: var(--space-1) var(--space-2); pointer-events: none;
 }
 .workspace-pane { flex: 1; min-height: 0; overflow: auto; background: var(--bg-canvas); padding: var(--space-3); }
+.look-toolbar { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; margin: var(--space-2) 0; }
+.look-toolbar button.on { background: var(--bg-selected); color: var(--brand); font-weight: 600; }
 .rel-grid { border-collapse: collapse; }
 .rel-grid th, .rel-grid td { border: 1px solid var(--line); padding: 4px; min-width: 48px; text-align: center; }
 .rel-grid td.on { background: var(--bg-selected); }
 .subway { position: relative; min-height: 360px; }
 .subway-row { display: flex; align-items: center; gap: var(--space-2); height: 56px; }
 .subway-name { width: 88px; flex: 0 0 88px; }
-.subway-line { flex: 1; height: 4px; position: relative; border-radius: 2px; }
+.subway-line { flex: 1; height: 24px; position: relative; border-radius: 2px; }
 .subway-node {
   position: absolute; top: 50%; width: 14px; height: 14px; border-radius: 50%;
   transform: translate(-50%, -50%); background: var(--bg-canvas); border: 3px solid currentColor; cursor: pointer;

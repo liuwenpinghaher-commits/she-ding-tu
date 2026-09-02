@@ -44,6 +44,18 @@ await openTab("分场条");
 await page.getByTestId("stripboard").waitFor();
 await page.screenshot({ path: path.join(outDir, "03-stripboard.png") });
 
+await openTab("总表");
+await page.getByTestId("table-view").waitFor();
+await page.screenshot({ path: path.join(outDir, "06-table.png") });
+
+await openTab("关系");
+await page.getByTestId("look-relations-panel").waitFor();
+await page.screenshot({ path: path.join(outDir, "07-relation.png") });
+
+await openTab("轨迹");
+await page.getByTestId("look-track").waitFor();
+await page.screenshot({ path: path.join(outDir, "08-subway.png") });
+
 await openTab("时间轴");
 await page.getByTestId("theme-toggle").click();
 await page.waitForTimeout(200);

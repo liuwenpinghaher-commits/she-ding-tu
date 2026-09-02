@@ -176,7 +176,7 @@ export interface Store {
   commit: () => Promise<void>;
   revise: () => Promise<void>;
   createThread: (name: string, type?: string) => Promise<void>;
-  attachThread: (nameOrId: string, role?: string) => Promise<void>;
+  attachThread: (nameOrId: string, role?: string, sceneId?: string) => Promise<void>;
   runTalk: (field: string, text: string) => Promise<void>;
   writeBox: () => Promise<void>;
   fillFake: () => Promise<void>;
@@ -196,6 +196,7 @@ export interface Store {
   createAtClock: (t: number) => Promise<string | undefined>;
   resolveAllClocks: () => Promise<void>;
   reorderTelling: (fromId: string, toIndex: number) => Promise<void>;
+  batchTelling: (ids: string[]) => Promise<void>;
   search: () => Promise<void>;
   openDossier: (name: string) => Promise<void>;
   saveDossier: (fields: Record<string, string>) => Promise<void>;
@@ -970,7 +971,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     await refresh();
   }, [state, refresh]);
 
-  const attachThread = useCallback(async (nameOrId: string, role = "推进") => {
+  const attachThread = useCallback(async (nameOrId: string, role = "推进", sceneId?: string) => {
     const t = (state?.threads || []).find((x) => x.id === nameOrId || x.name === nameOrId);
     if (!t) return;
     const apply = (cur: { id: string; role?: string }[]) => {
@@ -980,15 +981,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       else next.push({ id: t.id, role });
       return next;
     };
-    const id = state?.selected;
-    if (id) {
-      const d = state?.drafts.find((x) => x.id === id);
-      const cur = apply(d?.draft.story_threads || []);
+    const id = sceneId || state?.selected || state?.selected_canon;
+    if (!id) return;
+    const d = state?.drafts.find((x) => x.id === id);
+    if (d) {
+      const cur = apply(d.draft.story_threads || []);
       await api("/api/drafts/patch", { method: "POST", body: JSON.stringify({ id, story_threads: cur }) });
-    } else if (state?.selected_canon) {
-      const b = state.committed.find((x) => x.id === state.selected_canon);
+    } else {
+      const b = state?.committed.find((x) => x.id === id);
       const cur = apply(b?.story_threads || []);
-      await api(`/api/beats/${encodeURIComponent(state.selected_canon)}/revise`, {
+      await api(`/api/beats/${encodeURIComponent(id)}/revise`, {
         method: "POST",
         body: JSON.stringify({ story_threads: cur }),
       });
@@ -1306,6 +1308,28 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     await refresh();
   }, [refresh]);
 
+  const batchTelling = useCallback(async (ids: string[]) => {
+    const all = [...(state?.committed || []).map(asScene), ...(state?.drafts || []).map(asDraftScene)];
+    const snaps = ids.map((id) => {
+      const sc = all.find((x) => x.id === id);
+      return { id, draft: !!sc?.draft, telling_ord: sc?.telling_ord ?? null as number | null };
+    });
+    if (!snaps.length) return;
+    pushUndo({ kind: "telling-batch", payload: snaps });
+    for (let i = 0; i < ids.length; i++) {
+      const sc = all.find((x) => x.id === ids[i]);
+      if (!sc) continue;
+      const ord = i + 1;
+      if (sc.draft) {
+        await api("/api/drafts/patch", { method: "POST", body: JSON.stringify({ id: sc.id, telling_ord: ord }) });
+      } else {
+        await api("/api/telling", { method: "POST", body: JSON.stringify({ beat_id: sc.id, telling_ord: ord }) });
+      }
+    }
+    setToast("已改读序");
+    await refresh();
+  }, [refresh, state]);
+
   const search = useCallback(async () => {
     if (!searchQ.trim()) return;
     try {
@@ -1437,12 +1461,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         await refresh();
         return;
       }
-      if (last.kind === "telling") {
-        const p = last.payload as { id: string; draft: boolean; telling_ord: number | null };
-        if (p.draft) {
-          await api("/api/drafts/patch", { method: "POST", body: JSON.stringify({ id: p.id, telling_ord: p.telling_ord }) });
-        } else if (p.telling_ord != null) {
-          await api("/api/telling", { method: "POST", body: JSON.stringify({ beat_id: p.id, telling_ord: p.telling_ord }) });
+      if (last.kind === "telling" || last.kind === "telling-batch") {
+        const rows = last.kind === "telling"
+          ? [last.payload as { id: string; draft: boolean; telling_ord: number | null }]
+          : last.payload as Array<{ id: string; draft: boolean; telling_ord: number | null }>;
+        for (const p of rows) {
+          if (p.draft) {
+            await api("/api/drafts/patch", { method: "POST", body: JSON.stringify({ id: p.id, telling_ord: p.telling_ord }) });
+          } else if (p.telling_ord != null) {
+            await api("/api/telling", { method: "POST", body: JSON.stringify({ beat_id: p.id, telling_ord: p.telling_ord }) });
+          }
         }
         await refresh();
         return;
@@ -1757,6 +1785,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     createNear,
     resolveAllClocks,
     reorderTelling,
+    batchTelling,
     search,
     openDossier,
     saveDossier,

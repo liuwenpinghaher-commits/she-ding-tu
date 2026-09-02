@@ -40,6 +40,7 @@ export function Dialogs() {
         </div>
         <button
           data-testid="confirm-ok"
+          className="primary"
           type="button"
           disabled={!choice}
           onClick={() => { if (choice) { s.confirmChange(choice); setChoice(null); } }}
@@ -65,7 +66,7 @@ export function Dialogs() {
               </div>
             ))}
             <button data-testid="craft-add-chapter" type="button" onClick={() => setChaps([...chaps, { title: "", start_column: s.state?.columns[0]?.id || "col0" }])}>加一回</button>
-            <button data-testid="craft-save" type="button" onClick={() => s.saveCraft({ ...s.state?.craft, premise: craftPremise, chapters: chaps })}>写入书页</button>
+            <button data-testid="craft-save" className="primary" type="button" onClick={() => s.saveCraft({ ...s.state?.craft, premise: craftPremise, chapters: chaps })}>写入书页</button>
             <div data-testid="craft-msg">{s.craftMsg}</div>
             <button data-testid="craft-close" type="button" onClick={() => s.setCraftOpen(false)}>关闭</button>
           </div>

@@ -30,8 +30,10 @@ export function ShelfPage() {
       )}
       {items.length > 0 && (
         <>
-          <button type="button" data-testid="shelf-new" onClick={s.goNew}>新建书</button>
+          <div className="search-row">
+          <button type="button" className="primary" data-testid="shelf-new" onClick={s.goNew}>新建书</button>
           <input data-testid="shelf-q" name="she-ding-tu-shelf-q" type="text" autoComplete="off" placeholder="搜书名、主脑、最后一场" value={q} onChange={(e) => setQ(e.target.value)} aria-label="搜书架" />
+          </div>
           {q.trim() && shown.length === 0 && <p className="muted" data-testid="shelf-empty">没有这本书</p>}
           <div className="grid" data-testid="shelf-grid">
             {shown.map((b) => (
@@ -46,13 +48,12 @@ export function ShelfPage() {
                 <p>正史 {b.committed} · 草稿 {b.drafts} · {b.columns || 1} 列</p>
                 <p className="muted">上次打开 {formatOpened(b.opened_at)}</p>
                 <div className="card-actions" onClick={(e) => e.stopPropagation()}>
-                  <button type="button" onClick={() => s.openBook(b.name)}>打开</button>
+                  <button type="button" className="primary" onClick={() => s.openBook(b.name)}>打开</button>
                   <details
                     open={menu === b.name}
                     onToggle={(e) => setMenu((e.target as HTMLDetailsElement).open ? b.name : null)}
                   >
                     <summary>⋯</summary>
-                    <button type="button" onClick={() => s.openBook(b.name)}>打开</button>
                     <button type="button" onClick={() => s.openBookTo(b.name, "settings")}>书的设定</button>
                     <button type="button" onClick={() => s.openBookTo(b.name, "export")}>导出</button>
                     <button type="button" data-testid={`shelf-del-${b.name}`} onClick={() => s.setDelBookOpen(b.name)}>删书</button>

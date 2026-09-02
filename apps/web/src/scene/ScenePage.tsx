@@ -60,15 +60,20 @@ export function ScenePage() {
   const commitDisabled = !draft || !s.intent.trim() || blocking.length > 0 || s.committing;
   const locked = canon && !s.editingCanon;
   const sit = s.sit;
+  const sideRaw = s.sidebar || "";
+  const clockProbe = /t=\d/.test(sideRaw) ? sideRaw : (s.state?.world ? `t=${s.state.world.t}` : "");
+  const sideLooksLikeClock = /^(这一列故事时间 )?t=/.test(sideRaw.trim());
+  const sidebarText = !sideRaw || sideLooksLikeClock ? "本场规定情境" : sideRaw;
 
   return (
     <aside className={`right-rail scene-${chrome}`}>
-      <div data-testid="sidebar" className="muted">{s.sidebar || (s.state?.world ? `t=${s.state.world.t}` : "本场规定情境")}</div>
-      <div data-testid="moment-col" className="muted">{s.sidebar.includes("t=") ? s.sidebar : (s.state?.world ? `t=${s.state.world.t}` : "")}</div>
-      <div data-testid="moment-body">{s.sidebar.includes("t=") ? s.sidebar : (s.state?.world ? `t=${s.state.world.t}` : s.sidebar)}</div>
-      <div data-testid="knows-list">{JSON.stringify(s.state?.world?.knows || {})}</div>
-      <details open>
-        <summary>本场规定情境</summary>
+      <div data-testid="sidebar" className="muted">{sidebarText}</div>
+      <div data-testid="moment-col" className="probe">{clockProbe || sideRaw}</div>
+      <div data-testid="moment-body" className="probe">{clockProbe || sideRaw}</div>
+      <div data-testid="knows-list" className="probe">{JSON.stringify(s.state?.world?.knows || {})}</div>
+
+      <details className="acc" open>
+        <summary>场页</summary>
       <section data-testid="sit-blocks" className="sit-blocks">
         <div data-testid="sit-task"><strong>本场任务</strong> {s.intent || sit.intent || "还没有"}</div>
         <div data-testid="sit-shift"><strong>上场转折</strong> {sit.last_value_shift || "还没有"}</div>
@@ -93,23 +98,6 @@ export function ScenePage() {
           </label>
         </div>
       )}
-      {scene && <ColorBlock book={s.state?.book || ""} sceneId={scene.id} onChange={() => setLockTick((n) => n + 1)} />}
-      {scene && (
-        <GapBlock
-          book={s.state?.book || ""}
-          sceneId={scene.id}
-          others={s.scenes.filter((x) => x.id !== scene.id)}
-          onChange={() => setLockTick((n) => n + 1)}
-        />
-      )}
-      <div data-testid="scene-ages">
-        {peopleHere.map((p) => {
-          const born = parseBornClock(p.profile?.born_clock);
-          if (born == null || !scene) return null;
-          return <span key={p.id}>{p.name}这场{ageAtClock(scene.clock_from, born)} </span>;
-        })}
-      </div>
-      </details>
       {!ignoreSug && (
         <div data-testid="promise-suggest">
           建议本场对伏笔做哪一件
@@ -124,23 +112,7 @@ export function ScenePage() {
       <div className="field">
         {locked && <p className="muted">这场已是正史。要点「改这一场」才动。第几次写入正史不会重编号。</p>}
         <label>场次 <input data-testid="scene-title" value={s.sceneTitle} readOnly={locked} onChange={(e) => s.setSceneTitle(e.target.value)} /></label>
-        <label>因为哪一场
-          <input list="cause-list" data-testid="cause-beat" value={s.causeBeat} onChange={(e) => s.setCauseBeat(e.target.value)} />
-          <datalist id="cause-list">
-            {s.scenes.filter((x) => x.id !== scene?.id).map((x) => (
-              <option key={x.id} value={x.id}>{x.intent || x.id}</option>
-            ))}
-          </datalist>
-        </label>
-        <div data-testid="caused-by" className="muted">{s.causedBy || "还没有导致哪几场"}</div>
-        <label>读序 <input data-testid="telling-ord" value={s.tellingOrd} onChange={(e) => s.setTellingOrd(e.target.value)} /></label>
-        <button data-testid="set-telling" type="button" onClick={s.setTelling}>标读序</button>
-        <label>当众 <input type="radio" name="vis" data-testid="vis-public" checked={!s.visPrivate} onChange={() => s.setVisPrivate(false)} /></label>
-        <label>私下 <input type="radio" name="vis" data-testid="vis-private" checked={s.visPrivate} onChange={() => s.setVisPrivate(true)} /></label>
-        <input data-testid="visible-to" placeholder="私下谁会看见，逗号分隔" value={s.visibleTo} onChange={(e) => s.setVisibleTo(e.target.value)} />
-        <p className="muted">本场默认谁会看见：{peopleHere.map((p) => p.name).join("、") || "还没有人在场"}</p>
       </div>
-      <ThreadBlock />
       <div className="field">
         <div className="field-head"><span>价值转折</span><button type="button" data-testid="talk-shift" onClick={() => s.runTalk("value_shift", s.valueShift)}>讨论</button></div>
         <input data-testid="value-shift" value={s.valueShift} readOnly={locked} onChange={(e) => s.setValueShift(e.target.value)} placeholder="价值转折" />
@@ -151,11 +123,6 @@ export function ScenePage() {
       <GrowField label="内心" testid="think-text" talkId="talk-think" field="think_text" value={s.thinkText} onChange={s.setThinkText} ents={ents} locked={locked} />
       <span className={`save-dot${s.saveStatus === "保存中" ? " saving" : s.saveStatus === "已存" ? " saved" : ""}`} data-testid="save-dot">{s.saveStatus}</span>
       <div data-testid="knowledge-warn" className={yellow ? "" : "hidden"}>{yellow ? "有标黄，仍可写入正史" : ""}</div>
-
-      <DeltaBlock present={present} ents={ents} deltas={deltas} clockFrom={scene?.clock_from || 0} originLabel={craft?.clock_origin_label} originMinute={craft?.clock_origin_minute} format={craft?.clock_format} />
-      <KnowBlock people={peopleHere} ents={ents} knows={knows} deltas={deltas} />
-      <PromiseBlock pops={pops} />
-
       {(s.discussOpen || s.discussDraft) && (
         <div data-testid="discuss-panel">
           <p className="muted">正在讨论：{FIELD_LABEL[s.talkPending?.field || ""] || s.talkPending?.field || "这一格"} · {scene?.intent || ""}</p>
@@ -191,6 +158,56 @@ export function ScenePage() {
       >{s.editingCanon ? "写入这次改动" : "改这一场"}</button>
       <div data-testid="revise-msg">{s.reviseMsg}</div>
       <button data-testid="delete-canon" type="button" disabled={!canon} onClick={s.deleteCanon}>删已正史</button>
+      </details>
+
+      <details className="acc" open>
+        <summary>时间</summary>
+      {scene && <ColorBlock book={s.state?.book || ""} sceneId={scene.id} onChange={() => setLockTick((n) => n + 1)} />}
+      {scene && (
+        <GapBlock
+          book={s.state?.book || ""}
+          sceneId={scene.id}
+          others={s.scenes.filter((x) => x.id !== scene.id)}
+          onChange={() => setLockTick((n) => n + 1)}
+        />
+      )}
+      <div data-testid="scene-ages">
+        {peopleHere.map((p) => {
+          const born = parseBornClock(p.profile?.born_clock);
+          if (born == null || !scene) return null;
+          return <span key={p.id}>{p.name}这场{ageAtClock(scene.clock_from, born)} </span>;
+        })}
+      </div>
+      </details>
+
+      <details className="acc" open>
+        <summary>因果</summary>
+      <div className="field">
+        <label>因为哪一场
+          <input list="cause-list" data-testid="cause-beat" value={s.causeBeat} onChange={(e) => s.setCauseBeat(e.target.value)} />
+          <datalist id="cause-list">
+            {s.scenes.filter((x) => x.id !== scene?.id).map((x) => (
+              <option key={x.id} value={x.id}>{x.intent || x.id}</option>
+            ))}
+          </datalist>
+        </label>
+        <div data-testid="caused-by" className="muted">{s.causedBy || "还没有导致哪几场"}</div>
+        <label>读序 <input data-testid="telling-ord" value={s.tellingOrd} onChange={(e) => s.setTellingOrd(e.target.value)} /></label>
+        <button data-testid="set-telling" type="button" onClick={s.setTelling}>标读序</button>
+        <label>当众 <input type="radio" name="vis" data-testid="vis-public" checked={!s.visPrivate} onChange={() => s.setVisPrivate(false)} /></label>
+        <label>私下 <input type="radio" name="vis" data-testid="vis-private" checked={s.visPrivate} onChange={() => s.setVisPrivate(true)} /></label>
+        <input data-testid="visible-to" placeholder="私下谁会看见，逗号分隔" value={s.visibleTo} onChange={(e) => s.setVisibleTo(e.target.value)} />
+        <p className="muted">本场默认谁会看见：{peopleHere.map((p) => p.name).join("、") || "还没有人在场"}</p>
+      </div>
+      <ThreadBlock />
+      </details>
+
+      <details className="acc" open>
+        <summary>账目</summary>
+      <DeltaBlock present={present} ents={ents} deltas={deltas} clockFrom={scene?.clock_from || 0} originLabel={craft?.clock_origin_label} originMinute={craft?.clock_origin_minute} format={craft?.clock_format} />
+      <KnowBlock people={peopleHere} ents={ents} knows={knows} deltas={deltas} />
+      <PromiseBlock pops={pops} />
+      </details>
       {s.presencePicker && (
         <div>
           {ents.filter((e) => e.kind === "person").map((e) => (
@@ -278,7 +295,7 @@ function GapBlock({
         data-testid="clock-gap-min"
         type="number"
         min={0}
-        style={{ width: 72 }}
+        className="tl-bound"
         value={row?.gap ?? 0}
         onChange={(e) => { setConstraint(book, sceneId, row?.earlierId || others[0]?.id || null, Number(e.target.value) || 0); onChange(); }}
       />

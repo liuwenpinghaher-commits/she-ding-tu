@@ -25,13 +25,12 @@ export function Topbar() {
   const atEnd = start + n >= total;
   const catalog = s.state?.threads || [];
   const unlined = unlinedCount(s.scenes);
-  const colLabel = s.selectedScene?.intent || (start + 1 ? `第 ${start + 1} 列` : "");
 
   return (
     <header className="topbar">
       <span className="brand">设定图</span>
       <ThemeToggle />
-      <span>›</span>
+      <span className="muted">›</span>
       <select
         data-testid="book-list"
         aria-label="切换书"
@@ -47,10 +46,11 @@ export function Topbar() {
       <button data-testid="create-book" type="button" onClick={() => name.trim() && s.createBook(name.trim())}>创建书</button>
       <button data-testid="open-book" type="button" onClick={() => name.trim() && s.openBook(name.trim())}>打开书</button>
       <span data-testid="book-label">{book}</span>
-      {book && <span className="muted nowrap">{colLabel}</span>}
-      <button data-testid="open-shelf" type="button" onClick={s.goShelf}>书架</button>
-      <button data-testid="open-craft" type="button" disabled={!book} onClick={() => s.setCraftOpen(true)}>书页</button>
-      <button data-testid="open-settings" type="button" disabled={!book} onClick={s.goSettings}>书的设定</button>
+      <span className="topbar-cluster">
+        <button data-testid="open-shelf" type="button" onClick={s.goShelf}>书架</button>
+        <button data-testid="open-craft" type="button" disabled={!book} onClick={() => s.setCraftOpen(true)}>书页</button>
+        <button data-testid="open-settings" type="button" disabled={!book} onClick={s.goSettings}>书的设定</button>
+      </span>
 
       <div className="window-widget" data-testid="window-widget" title="只改本页看几列，不加列，不写库">
         <button data-testid="prev" type="button" aria-label="窗口往左一列" disabled={atStart} onClick={() => s.setWindow({ start: Math.max(0, start - 1) })}>‹</button>
@@ -86,8 +86,10 @@ export function Topbar() {
         title={!s.intent.trim() ? "没有本场任务不准写下一场" : "写下一场"}
         onClick={s.writeNext}
       >写下一场</button>
-      <button data-testid="add-parallel" type="button" onClick={s.writeParallel}>在本列再写一场</button>
-      <button data-testid="add-column" type="button" onClick={s.addColumn}>加列</button>
+      <span className="topbar-cluster">
+        <button data-testid="add-parallel" type="button" onClick={s.writeParallel}>在本列再写一场</button>
+        <button data-testid="add-column" type="button" onClick={s.addColumn}>加列</button>
+      </span>
       <details id="look-menu" data-testid="look-menu">
         <summary>看法</summary>
         <button type="button" data-look="进度" data-testid="open-progress" onClick={() => s.setLook("进度")}>支线进度</button>

@@ -403,33 +403,19 @@ export function TimelineView() {
   return (
     <div className="timeline-view" data-testid="timeline" ref={wrap}>
       <div className="view-header">
-        <button type="button" className={!compact ? "on" : ""} onClick={() => setCompact(false)}>整卡</button>
-        <button type="button" data-testid="tl-compact" className={compact ? "on" : ""} onClick={() => setCompact(true)}>只留标记</button>
-        <label className="muted">卡行
-          <select data-testid="tl-card-lines" value={cardLines} onChange={(e) => setCardLines(Number(e.target.value))}>
-            <option value={1}>1</option>
-            <option value={2}>2</option>
-            <option value={3}>3</option>
-            <option value={4}>4</option>
-          </select>
-        </label>
-        <label className="muted">
-          <input type="checkbox" checked={showPlace} onChange={(e) => setShowPlace(e.target.checked)} />
-          地点
-        </label>
-        <button type="button" data-testid="tl-life" className={showLife ? "on" : ""} onClick={() => setShowLife((v) => !v)}>寿命条</button>
-        <button type="button" data-testid="tl-deps" className={showDeps ? "on" : ""} onClick={() => setShowDeps((v) => !v)}>依赖线</button>
-        <button type="button" className={group === "none" ? "on" : ""} onClick={() => setGroup("none")}>不分</button>
-        <button type="button" data-testid="tl-group-person" className={group === "person" ? "on" : ""} onClick={() => setGroup("person")}>按人</button>
-        <button type="button" data-testid="tl-group-place" className={group === "place" ? "on" : ""} onClick={() => setGroup("place")}>按地点</button>
-        <button type="button" data-testid="tl-group-line" className={group === "line" ? "on" : ""} onClick={() => setGroup("line")}>按逻辑线</button>
-        <button type="button" data-testid="tl-group-color" className={group === "color" ? "on" : ""} onClick={() => setGroup("color")}>按色</button>
-        <button type="button" data-testid="tl-fold-all" onClick={() => setCollapsed(Object.fromEntries(lanes.map((l) => [l.id, true])))}>全收</button>
-        <button type="button" data-testid="tl-unfold-all" onClick={() => setCollapsed({})}>全开</button>
-        <button type="button" data-testid="tl-scale-year" onClick={() => applyScale("year")}>年</button>
-        <button type="button" data-testid="tl-scale-month" onClick={() => applyScale("month")}>月</button>
-        <button type="button" data-testid="tl-scale-day" onClick={() => applyScale("day")}>日</button>
-        <button type="button" data-testid="tl-scale-hour" onClick={() => applyScale("hour")}>时</button>
+        <div className="seg" role="group" aria-label="分组">
+          <button type="button" className={group === "none" ? "on" : ""} onClick={() => setGroup("none")}>不分</button>
+          <button type="button" data-testid="tl-group-person" className={group === "person" ? "on" : ""} onClick={() => setGroup("person")}>按人</button>
+          <button type="button" data-testid="tl-group-place" className={group === "place" ? "on" : ""} onClick={() => setGroup("place")}>按地点</button>
+          <button type="button" data-testid="tl-group-line" className={group === "line" ? "on" : ""} onClick={() => setGroup("line")}>按逻辑线</button>
+          <button type="button" data-testid="tl-group-color" className={group === "color" ? "on" : ""} onClick={() => setGroup("color")}>按色</button>
+        </div>
+        <div className="seg" role="group" aria-label="尺度">
+          <button type="button" data-testid="tl-scale-year" onClick={() => applyScale("year")}>年</button>
+          <button type="button" data-testid="tl-scale-month" onClick={() => applyScale("month")}>月</button>
+          <button type="button" data-testid="tl-scale-day" onClick={() => applyScale("day")}>日</button>
+          <button type="button" data-testid="tl-scale-hour" onClick={() => applyScale("hour")}>时</button>
+        </div>
         <input
           type="range"
           data-testid="tl-scale-slider"
@@ -445,8 +431,8 @@ export function TimelineView() {
             });
           }}
         />
-        <input data-testid="tl-from" placeholder="From" value={fromRaw} onChange={(e) => setFromRaw(e.target.value)} style={{ width: 72 }} />
-        <input data-testid="tl-to" placeholder="To" value={toRaw} onChange={(e) => setToRaw(e.target.value)} style={{ width: 72 }} />
+        <input className="tl-bound" data-testid="tl-from" placeholder="From" value={fromRaw} onChange={(e) => setFromRaw(e.target.value)} />
+        <input className="tl-bound" data-testid="tl-to" placeholder="To" value={toRaw} onChange={(e) => setToRaw(e.target.value)} />
         <button
           type="button"
           data-testid="tl-from-to"
@@ -463,16 +449,16 @@ export function TimelineView() {
             setVp(viewportFromTo(a, b, vp.width));
           }}
         >套上</button>
-        <button type="button" onClick={() => setVp((v) => zoom(v, 0.5, v.width / 2))}>拉远</button>
-        <button type="button" onClick={() => setVp((v) => zoom(v, 2, v.width / 2))}>拉近</button>
         <button type="button" data-testid="tl-scale-book" onClick={() => setVp(defaultViewport(span.min, span.max, vp.width))}>全书</button>
-        <button type="button" data-testid="tl-jump" onClick={goDate}>跳到某日</button>
-        <button type="button" data-testid="tl-export-png" onClick={exportPng}>另存 PNG</button>
-        <select data-testid="tl-status" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as "all" | "draft" | "canon")}>
-          <option value="all">草稿和正史</option>
-          <option value="draft">只看草稿</option>
-          <option value="canon">只看正史</option>
-        </select>
+        <button type="button" data-testid="tl-life" className={showLife ? "on" : ""} onClick={() => setShowLife((v) => !v)}>寿命条</button>
+        <label className="muted">卡行
+          <select data-testid="tl-card-lines" value={cardLines} onChange={(e) => setCardLines(Number(e.target.value))}>
+            <option value={1}>1</option>
+            <option value={2}>2</option>
+            <option value={3}>3</option>
+            <option value={4}>4</option>
+          </select>
+        </label>
         <label className="follow-toggle">
           <input
             type="checkbox"
@@ -485,7 +471,33 @@ export function TimelineView() {
         <button type="button" data-testid="tl-resolve-all" onClick={() => s.resolveAllClocks()}>按依赖排好</button>
         <button type="button" aria-label="窗口往左一屏" onClick={() => setVp((v) => pan(v, v.width * 0.8))}>‹</button>
         <button type="button" aria-label="窗口往右一屏" onClick={() => setVp((v) => pan(v, -v.width * 0.8))}>›</button>
-        <span className="muted">⌘滚轮缩放 · Shift 平移 · 拖条改钟 · ⌥⇧测间隔 · ⌘拖嵌套</span>
+        <details>
+          <summary>视图</summary>
+          <div>
+            <button type="button" className={!compact ? "on" : ""} onClick={() => setCompact(false)}>整卡</button>
+            <button type="button" data-testid="tl-compact" className={compact ? "on" : ""} onClick={() => setCompact(true)}>只留标记</button>
+            <label className="muted">
+              <input type="checkbox" checked={showPlace} onChange={(e) => setShowPlace(e.target.checked)} />
+              地点
+            </label>
+            <button type="button" data-testid="tl-deps" className={showDeps ? "on" : ""} onClick={() => setShowDeps((v) => !v)}>依赖线</button>
+            <button type="button" data-testid="tl-fold-all" onClick={() => setCollapsed(Object.fromEntries(lanes.map((l) => [l.id, true])))}>全收</button>
+            <button type="button" data-testid="tl-unfold-all" onClick={() => setCollapsed({})}>全开</button>
+            <button type="button" onClick={() => setVp((v) => zoom(v, 0.5, v.width / 2))}>拉远</button>
+            <button type="button" onClick={() => setVp((v) => zoom(v, 2, v.width / 2))}>拉近</button>
+            <button type="button" data-testid="tl-jump" onClick={goDate}>跳到某日</button>
+            <button type="button" data-testid="tl-export-png" onClick={exportPng}>另存 PNG</button>
+            <select data-testid="tl-status" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as "all" | "draft" | "canon")}>
+              <option value="all">草稿和正史</option>
+              <option value="draft">只看草稿</option>
+              <option value="canon">只看正史</option>
+            </select>
+          </div>
+        </details>
+        <details>
+          <summary>?</summary>
+          <div className="hint-pop">⌘滚轮缩放 · Shift 平移 · 拖条改钟 · ⌥⇧测间隔 · ⌘拖嵌套</div>
+        </details>
       </div>
       {lifePeople.length > 0 && (
         <div className="tl-life" data-testid="tl-lifespan">
@@ -548,7 +560,7 @@ export function TimelineView() {
         {lanes.map((lane) => {
           const rows = packRows(collapsed[lane.id] ? [] : lane.scenes);
           const maxRow = Math.max(0, ...rows.values(), 0);
-          const laneH = collapsed[lane.id] ? 32 : 20 + (maxRow + 1) * 76;
+          const laneH = collapsed[lane.id] ? 32 : 20 + (maxRow + 1) * 80;
           return (
           <div
             key={lane.id}
@@ -586,6 +598,7 @@ export function TimelineView() {
               const point = sc.clock_to - sc.clock_from <= 1;
               const nested = !!nestParent(book, sc.id);
               const locked = isLocked(book, sc.id);
+              const row = rows.get(sc.id) ?? 0;
               const ageBits = (s.state?.people || []).filter((p) => sc.presences.some((x) => x.entity_id === p.id || x.entity_id === p.name)).map((p) => {
                 const born = parseBornClock(p.profile?.born_clock);
                 if (born == null) return null;
@@ -596,8 +609,8 @@ export function TimelineView() {
                   key={`${sc.id}-${tick}`}
                   data-tl-id={sc.id}
                   data-testid={`card-${sc.id}`}
-                  className={`tl-bar card${compact || point ? " marker" : ""}${point ? " point" : ""}${sc.draft ? " draft" : " canon"}${on ? " selected" : ""}${thin ? " thin" : ""}${nested ? " nested" : ""}${locked ? " locked" : ""}`}
-                  style={{ left: r.left, width: point ? 14 : r.width, top: 12 + (rows.get(sc.id) ?? 0) * 72 + (nested ? 8 : 0) }}
+                  className={`tl-bar card${compact || point ? " marker" : ""}${point ? " point" : ""}${sc.draft ? " draft" : " canon"}${on ? " selected" : ""}${thin ? " thin" : ""}${nested ? " nested" : ""}${locked ? " locked" : ""}${row > 0 ? " raised" : ""}`}
+                  style={{ left: r.left, width: point ? 14 : r.width, top: 12 + row * 76 + (nested ? 8 : 0) }}
                   onPointerDown={(e) => startMove(e, sc)}
                   onMouseDown={(e) => startMove(e, sc)}
                   onClick={(e) => {

@@ -3,6 +3,7 @@ import { useStore } from "../state/store";
 import { threadColor, unlinedCount } from "../lenses/threads";
 import { readableColMax } from "../lenses/window";
 import { ThemeToggle } from "./ThemeToggle";
+import { GuideStartButton } from "./GuideTour";
 
 export function Topbar() {
   const s = useStore();
@@ -173,6 +174,7 @@ export function Topbar() {
           disabled={!s.intent.trim() || s.writeBusy}
           aria-busy={s.writeBusy ? "true" : "false"}
           title={!s.intent.trim() ? "没有本场任务不准写下一场" : "写下一场"}
+          data-guide="g5"
           onClick={s.writeNext}
         >{s.writeBusy ? "正在写下…" : "写下一场"}</button>
         {s.notice && <p className="compose-hint" data-testid="compose-hint" role="status">{s.notice}</p>}
@@ -206,6 +208,7 @@ export function Topbar() {
           title="命令面板 ⌘K"
           onClick={() => s.setCmdOpen(true)}
         >命令</button>
+        <GuideStartButton testid="guide-help" label="引导" />
       </div>
       <details className="ops-menu">
         <summary>⋯ 操作 ▾</summary>

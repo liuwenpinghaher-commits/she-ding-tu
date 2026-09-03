@@ -109,7 +109,7 @@ export function ScenePage() {
         <input data-testid="value-shift" value={s.valueShift} readOnly={locked} onChange={(e) => s.setValueShift(e.target.value)} placeholder="这场前后，什么变了" />
       </div>
       <div data-testid="tracks" />
-      <GrowField label="动作" testid="do-text" talkId="talk-do" field="do_text" value={s.doText} onChange={s.setDoText} ents={ents} locked={locked} />
+      <GrowField label="动作" testid="do-text" talkId="talk-do" field="do_text" value={s.doText} onChange={s.setDoText} ents={ents} locked={locked} guide="g7" />
       <GrowField label="对白" testid="say-text" talkId="talk-say" field="say_text" value={s.sayText} onChange={s.setSayText} ents={ents} locked={locked} />
       <GrowField label="内心" testid="think-text" talkId="talk-think" field="think_text" value={s.thinkText} onChange={s.setThinkText} ents={ents} locked={locked} />
       <span className={`save-dot${s.saveStatus === "保存中" ? " saving" : s.saveStatus === "已存" ? " saved" : ""}`} data-testid="save-dot">{s.saveStatus}</span>
@@ -145,6 +145,7 @@ export function ScenePage() {
       <p className="muted" data-testid="commit-why">{s.committing ? "正在写入…" : commitWhy}</p>
       <button
         data-testid="commit"
+        data-guide="g8"
         className={`primary${yellow ? " warn" : ""}`}
         type="button"
         disabled={commitDisabled}
@@ -403,16 +404,16 @@ function ThreadBlock() {
 }
 
 function GrowField({
-  label, testid, talkId, field, value, onChange, ents, locked,
+  label, testid, talkId, field, value, onChange, ents, locked, guide,
 }: {
-  label: string; testid: string; talkId: string; field: string; value: string; onChange: (v: string) => void; ents: Entity[]; locked?: boolean;
+  label: string; testid: string; talkId: string; field: string; value: string; onChange: (v: string) => void; ents: Entity[]; locked?: boolean; guide?: string;
 }) {
   const s = useStore();
   const rows = Math.max(3, value.split("\n").length);
   const showBadge = s.modelSuggest && !locked;
   const badgeTestId = testid === "do-text" && !(s.discussOpen || s.discussDraft);
   return (
-    <div className="field">
+    <div className="field" {...(guide ? { "data-guide": guide } : {})}>
       <div className="field-head">
         <span>{label}</span>
         <span className="field-head-actions">

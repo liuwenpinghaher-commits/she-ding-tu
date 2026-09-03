@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useStore } from "../state/store";
 import { formatOpened } from "../lenses/window";
 import type { BookCard } from "../canon/types";
+import { GuideStartButton } from "../shell/GuideTour";
 
 export function ShelfPage() {
   const s = useStore();
@@ -20,18 +21,20 @@ export function ShelfPage() {
     return b.name.includes(needle) || (b.premise || "").includes(needle) || (b.last_intent || "").includes(needle);
   });
   return (
-    <div className="page" data-testid="shelf">
+    <div className="page" data-testid="shelf" data-guide="g0">
       <h1>书架</h1>
       {items.length === 0 && (
         <div className="empty-shelf">
           <p>还没有书。从这里开始写第一本</p>
           <button className="primary big" type="button" data-testid="shelf-new" onClick={s.goNew}>新建书</button>
+          <GuideStartButton testid="guide-start" label="快速使用" />
         </div>
       )}
       {items.length > 0 && (
         <>
           <div className="search-row">
           <button type="button" className="primary" data-testid="shelf-new" onClick={s.goNew}>新建书</button>
+          <GuideStartButton testid="guide-start" label="快速使用" />
           <input data-testid="shelf-q" name="she-ding-tu-shelf-q" type="text" autoComplete="off" placeholder="搜书名、主脑、最后一场" value={q} onChange={(e) => setQ(e.target.value)} aria-label="搜书架" />
           </div>
           {q.trim() && shown.length === 0 && <p className="muted" data-testid="shelf-empty">没有这本书</p>}

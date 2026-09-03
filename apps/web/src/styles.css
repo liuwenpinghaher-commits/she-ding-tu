@@ -688,6 +688,29 @@ button.ghost.on { background: var(--bg-selected); color: var(--text); }
   background: var(--bg-canvas); box-shadow: var(--shadow-2); border-radius: var(--radius-1);
   padding: var(--space-2) var(--space-3); z-index: 30;
 }
+.guide-spot {
+  position: fixed;
+  pointer-events: none;
+  border: 2px solid var(--brand);
+  border-radius: var(--radius-1);
+  box-shadow: 0 0 0 3px rgba(70, 101, 225, 0.22);
+  z-index: 39;
+}
+.guide-bubble {
+  position: fixed;
+  width: 320px;
+  max-width: calc(100vw - 24px);
+  background: var(--bg-canvas);
+  color: var(--text);
+  box-shadow: var(--shadow-2);
+  border-radius: var(--radius-2);
+  padding: var(--space-3);
+  z-index: 40;
+  pointer-events: auto;
+}
+.guide-kicker { font-size: var(--text-aux-size); color: var(--text-aux); margin: 0 0 var(--space-1); font-weight: 600; }
+.guide-body { margin: 0 0 var(--space-2); font-size: var(--text-body); line-height: 1.45; }
+.guide-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; }
 .model-badge {
   display: inline-block;
   font-size: 11px;

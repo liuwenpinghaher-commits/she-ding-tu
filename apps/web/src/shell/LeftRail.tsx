@@ -30,6 +30,7 @@ export function LeftRail() {
       id="rail"
       className={`left-rail${compact ? " compact" : ""}`}
       data-testid="left-rail"
+      data-guide="g3"
       onDragOver={(e) => e.preventDefault()}
       onDrop={(e) => {
         e.preventDefault();

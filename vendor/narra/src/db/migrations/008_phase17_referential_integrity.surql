@@ -46,7 +46,7 @@ DEFINE FIELD secondary_locations ON scene TYPE array<record<location>>
 -- ==============================================================================
 
 -- Enable reverse queries: "What knowledge belongs to this character?"
-DEFINE INDEX idx_knowledge_character_ref ON knowledge FIELDS character CONCURRENTLY;
+DEFINE INDEX idx_knowledge_character_ref ON knowledge FIELDS character;
 
 -- Enable reverse queries: "What scenes does this character participate in?"
-DEFINE INDEX idx_participates_character ON participates_in FIELDS in CONCURRENTLY;
+DEFINE INDEX idx_participates_character ON participates_in FIELDS in;

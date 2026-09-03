@@ -409,21 +409,28 @@ fn persist_and_take_all(root: &std::path::Path, g: &mut Inner) -> Vec<BookSess> 
         .collect()
 }
 
-/// Surreal 2.6 没有公开 close。最后一次 Drop 会关掉 route 通道，内部
-/// `run_router` 才 `canceller.cancel()` + `kvs.shutdown()`。
-/// `wait_threads`：删盘前要等后台线程回收，避免 RocksDB 还开着就 unlink。
-async fn release_book_engine(sess: BookSess, wait_threads: bool) {
-    let before = proc_thread_count();
+fn proc_fd_count() -> u32 {
+    std::fs::read_dir("/proc/self/fd")
+        .map(|d| d.count() as u32)
+        .unwrap_or(0)
+}
+
+/// Surreal 2.6 没有公开 close。最后一次 Drop 关掉 route 通道后，
+/// `run_router` 才 `kvs.shutdown()`。必须等线程/fd 回落再删盘或开下一本，
+/// 否则 RocksDB 还活着。
+async fn release_book_engine(sess: BookSess) {
+    let before_t = proc_thread_count();
+    let before_fd = proc_fd_count();
     drop(sess);
     tokio::task::yield_now().await;
     tokio::task::yield_now().await;
-    if !wait_threads {
-        return;
-    }
-    let deadline = std::time::Instant::now() + std::time::Duration::from_millis(400);
+    let deadline = std::time::Instant::now() + std::time::Duration::from_millis(2000);
     loop {
-        let now = proc_thread_count();
-        if before >= 8 && now + 4 < before {
+        let t = proc_thread_count();
+        let fd = proc_fd_count();
+        let threads_down = before_t >= 8 && t + 5 < before_t;
+        let fds_down = before_fd >= 20 && fd + 10 < before_fd;
+        if threads_down || fds_down {
             break;
         }
         if std::time::Instant::now() >= deadline {
@@ -433,9 +440,9 @@ async fn release_book_engine(sess: BookSess, wait_threads: bool) {
     }
 }
 
-async fn release_book_engines(sessions: Vec<BookSess>, wait_threads: bool) {
+async fn release_book_engines(sessions: Vec<BookSess>) {
     for sess in sessions {
-        release_book_engine(sess, wait_threads).await;
+        release_book_engine(sess).await;
     }
 }
 
@@ -1395,7 +1402,7 @@ async fn create_book(
         let mut g = app.inner.lock().await;
         persist_and_take_all(&app.data_root, &mut g)
     };
-    release_book_engines(stale, false).await;
+    release_book_engines(stale).await;
     let book = open_book_dir(&app.data_root, &name)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
@@ -1433,7 +1440,7 @@ async fn create_book(
     g.current = Some(name);
     let payload = book_list_payload(&app.data_root, &g);
     drop(g);
-    release_book_engines(extra, false).await;
+    release_book_engines(extra).await;
     Ok(Json(payload))
 }
 
@@ -1457,7 +1464,7 @@ async fn open_book(
             let mut g = app.inner.lock().await;
             persist_and_take_all(&app.data_root, &mut g)
         };
-        release_book_engines(stale, false).await;
+        release_book_engines(stale).await;
         let book = open_book_dir(&app.data_root, &name)
             .await
             .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
@@ -1477,7 +1484,7 @@ async fn open_book(
         g.books.insert(name.clone(), sess);
         g.current = Some(name.clone());
         drop(g);
-        release_book_engines(extra, false).await;
+        release_book_engines(extra).await;
     }
     let mut g = app.inner.lock().await;
     g.current = Some(name.clone());
@@ -1596,7 +1603,7 @@ async fn delete_book(
         sess
     };
     if let Some(sess) = sess {
-        release_book_engine(sess, true).await;
+        release_book_engine(sess).await;
     }
     let dir = app.data_root.join(&name);
     if dir.exists() {

@@ -79,6 +79,11 @@ proptest = "1.6"
 [lints.clippy]
 redundant_closure_for_method_calls = "allow"
 
+# 2.6.0 原包 DEFINE INDEX 后 Datastore/RocksDB 永不 Drop（#7304）。
+# 补丁与官方 3.1.0 36b421e 相同：new_concurrent 不再回指 IndexBuilder。
+[patch.crates-io]
+surrealdb-core = { path = "patched/surrealdb-core-2.6.0" }
+
 [[bin]]
 name = "narra"
 path = "src/main.rs"

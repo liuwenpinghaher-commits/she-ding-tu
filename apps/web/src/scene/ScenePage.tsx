@@ -258,6 +258,7 @@ function ColorBlock({ book, sceneId, onChange }: { book: string; sceneId: string
       ))}
       <input
         type="color"
+        className="swatch"
         data-testid="swatch-custom"
         aria-label="自定义色"
         onChange={(e) => {

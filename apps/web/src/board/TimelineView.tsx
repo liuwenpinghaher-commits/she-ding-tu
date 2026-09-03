@@ -32,6 +32,14 @@ type GroupMode = "none" | "person" | "place" | "line" | "color";
 
 const TL_VP = "setting-tl-vp";
 
+function placeHoverTools(bar: HTMLElement) {
+  const tools = bar.querySelector<HTMLElement>(".tl-tools");
+  if (!tools) return;
+  const r = bar.getBoundingClientRect();
+  const h = tools.offsetHeight || 36;
+  tools.dataset.flip = r.bottom + h + 4 > window.innerHeight ? "up" : "down";
+}
+
 export function TimelineView() {
   const s = useStore();
   const wrap = useRef<HTMLDivElement>(null);
@@ -652,6 +660,7 @@ export function TimelineView() {
                   style={{ left: r.left, width: point ? 14 : r.width, top: 12 + row * 76 + (nested ? 8 : 0) }}
                   onPointerDown={(e) => startMove(e, sc)}
                   onMouseDown={(e) => startMove(e, sc)}
+                  onMouseEnter={(e) => placeHoverTools(e.currentTarget)}
                   onClick={(e) => {
                     if ((e.target as HTMLElement).closest("button, .tl-tools, .tl-edge")) return;
                     void s.selectScene(sc.id, sc.draft);
@@ -682,7 +691,7 @@ export function TimelineView() {
                       </div>
                     </>
                   )}
-                  <div className="tl-tools">
+                  <div className="tl-tools" data-testid={`tl-tools-${sc.id}`}>
                     <button type="button" data-testid={`tl-copy-${sc.id}`} onMouseDown={(e) => e.stopPropagation()} onClick={() => s.createNear(sc.id, "copy")}>复制</button>
                     <button type="button" data-testid={`tl-above-${sc.id}`} onMouseDown={(e) => e.stopPropagation()} onClick={() => s.createNear(sc.id, "above")}>在上建</button>
                     <button type="button" data-testid={`tl-below-${sc.id}`} onMouseDown={(e) => e.stopPropagation()} onClick={() => s.createNear(sc.id, "below")}>在下建</button>

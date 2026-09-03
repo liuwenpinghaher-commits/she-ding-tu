@@ -1119,8 +1119,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [state?.selected, fillPending, talkPending, intent, refresh]);
 
   const fillFake = useCallback(async () => {
-    const id = state?.selected;
-    if (!id || !intent.trim()) return;
+    const id = state?.selected || lastDraftId.current || state?.drafts.at(-1)?.id;
+    if (!id || !intent.trim()) {
+      setOpError("先写下这场草稿，再让模型填。");
+      return;
+    }
     const r = await api<{ do_text?: string; say_text?: string; think_text?: string }>("/api/fill-fake", {
       method: "POST",
       body: JSON.stringify({ id }),
@@ -1136,10 +1139,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setFillPending(true);
     setModelSuggest(true);
     setOpError("");
-  }, [state?.selected, intent]);
+  }, [state?.selected, state?.drafts, intent]);
 
   const fillLive = useCallback(async () => {
-    const id = state?.selected;
+    const id = state?.selected || lastDraftId.current || state?.drafts.at(-1)?.id;
     if (!id || !intent.trim()) {
       setNotice("先写一行本场任务，再让模型填。");
       setOpError("先写一行本场任务，再让模型填。");
@@ -1171,7 +1174,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     } finally {
       setFillLiveBusy(false);
     }
-  }, [state?.selected, intent]);
+  }, [state?.selected, state?.drafts, intent]);
 
   const toggleComposePerson = useCallback((entityId: string) => {
     const sceneId = state?.selected || state?.selected_canon;

@@ -25,7 +25,11 @@ test("K2 模型填场到达后有未定稿角标", async ({ page }) => {
   await page.getByTestId("intent").fill("阿福发现刀");
   await page.getByTestId("write-next").click();
   await expect(page.locator(".card.draft").first()).toBeVisible();
+  await expect(page.getByTestId("write-next")).toHaveAttribute("aria-busy", "false");
+  await expect(page.getByTestId("commit")).toBeEnabled();
+  const filled = page.waitForResponse((res) => res.url().includes("/api/fill-fake") && res.request().method() === "POST");
   await page.getByTestId("fill-fake").click({ force: true });
+  await filled;
   await expect(page.getByTestId("discuss-panel")).toBeVisible();
   await expect(page.getByTestId("model-suggest-badge")).toBeVisible();
   await expect(page.getByTestId("model-suggest-badge")).toHaveText("模型建议，未定稿");

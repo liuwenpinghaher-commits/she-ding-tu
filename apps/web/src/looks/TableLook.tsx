@@ -30,7 +30,7 @@ export function TableLook() {
             <th>场</th>
             <th>动作</th>
             <th>地点</th>
-            <th>价值转折</th>
+            <th>这场前后什么变了</th>
             <th>状态</th>
             <th>读序</th>
           </tr>

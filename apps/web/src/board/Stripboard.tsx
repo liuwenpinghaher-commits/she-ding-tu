@@ -11,6 +11,7 @@ import {
 } from "../lenses/threads";
 import { formatClock, windowSlice } from "../lenses/window";
 import type { SceneCard, StoryThread } from "../canon/types";
+import { sceneHeading } from "../scene/human";
 
 function toothClass(
   col: { id: string; clock_from: number; clock_to: number },
@@ -77,7 +78,7 @@ export function Stripboard() {
               type="button"
               className={`${toothClass(c, s.scenes, s.state?.promises || [])}${i >= start && i < start + n ? " mini-window" : ""}${onLine ? " on-line" : ""}${chapStarts.has(c.id) ? " chap" : ""}`}
               data-testid={`tooth-${i}`}
-              title={`第 ${i + 1} 列 ${clock}${here.length ? " · " + here.map((sc) => sc.intent || "未名场").join("、") : " · 空场次"}`}
+              title={`第 ${i + 1} 列 ${clock}${here.length ? " · " + here.map((sc) => sceneHeading(sc)).join("、") : " · 空场次"}`}
               onMouseEnter={() => setHover(i)}
               onMouseLeave={() => setHover(null)}
               onFocus={() => setHover(i)}
@@ -118,7 +119,7 @@ export function Stripboard() {
           <span className="tooth-tip" data-testid="tooth-tip">
             第 {hover + 1} 列 · {formatClock(cols[hover].clock_from, craft?.clock_origin_label, craft?.clock_origin_minute, craft?.clock_format)}
             {" · "}
-            {s.scenes.filter((sc) => sc.column_id === cols[hover].id).map((sc) => sc.intent || "未名场").join("、") || "空场次"}
+            {s.scenes.filter((sc) => sc.column_id === cols[hover].id).map((sc) => sceneHeading(sc)).join("、") || "空场次"}
           </span>
         )}
         <span data-testid="mini-window" className="mini-window" aria-hidden="false" />
@@ -246,8 +247,8 @@ function SceneCardView({
       {pause && <span className="fold pause" data-testid="fold-pause" title="暂停" />}
       {!thin && (
         <>
-          <div data-testid="card-title">{sc.title && sc.title !== "下一场" ? sc.title : "未名场"}</div>
-          <div>{sc.intent}</div>
+          <div data-testid="card-title">{sceneHeading(sc)}</div>
+          {sc.title && sc.title !== "下一场" && sc.title !== sceneHeading(sc) ? <div>{sc.title}</div> : null}
           {!sc.draft && sc.commit_seq != null && (
             <div className="commit-seq">第 {sc.commit_seq} 次写入</div>
           )}

@@ -24,7 +24,7 @@ export function ProgressLook({ open, embedded }: { open: boolean; embedded?: boo
     <div data-testid="look-progress" className={embedded ? "" : `look-rail${open ? " show" : ""}`}>
       <button type="button" data-testid="progress-back" onClick={() => s.setLook("时间轴")}>回时间轴</button>
       {noChap && <p className="muted">还没有回目，列按每 10 列一段。去书的设定加回目。</p>}
-      <p className="muted">未归线 {progress?.unassigned ?? 0} 场。点格跳到该回第一条属于该线的场。不能在这里写下一场。</p>
+      <p className="muted">还没贴线（可以不贴） {progress?.unassigned ?? 0} 场。点格跳到该回第一条属于该线的场。不能在这里写下一场。</p>
       <table className="prog-table">
         <thead>
           <tr>

@@ -76,10 +76,10 @@ export function ScenePage() {
         <summary>场页</summary>
       <section data-testid="sit-blocks" className="sit-blocks">
         <div data-testid="sit-task"><strong>本场任务</strong> {s.intent || sit.intent || "还没有"}</div>
-        <div data-testid="sit-shift"><strong>上场转折</strong> {sit.last_value_shift || <span className="sit-empty">还没写变化</span>}</div>
-        <div data-testid="sit-world"><strong>世界账</strong> {sit.stakes.length ? sit.stakes.join("；") : <span className="sit-empty">此刻没有开着的账</span>}</div>
-        <div data-testid="sit-people"><strong>人物账</strong> {[...sit.knowledge_gaps, ...sit.wrong_beliefs].join("；") || <span className="sit-empty">此刻没有开着的账</span>}</div>
-        <div data-testid="sit-reader"><strong>读者账</strong> {[...sit.reader_knows, ...sit.reader_irony].slice(0, 8).join("；") || <span className="sit-empty">此刻没有开着的账</span>}</div>
+        <div data-testid="sit-shift"><strong>这场前后，什么变了</strong> {sit.last_value_shift || <span className="sit-empty">还没写变化</span>}</div>
+        <div data-testid="sit-world"><strong>此刻还开着的事</strong> {sit.stakes.length ? sit.stakes.join("；") : <span className="sit-empty">此刻没有开着的账</span>}</div>
+        <div data-testid="sit-people"><strong>谁知道、谁不知道、谁信错</strong> {[...sit.knowledge_gaps, ...sit.wrong_beliefs].join("；") || <span className="sit-empty">此刻没有开着的账</span>}</div>
+        <div data-testid="sit-reader"><strong>你看见了、场上有人还不知道</strong> {[...sit.reader_knows, ...sit.reader_irony].slice(0, 8).join("；") || <span className="sit-empty">此刻没有开着的账</span>}</div>
         <div data-testid="sit-promises"><strong>未收伏笔</strong> {sit.open_promises.length ? sit.open_promises.map((p) => p.name).join("、") : "没有未收的"}</div>
       </section>
       {!ignoreSug && (
@@ -105,8 +105,8 @@ export function ScenePage() {
         <label>场次 <input data-testid="scene-title" value={s.sceneTitle} readOnly={locked} onChange={(e) => s.setSceneTitle(e.target.value)} /></label>
       </div>
       <div className="field">
-        <div className="field-head"><span>价值转折</span><button type="button" data-testid="talk-shift" onClick={() => s.runTalk("value_shift", s.valueShift)}>讨论</button></div>
-        <input data-testid="value-shift" value={s.valueShift} readOnly={locked} onChange={(e) => s.setValueShift(e.target.value)} placeholder="价值转折" />
+        <div className="field-head"><span>这场前后，什么变了</span><button type="button" data-testid="talk-shift" onClick={() => s.runTalk("value_shift", s.valueShift)}>讨论</button></div>
+        <input data-testid="value-shift" value={s.valueShift} readOnly={locked} onChange={(e) => s.setValueShift(e.target.value)} placeholder="这场前后，什么变了" />
       </div>
       <div data-testid="tracks" />
       <GrowField label="动作" testid="do-text" talkId="talk-do" field="do_text" value={s.doText} onChange={s.setDoText} ents={ents} locked={locked} />
@@ -127,12 +127,12 @@ export function ScenePage() {
               {s.fillChunks.think_text && <button type="button" data-testid="fill-apply-think" onClick={() => s.applyFillPart("think_text")}>用内心</button>}
             </div>
           )}
-          <button data-testid="write-box" type="button" disabled={!s.talkPending && !s.fillPending} onClick={s.writeBox}>写入此框</button>
+          <button data-testid="write-box" type="button" disabled={!s.talkPending && !s.fillPending} onClick={s.writeBox}>放到这个格子（还没定稿）</button>
         </div>
       )}
       <button data-testid="talk" type="button" onClick={() => s.runTalk("intent", s.intent)}>讨论</button>
       <PlanBlock />
-      <button className="qa-hook" data-testid="fill-fake" type="button" disabled={!s.intent.trim()} title={!s.intent.trim() ? "先写一行本场任务" : "模型填这一场"} onClick={s.fillFake}>假模型填场</button>
+      <button className="qa-hook" data-testid="fill-fake" type="button" disabled={!s.intent.trim()} title={!s.intent.trim() ? "先写一行本场任务" : "模型填这一场"} aria-label="模型填这一场" onClick={s.fillFake} />
       <button
         data-testid="fill-live"
         type="button"
@@ -151,6 +151,7 @@ export function ScenePage() {
         title={commitWhy}
         onClick={s.commit}
       >{s.committing ? "正在写入…" : "写入正史"}</button>
+      <p className="muted" data-testid="commit-explain">定稿，后面的场会用到</p>
       <button
         data-testid="revise"
         type="button"
@@ -364,7 +365,7 @@ function ThreadBlock() {
   const catalog = s.state?.threads || [];
   return (
     <div data-testid="scene-threads">
-      {threads.length === 0 && <span>未归线</span>}
+      {threads.length === 0 && <span>还没贴到某一条故事线（可以不贴）</span>}
       {threads.map((t) => {
         const name = catalog.find((x) => x.id === t.id)?.name || t.id;
         const span = scene ? threadSpan(s.scenes, t.id) : null;

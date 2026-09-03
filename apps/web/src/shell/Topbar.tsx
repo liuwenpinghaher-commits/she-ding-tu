@@ -114,16 +114,16 @@ export function Topbar() {
                   type="button"
                   data-n={k}
                   onClick={() => s.setWindow({ n: k })}
-                >{k}{k === 2 ? " 疏" : k === 4 ? " 中" : k === 6 ? " 密" : ""}</button>
+                >{k}{k === 2 ? " 宽卡" : k === 4 ? " 中卡" : k === 6 ? " 多列" : ""}</button>
               ))}
             </div>
           </details>
           <button data-testid="plus" type="button" aria-label="本页多显示一列" disabled={n >= maxN} onClick={() => s.setWindow({ n: n + 1 })}>+</button>
         </div>
         <div className="win-group">
-          <button data-testid="density-sparse" type="button" className={n === 2 ? "on" : ""} onClick={() => s.setWindow({ density: "sparse" })}>疏</button>
-          <button data-testid="density-mid" type="button" className={n === 4 ? "on" : ""} onClick={() => s.setWindow({ density: "mid" })}>中</button>
-          <button data-testid="density-dense" type="button" className={n === 6 ? "on" : ""} onClick={() => s.setWindow({ density: "dense" })}>密</button>
+          <button data-testid="density-sparse" type="button" className={n === 2 ? "on" : ""} title="卡更宽，少看几列" onClick={() => s.setWindow({ density: "sparse" })}>宽卡</button>
+          <button data-testid="density-mid" type="button" className={n === 4 ? "on" : ""} title="一次看四列" onClick={() => s.setWindow({ density: "mid" })}>中卡</button>
+          <button data-testid="density-dense" type="button" className={n === 6 ? "on" : ""} title="一次看六列" onClick={() => s.setWindow({ density: "dense" })}>多列</button>
         </div>
       </div>
       <div className="compose-cluster" data-testid="scene-compose" data-guide="compose">
@@ -249,7 +249,7 @@ export function Topbar() {
             data-testid="thread-unlined"
             className={s.line === "__unlined__" ? "on" : ""}
             onClick={() => s.setLine(s.line === "__unlined__" ? null : "__unlined__")}
-          >未归线 {unlined}</button>
+          >未贴线（可以不贴） {unlined}</button>
           <button type="button" data-testid="thread-all" onClick={() => s.setLine(null)}>显示全部</button>
         </span>
       )}

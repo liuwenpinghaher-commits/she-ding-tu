@@ -44,6 +44,7 @@ export function Dialogs() {
 
       <dialog id="confirm-dlg" data-testid="confirm-change" open={!!pending}>
         <h3>确认变更</h3>
+        <p className="muted" data-testid="confirm-explain">时间结构要改，选一种办法</p>
         <ul data-testid="impact-list">
           {(pending?.impacts || []).map((t, i) => <li key={i}>{t}</li>)}
         </ul>
@@ -133,7 +134,7 @@ export function Dialogs() {
             <textarea data-testid="paste-text" className="grow" value={s.pasteText} onChange={(e) => s.setPasteText(e.target.value)} />
             <button data-testid="paste-run" type="button" onClick={s.runPaste}>拆开看</button>
             {(s.state?.paste_suggestions || []).map((p) => (
-              <button key={p.id} type="button" data-testid={`paste-apply-${p.id}`} onClick={() => s.applyPaste(p.id)}>写入此框</button>
+              <button key={p.id} type="button" data-testid={`paste-apply-${p.id}`} onClick={() => s.applyPaste(p.id)}>放到这个格子（还没定稿）</button>
             ))}
             <button data-testid="paste-close" type="button" onClick={() => s.setPasteOpen(false)}>关闭</button>
           </div>

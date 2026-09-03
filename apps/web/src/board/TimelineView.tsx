@@ -27,6 +27,7 @@ import {
 import { ageAtClock, lifespanRange, parseBornClock } from "./ages";
 import { isLocked, itemColor, nestParent, setNest, toggleLock } from "../shell/localPrefs";
 import type { SceneCard } from "../canon/types";
+import { sceneHeading } from "../scene/human";
 
 type GroupMode = "none" | "person" | "place" | "line" | "color";
 
@@ -214,7 +215,7 @@ export function TimelineView() {
           entityId: "",
           scenes: scenes.filter((sc) => sc.story_threads.some((x) => x.id === t.id)),
         })),
-        { id: "unlined", title: "未归线", entityId: "", scenes: scenes.filter((sc) => !sc.story_threads.length) },
+        { id: "unlined", title: "未贴线（可以不贴）", entityId: "", scenes: scenes.filter((sc) => !sc.story_threads.length) },
       ];
     }
     if (group === "color") {
@@ -393,7 +394,7 @@ export function TimelineView() {
         ctx.fillRect(r.left, 40 + i * 88, r.width, 28);
         ctx.fillStyle = "#333";
         ctx.font = "12px sans-serif";
-        ctx.fillText(sc.intent || "未名场", r.left + 4, 58 + i * 88);
+        ctx.fillText(sceneHeading(sc), r.left + 4, 58 + i * 88);
       });
     });
     const a = document.createElement("a");
@@ -680,7 +681,7 @@ export function TimelineView() {
                   />
                   {!compact && !point && (
                     <>
-                      <div className="tl-bar-title" data-testid="card-title" style={{ WebkitLineClamp: cardLines }}>{sc.intent || sc.title || "未名场"}</div>
+                      <div className="tl-bar-title" data-testid="card-title" style={{ WebkitLineClamp: cardLines }}>{sceneHeading(sc)}</div>
                       <div className="tl-bar-meta">
                         {formatClock(sc.clock_from, craft?.clock_origin_label, craft?.clock_origin_minute, craft?.clock_format)}
                         {extra > 0 ? ` +${extra}` : ""}

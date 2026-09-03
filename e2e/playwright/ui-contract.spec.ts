@@ -36,7 +36,7 @@ test("1 场卡密度、细轨、点列看这一刻", async ({ page }) => {
   await page.locator(".card.canon").first().waitFor({ timeout: 15000 });
 
   await expect(page.getByTestId("unwritten-shift")).toHaveText("还没写变化");
-  await expect(page.getByTestId("card-title")).toHaveText("未名场");
+  await expect(page.getByTestId("card-title")).toHaveText("阿福发现刀");
   await expect(page.locator('[data-testid="track-col0-person"]')).toHaveClass(/on/);
   await expect(page.locator('[data-testid="track-col0-place"]')).toHaveClass(/on/);
 

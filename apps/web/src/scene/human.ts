@@ -158,9 +158,17 @@ export function promiseIllegal(
   return applyPromise(st, { promise_id: promiseId, op });
 }
 
+export function sceneHeading(sc: { intent?: string | null; title?: string | null }): string {
+  const intent = (sc.intent || "").trim();
+  if (intent) return intent;
+  const title = (sc.title || "").trim();
+  if (title && title !== "下一场") return title;
+  return "还没写这场要办成什么";
+}
+
 export const FIELD_LABEL: Record<string, string> = {
-  intent: "本场任务",
-  value_shift: "价值转折",
+  intent: "这场要办成什么",
+  value_shift: "这场前后，什么变了",
   do_text: "动作",
   say_text: "对白",
   think_text: "内心",

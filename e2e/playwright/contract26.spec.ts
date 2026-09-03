@@ -279,7 +279,7 @@ test("11 没贴线能写场", async ({ page }) => {
   await page.getByTestId("intent").fill("没贴线也能写");
   await page.getByTestId("write-next").click();
   await page.locator(".card.draft").first().click();
-  await expect(page.getByTestId("scene-threads")).toContainText("未归线");
+  await expect(page.getByTestId("scene-threads")).toContainText("可以不贴");
   await expect(page.getByTestId("band-unlined")).toBeVisible();
   await page.getByTestId("do-text").fill("写。");
   await page.getByTestId("commit").click();

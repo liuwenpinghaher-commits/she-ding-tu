@@ -1093,7 +1093,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       dirty.current.delete("say");
       dirty.current.delete("think");
       await refresh();
-      setToast("已写入此框，仍是草稿");
+      setToast("已放到这个格子，仍是草稿");
       return;
     }
     if (!talkPending) return;
@@ -1114,7 +1114,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setTalkPending(null);
     setDiscussDraft("");
     setDiscussOpen(false);
-    setToast("已写入此框，仍是草稿");
+    setToast("已放到这个格子，仍是草稿");
     await refresh();
   }, [state?.selected, fillPending, talkPending, intent, refresh]);
 
@@ -1163,7 +1163,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setDiscussOpen(true);
       setFillPending(true);
       setModelSuggest(true);
-      setNotice("模型稿在讨论框里。点「写入此框」才进草稿，定稿还要再点写入正史。");
+      setNotice("模型稿在讨论框里。点「放到这个格子」才进草稿，定稿还要再点写入正史。");
     } catch (e) {
       const msg = e instanceof Error ? e.message : "模型没填成";
       setNotice(msg);
@@ -1235,7 +1235,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (field === "say_text") setSayText(chunk);
     if (field === "think_text") setThinkText(chunk);
     await api("/api/drafts/patch", { method: "POST", body: JSON.stringify({ id, [field]: chunk }) });
-    setToast("已写入此框，仍是草稿");
+    setToast("已放到这个格子，仍是草稿");
   }, [state?.selected, fillChunks]);
 
   const addDelta = useCallback(async (entity_id: string, attr: string, value: string, clock_from = 0) => {

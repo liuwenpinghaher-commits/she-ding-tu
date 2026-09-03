@@ -22,7 +22,7 @@ test("逻辑线看法：贴线不改算出这一刻，过滤不藏场，看法�
   await page.getByTestId("write-next").click();
   await page.locator(".card.draft").first().waitFor();
   await page.locator(".card.draft").first().click();
-  await expect(page.getByTestId("scene-threads")).toContainText("未归线");
+  await expect(page.getByTestId("scene-threads")).toContainText("可以不贴");
   await page.locator('[data-testid="ent-阿禾"]').dragTo(page.locator(".card.draft").first());
   await page.getByTestId("do-text").fill("阿禾把信递出去。");
   await page.getByTestId("commit").click();

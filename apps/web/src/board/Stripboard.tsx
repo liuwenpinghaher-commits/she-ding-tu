@@ -142,6 +142,9 @@ export function Stripboard() {
         })}
       </div>
       <div id="cols" className="stripboard" data-testid="stripboard">
+        {s.scenes.length === 0 && (
+          <p className="strip-empty" data-testid="strip-empty">先写这场要办成什么，再点写下一场。</p>
+        )}
         {visible.map((c, i) => {
           const here = s.scenes.filter((sc) => sc.column_id === c.id);
           return (

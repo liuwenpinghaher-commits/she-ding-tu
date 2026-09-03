@@ -47,12 +47,9 @@ export function Topbar() {
         <button className="qa-hook" data-testid="open-craft" type="button" disabled={!book} onClick={() => s.setCraftOpen(true)}>书页</button>
         <button className="qa-hook" data-testid="open-settings" type="button" disabled={!book} onClick={s.goSettings}>书的设定</button>
         <span className="qa-hook" data-testid="book-label">{book}</span>
-        <input className="qa-hook" data-testid="intent" placeholder="本场任务" value={s.intent} onChange={(e) => s.setIntent(e.target.value)} />
-        <input className="qa-hook" data-testid="place-id" placeholder="本场地点" value={s.placeId} onChange={(e) => s.setPlaceId(e.target.value)} />
         <button className="qa-hook" data-testid="add-parallel" type="button" onClick={s.writeParallel}>在本列再写一场</button>
         <button className="qa-hook" data-testid="add-column" type="button" onClick={s.addColumn}>加列</button>
         <button className="qa-hook" data-testid="open-library" type="button" onClick={s.goLibrary}>设定库</button>
-        <button className="qa-hook" data-testid="open-cmd" type="button" onClick={() => s.setCmdOpen(true)}>/</button>
         <select className="qa-hook" data-testid="person-lens" aria-label="只看谁" value={s.q.who || ""} onChange={(e) => s.setWho(e.target.value || null)}>
           <option value="">只看某人</option>
           {(s.state?.people || []).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
@@ -72,9 +69,6 @@ export function Topbar() {
         <button className="qa-hook" data-testid="open-table" type="button" onClick={() => s.setLook("总表")}>总表</button>
         <button className="qa-hook" data-testid="relations" type="button" onClick={() => s.setLook("关系")}>关系</button>
         <button className="qa-hook" data-testid="reading-order" type="button" aria-pressed={s.state?.reading_order ? "true" : "false"} onClick={s.toggleReadingOrder}>按读序排</button>
-        <button className="qa-hook" data-testid="export" type="button" onClick={() => { s.setExportOpen(true); s.loadExport(s.exportIncludeDrafts); }}>导出</button>
-        <button className="qa-hook" data-testid="paste" type="button" onClick={() => s.setPasteOpen(true)}>丢一段草稿</button>
-        <button className="qa-hook" data-testid="plant-promise" type="button">埋伏笔</button>
       </span>
       <span className="brand">设定图</span>
       <ThemeToggle />
@@ -132,14 +126,87 @@ export function Topbar() {
           <button data-testid="density-dense" type="button" className={n === 6 ? "on" : ""} onClick={() => s.setWindow({ density: "dense" })}>密</button>
         </div>
       </div>
-      <button
-        data-testid="write-next"
-        className="primary"
-        type="button"
-        disabled={!s.intent.trim()}
-        title={!s.intent.trim() ? "没有本场任务不准写下一场" : "写下一场"}
-        onClick={s.writeNext}
-      >写下一场</button>
+      <div className="compose-cluster" data-testid="scene-compose" data-guide="compose">
+        <label className="compose-field">
+          <span>这场要办成什么</span>
+          <input
+            data-testid="intent"
+            placeholder="本场任务"
+            value={s.intent}
+            onChange={(e) => s.setIntent(e.target.value)}
+          />
+        </label>
+        <label className="compose-field">
+          <span>地点</span>
+          <input
+            data-testid="place-id"
+            placeholder="本场地点"
+            value={s.placeId}
+            onChange={(e) => s.setPlaceId(e.target.value)}
+          />
+        </label>
+        <div className="compose-people" data-testid="compose-people">
+          <span>人物</span>
+          <div className="compose-people-list">
+            {(s.state?.people || []).length === 0 && <span className="muted">左边先建人</span>}
+            {(s.state?.people || []).map((p) => {
+              const on = s.selectedScene
+                ? s.selectedScene.presences.some((x) => x.entity_id === p.id || x.entity_id === p.name)
+                : s.queuedPresence.includes(p.id);
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  data-testid={`compose-person-${p.name}`}
+                  className={on ? "on" : ""}
+                  aria-pressed={on ? "true" : "false"}
+                  onClick={() => s.toggleComposePerson(p.id)}
+                >{p.name}</button>
+              );
+            })}
+          </div>
+        </div>
+        <button
+          data-testid="write-next"
+          className="primary"
+          type="button"
+          disabled={!s.intent.trim() || s.writeBusy}
+          aria-busy={s.writeBusy ? "true" : "false"}
+          title={!s.intent.trim() ? "没有本场任务不准写下一场" : "写下一场"}
+          onClick={s.writeNext}
+        >{s.writeBusy ? "正在写下…" : "写下一场"}</button>
+        {s.notice && <p className="compose-hint" data-testid="compose-hint" role="status">{s.notice}</p>}
+      </div>
+      <div className="icon-row" data-testid="quick-actions">
+        <button
+          type="button"
+          className="icon-btn"
+          data-testid="export"
+          title="导出 Markdown"
+          onClick={() => { s.setExportOpen(true); s.loadExport(s.exportIncludeDrafts); s.setNotice("导出不会写回正史"); }}
+        >导出</button>
+        <button
+          type="button"
+          className="icon-btn"
+          data-testid="paste"
+          title="丢一段草稿，拆开后仍要一场一场放进格子"
+          onClick={() => { s.setPasteOpen(true); s.setNotice("贴进来的还是草稿"); }}
+        >贴草稿</button>
+        <button
+          type="button"
+          className="icon-btn"
+          data-testid="plant-promise"
+          title="埋伏笔"
+          onClick={s.plantPromise}
+        >伏笔</button>
+        <button
+          type="button"
+          className="icon-btn"
+          data-testid="open-cmd"
+          title="命令面板 ⌘K"
+          onClick={() => s.setCmdOpen(true)}
+        >命令</button>
+      </div>
       <details className="ops-menu">
         <summary>⋯ 操作 ▾</summary>
         <div className="flyout ops-menu-panel">
@@ -163,9 +230,6 @@ export function Topbar() {
           <button type="button" onClick={s.makeEllipsis}>省略场</button>
           <button type="button" onClick={() => s.setLook("总表")}>总表</button>
           <button type="button" aria-pressed={s.state?.reading_order ? "true" : "false"} onClick={s.toggleReadingOrder}>按读序排</button>
-          <button type="button" onClick={() => { s.setExportOpen(true); s.loadExport(s.exportIncludeDrafts); }}>导出</button>
-          <button type="button" onClick={() => s.setPasteOpen(true)}>丢一段草稿</button>
-          <button type="button" onClick={() => s.setCmdOpen(true)}>/</button>
         </div>
       </details>
       {book && (

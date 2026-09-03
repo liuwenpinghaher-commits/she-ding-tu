@@ -40,7 +40,7 @@ export function TabBar() {
   const currentId = useMemo(() => {
     const match = tabs.find((t) => t.kind === currentKind && t.id === currentKind)
       || tabs.find((t) => t.kind === currentKind);
-    return match?.id || tabs[0]?.id || "时间轴";
+    return match?.id || tabs[0]?.id || "分场条";
   }, [tabs, currentKind]);
 
   const { shown, more } = overflowTabs(tabs, visibleCap, currentId);

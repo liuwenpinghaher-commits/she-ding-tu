@@ -366,6 +366,78 @@ details.qa-hook { display: block; }
 .n-menu[open] { z-index: 8; }
 .n-menu[open] .flyout { display: flex; }
 .n-menu[open] .flyout button { display: block; width: 100%; text-align: left; }
+.compose-cluster {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-1);
+  background: var(--bg-canvas);
+  flex: 1 1 420px;
+  min-width: 280px;
+}
+.compose-field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: var(--text-aux-size);
+  color: var(--text-aux);
+}
+.compose-field input {
+  min-width: 140px;
+}
+.compose-people {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: var(--text-aux-size);
+  color: var(--text-aux);
+}
+.compose-people-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+}
+.compose-people-list button {
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: var(--text-aux-size);
+}
+.compose-people-list button.on {
+  background: var(--bg-selected);
+  color: var(--brand);
+  font-weight: 600;
+}
+.compose-hint {
+  flex: 1 0 100%;
+  margin: 0;
+  font-size: var(--text-aux-size);
+  color: var(--brand);
+}
+.icon-row {
+  display: inline-flex;
+  gap: var(--space-1);
+  align-items: center;
+}
+.icon-btn {
+  font-size: var(--text-aux-size);
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-1);
+  background: var(--bg-canvas);
+}
+.flash-target {
+  outline: 2px solid var(--brand);
+  outline-offset: 4px;
+}
+.strip-empty {
+  padding: var(--space-3);
+  color: var(--text-aux);
+  font-size: var(--text-aux-size);
+}
 .ops-menu { position: relative; }
 .ops-menu > summary {
   list-style: none;

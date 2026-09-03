@@ -1,7 +1,7 @@
 import { expect } from "@playwright/test";
 import { openStripboard, test } from "./helpers";
 
-test("2.1 创建书进入时间轴，能切分场条 N=1", async ({ page }) => {
+test("2.1 创建书进入分场条，能切时间轴 N=1", async ({ page }) => {
   const errs: string[] = [];
   page.on("pageerror", (e) => errs.push(String(e)));
   const book = "渡口书-" + Date.now();
@@ -10,6 +10,8 @@ test("2.1 创建书进入时间轴，能切分场条 N=1", async ({ page }) => {
   await page.getByTestId("create-book").click();
   await expect(page.getByTestId("book-label")).toHaveText(book);
   await expect(page.getByTestId("col-count")).toHaveText("1");
+  await expect(page.getByTestId("stripboard")).toBeVisible();
+  await page.getByTestId("open-timeline").click();
   await expect(page.getByTestId("timeline")).toBeVisible();
   await openStripboard(page);
   expect(errs).toEqual([]);

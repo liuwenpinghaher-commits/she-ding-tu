@@ -15,7 +15,7 @@ export type WorkspaceTab = (typeof WORKSPACE_TABS)[number];
 export const EXTRA_LOOKS = ["出场", "进度"] as const;
 export type AnyLook = WorkspaceTab | (typeof EXTRA_LOOKS)[number];
 
-export const DEFAULT_TAB: WorkspaceTab = "时间轴";
+export const DEFAULT_TAB: WorkspaceTab = "分场条";
 
 export function isWorkspaceTab(v: string | null | undefined): v is WorkspaceTab {
   return !!v && (WORKSPACE_TABS as readonly string[]).includes(v);
@@ -86,7 +86,10 @@ export type TabInstance = {
 };
 
 export function defaultTabInstances(): TabInstance[] {
-  return [{ id: "时间轴", kind: "时间轴", title: "时间轴" }];
+  return [
+    { id: "分场条", kind: "分场条", title: "分场条" },
+    { id: "时间轴", kind: "时间轴", title: "时间轴" },
+  ];
 }
 
 export function tabsStorageKey(book: string): string {

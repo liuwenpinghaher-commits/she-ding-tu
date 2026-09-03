@@ -1,5 +1,5 @@
 import { expect, type Page } from "@playwright/test";
-import { test } from "./helpers";
+import { openTimeline, test, writeDraftBar } from "./helpers";
 
 test.describe.configure({ timeout: 120000 });
 
@@ -8,15 +8,11 @@ async function boot(page: Page, book: string) {
   await page.getByTestId("book-name").fill(book);
   await page.getByTestId("create-book").click();
   await expect(page.getByTestId("book-label")).toHaveText(book);
-  await expect(page.getByTestId("timeline")).toBeVisible();
+  await openTimeline(page);
 }
 
 async function writeDraft(page: Page, intent: string) {
-  await page.getByTestId("intent").fill(intent);
-  await page.getByTestId("write-next").click();
-  const bar = page.locator(".tl-bar.draft").first();
-  await bar.waitFor();
-  return bar;
+  return writeDraftBar(page, intent);
 }
 
 test("条目色是同规格色块", async ({ page }) => {

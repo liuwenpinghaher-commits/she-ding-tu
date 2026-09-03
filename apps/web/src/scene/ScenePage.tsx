@@ -128,7 +128,15 @@ export function ScenePage() {
       )}
       <button data-testid="talk" type="button" onClick={() => s.runTalk("intent", s.intent)}>讨论</button>
       <PlanBlock />
-      <button data-testid="fill-fake" type="button" disabled={!s.intent.trim()} title={!s.intent.trim() ? "先写一行本场任务" : "模型填这一场"} onClick={s.fillFake}>假模型填场</button>
+      <button className="qa-hook" data-testid="fill-fake" type="button" disabled={!s.intent.trim()} title={!s.intent.trim() ? "先写一行本场任务" : "模型填这一场"} onClick={s.fillFake}>假模型填场</button>
+      <button
+        data-testid="fill-live"
+        type="button"
+        disabled={!draft || !s.intent.trim() || s.fillLiveBusy}
+        aria-busy={s.fillLiveBusy ? "true" : "false"}
+        title={!s.intent.trim() ? "先写一行本场任务" : "模型填这一场，稿只进讨论框"}
+        onClick={s.fillLive}
+      >{s.fillLiveBusy ? "正在填…" : "模型填这一场"}</button>
       <p className="muted" data-testid="commit-why">{s.committing ? "正在写入…" : commitWhy}</p>
       <button
         data-testid="commit"
@@ -146,6 +154,13 @@ export function ScenePage() {
       >{s.editingCanon ? "写入这次改动" : "改这一场"}</button>
       <div data-testid="revise-msg">{s.reviseMsg}</div>
       <button data-testid="delete-canon" type="button" disabled={!canon} onClick={s.deleteCanon}>删已正史</button>
+      <button
+        data-testid="delete-draft"
+        type="button"
+        disabled={!draft}
+        title={draft ? "丢掉这场草稿，正史不动" : "没有选中的草稿"}
+        onClick={s.askDeleteDraft}
+      >删草稿</button>
       </details>
 
       <details className="acc" open>

@@ -118,6 +118,16 @@ export function Dialogs() {
         </div>
       )}
 
+      {s.deleteDraftAsk && (
+        <div className="dialog-back">
+          <div className="dialog" data-testid="delete-draft-confirm">
+            <h3>丢掉这场草稿？</h3>
+            <p>只删草稿，正史不动。不能从这里恢复。</p>
+            <button data-testid="delete-draft-ok" className="primary" type="button" onClick={() => void s.confirmDeleteDraft()}>确认丢掉</button>
+            <button data-testid="delete-draft-cancel" type="button" onClick={s.cancelDeleteDraft}>取消</button>
+          </div>
+        </div>
+      )}
       {s.delBookOpen && (
         <div className="dialog-back">
           <div className="dialog" data-testid="del-book">

@@ -74,7 +74,7 @@ async function writeCommit(page: Page, intent: string, doText = "演") {
   await expect.poll(async () => ((await st(page)).committed || []).some((b: { intent: string }) => b.intent.includes(intent)), { timeout: 20000 }).toBeTruthy();
 }
 
-test("1 建书落时间轴，能切分场条", async ({ page }) => {
+test("1 建书落分场条，能切时间轴", async ({ page }) => {
   const book = "c26-1-" + Date.now();
   await page.goto("/");
   await page.getByTestId("open-shelf").click();
@@ -84,11 +84,13 @@ test("1 建书落时间轴，能切分场条", async ({ page }) => {
   await page.getByTestId("nb-create").click();
   await expect(page.getByTestId("book-label")).toHaveText(book);
   await expect(page).toHaveURL(/\/board/);
-  await expect(page.getByTestId("timeline")).toBeVisible();
-  await expect(page.getByTestId("stripboard")).toHaveCount(0);
+  await expect(page.getByTestId("stripboard")).toBeVisible();
+  await expect(page.getByTestId("timeline")).toHaveCount(0);
   await expect(page.getByTestId("col-count")).toHaveText("1");
   await expect(page.locator("body")).not.toContainText("请先选一个视图");
   await expect(page.getByTestId("sidebar")).toBeVisible();
+  await page.getByTestId("open-timeline").click();
+  await expect(page.getByTestId("timeline")).toBeVisible();
   await openStripboard(page);
   await expect(page.getByTestId("stripboard")).toBeVisible();
   await page.screenshot({ path: "evidence/contract26/01-board.png" });
@@ -225,11 +227,12 @@ test("8 本场变化与知情是人话", async ({ page }) => {
   await expect(page.getByTestId("know-write-list")).toContainText("信错");
 });
 
-test("9 时间轴是默认主面，分场条同级可切", async ({ page }) => {
+test("9 分场条是默认主面，时间轴同级可切", async ({ page }) => {
   const book = "c26-9-" + Date.now();
   await boot(page, book);
   await writeCommit(page, "第一场");
   const before = await st(page);
+  await expect(page.getByTestId("stripboard")).toBeVisible();
   await page.getByTestId("open-timeline").click();
   await expect(page.getByTestId("timeline")).toBeVisible();
   await expect(page.getByTestId("stripboard")).toHaveCount(0);

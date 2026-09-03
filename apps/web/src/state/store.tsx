@@ -23,7 +23,7 @@ import type {
 } from "../canon/types";
 import { asDraftScene, asScene } from "../canon/types";
 import { boardHash, parseHash, writeHash, type BoardQuery, type Route } from "../shell/hash";
-import { DEFAULT_TAB, EXTRA_LOOKS, isWorkspaceTab, loadStoredTab, persistTab, readExtraLook, readTab, type AnyLook, type TabFilter, type WorkspaceTab } from "../shell/workspaceTabs";
+import { DEFAULT_TAB, EXTRA_LOOKS, isWorkspaceTab, loadStoredTab, persistTab, readTab, type AnyLook, type TabFilter, type WorkspaceTab } from "../shell/workspaceTabs";
 import { loadConstraints } from "../shell/localPrefs";
 import { clockDiffs, resolveDependencyClocks } from "../board/timelineGeom";
 
@@ -126,6 +126,18 @@ export interface Store {
   presencePicker: string | null;
   cmdOpen: boolean;
   setCmdOpen: (v: boolean) => void;
+  writeBusy: boolean;
+  fillLiveBusy: boolean;
+  notice: string;
+  setNotice: (v: string) => void;
+  queuedPresence: string[];
+  toggleComposePerson: (entityId: string) => void;
+  plantPromise: () => void;
+  fillLive: () => Promise<void>;
+  deleteDraftAsk: string | null;
+  askDeleteDraft: () => void;
+  confirmDeleteDraft: () => Promise<void>;
+  cancelDeleteDraft: () => void;
   editingCanon: boolean;
   setEditingCanon: (v: boolean) => void;
   planBones: Array<{ serial?: boolean; intent: string; presence?: string[]; necessity?: string }>;
@@ -302,6 +314,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [fillChunks, setFillChunks] = useState<{ do_text?: string; say_text?: string; think_text?: string } | null>(null);
   const [presencePicker, setPresencePicker] = useState<string | null>(null);
   const [cmdOpen, setCmdOpen] = useState(false);
+  const [writeBusy, setWriteBusy] = useState(false);
+  const [fillLiveBusy, setFillLiveBusy] = useState(false);
+  const [notice, setNotice] = useState("");
+  const [queuedPresence, setQueuedPresence] = useState<string[]>([]);
+  const queuedPresenceRef = useRef<string[]>([]);
+  const [deleteDraftAsk, setDeleteDraftAsk] = useState<string | null>(null);
   const [editingCanon, setEditingCanon] = useState(false);
   const [planBones, setPlanBones] = useState<Array<{ serial?: boolean; intent: string; presence?: string[]; necessity?: string }>>([]);
   const [planNotice, setPlanNotice] = useState("");
@@ -692,19 +710,36 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const writeNext = useCallback(async () => {
     const typed = (document.querySelector<HTMLInputElement>("[data-testid=intent]")?.value ?? intent).trim();
     if (!typed) return;
-    if (state?.book && readExtraLook(q.look)) {
-      const tab = readTab(state.book, loadStoredTab(state.book), null);
-      writeHash(boardHash(state.book, { ...q, look: tab, n: state.n, start: state.window_start, s: q.s || state.selected || state.selected_canon }));
-    }
-    const r = await api<{ id?: string }>("/api/write-next", {
-      method: "POST",
-      body: JSON.stringify({ intent: typed, place_id: placeId || undefined }),
-    });
-    await refresh();
-    if (r.id) {
-      lastDraftId.current = r.id;
-      await api("/api/select", { method: "POST", body: JSON.stringify({ draft_id: r.id }) });
+    setWriteBusy(true);
+    try {
+      if (state?.book) {
+        persistTab(state.book, "分场条");
+        writeHash(boardHash(state.book, { ...q, look: "分场条", n: state.n, start: state.window_start, s: q.s || state.selected || state.selected_canon }));
+      }
+      const r = await api<{ id?: string }>("/api/write-next", {
+        method: "POST",
+        body: JSON.stringify({ intent: typed, place_id: placeId || undefined }),
+      });
       await refresh();
+      if (r.id) {
+        lastDraftId.current = r.id;
+        await api("/api/select", { method: "POST", body: JSON.stringify({ draft_id: r.id }) });
+        const queued = [...queuedPresenceRef.current];
+        for (const entityId of queued) {
+          await api("/api/presence", {
+            method: "POST",
+            body: JSON.stringify({ draft_id: r.id, entity_id: entityId, action: "add" }),
+          });
+        }
+        queuedPresenceRef.current = [];
+        setQueuedPresence([]);
+        setPresencePicker("open");
+        await refresh();
+        setNotice("已写下这场草稿。任务、地点、人物可以直接改。");
+        requestAnimationFrame(() => document.querySelector<HTMLInputElement>("[data-testid=intent]")?.focus());
+      }
+    } finally {
+      setWriteBusy(false);
     }
   }, [intent, placeId, refresh, state, q]);
 
@@ -724,12 +759,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         clock_to: c?.clock_to,
       }),
     });
+    if (state?.book) {
+      persistTab(state.book, "分场条");
+      writeHash(boardHash(state.book, { ...q, look: "分场条", n: state.n, start: state.window_start, s: q.s || state.selected || state.selected_canon }));
+    }
     await refresh();
     if (r.id) {
       await api("/api/select", { method: "POST", body: JSON.stringify({ draft_id: r.id }) });
       await refresh();
+      setNotice("已在本列再写一场草稿。");
     }
-  }, [intent, placeId, refresh, state]);
+  }, [intent, placeId, refresh, state, q]);
 
   const setWindow = useCallback(async (patch: { n?: number; start?: number; density?: string }) => {
     await api("/api/window", { method: "POST", body: JSON.stringify(patch) });
@@ -1083,6 +1123,89 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setDiscussOpen(true);
     setFillPending(true);
   }, [state?.selected, intent]);
+
+  const fillLive = useCallback(async () => {
+    const id = state?.selected;
+    if (!id || !intent.trim()) {
+      setNotice("先写一行本场任务，再让模型填。");
+      return;
+    }
+    setFillLiveBusy(true);
+    setNotice("正在让模型填这场…");
+    try {
+      const r = await api<{ do_text?: string; say_text?: string; think_text?: string }>("/api/fill-live", {
+        method: "POST",
+        body: JSON.stringify({ id }),
+      });
+      setFillChunks({ do_text: r.do_text, say_text: r.say_text, think_text: r.think_text });
+      const lines = [
+        r.do_text ? `动作：${r.do_text}` : "动作：",
+        r.say_text ? `对白：${r.say_text}` : "",
+        r.think_text ? `内心：${r.think_text}` : "",
+      ].filter(Boolean);
+      setDiscussDraft(lines.join("\n") || "动作：");
+      setDiscussOpen(true);
+      setFillPending(true);
+      setNotice("模型稿在讨论框里。点「写入此框」才进草稿，定稿还要再点写入正史。");
+    } catch (e) {
+      setNotice(e instanceof Error ? e.message : "模型没填成");
+    } finally {
+      setFillLiveBusy(false);
+    }
+  }, [state?.selected, intent]);
+
+  const toggleComposePerson = useCallback((entityId: string) => {
+    const sceneId = state?.selected || state?.selected_canon;
+    if (sceneId) {
+      const sc = [...(state?.drafts || []).map((d) => ({ id: d.id, ids: (d.draft.presences || []).map((p) => p.entity_id) })),
+        ...(state?.committed || []).map((b) => ({ id: b.id, ids: (b.presences || []).map((p) => p.entity_id) }))]
+        .find((x) => x.id === sceneId);
+      const on = sc?.ids.includes(entityId);
+      if (on) void removePresence(entityId, sceneId);
+      else void addPresence(entityId, sceneId);
+      return;
+    }
+    const next = queuedPresenceRef.current.includes(entityId)
+      ? queuedPresenceRef.current.filter((id) => id !== entityId)
+      : [...queuedPresenceRef.current, entityId];
+    queuedPresenceRef.current = next;
+    setQueuedPresence(next);
+  }, [state, addPresence, removePresence]);
+
+  const plantPromise = useCallback(() => {
+    setLeftKind("promise");
+    const acc = document.querySelector<HTMLDetailsElement>(".right-rail details.acc:last-of-type");
+    if (acc) acc.open = true;
+    const el = document.querySelector<HTMLElement>("[data-testid=promise-ops]");
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      el.classList.add("flash-target");
+      window.setTimeout(() => el.classList.remove("flash-target"), 1600);
+      setNotice("伏笔在右边账目里。先建一条，再埋/推/兑/废。");
+    } else {
+      setNotice("先打开一场，伏笔在场页账目里。");
+    }
+  }, []);
+
+  const askDeleteDraft = useCallback(() => {
+    const id = state?.selected;
+    if (!id || !state?.drafts?.some((d) => d.id === id)) {
+      setNotice("没有选中的草稿。");
+      return;
+    }
+    setDeleteDraftAsk(id);
+  }, [state?.selected, state?.drafts]);
+
+  const cancelDeleteDraft = useCallback(() => setDeleteDraftAsk(null), []);
+
+  const confirmDeleteDraft = useCallback(async () => {
+    const id = deleteDraftAsk;
+    if (!id) return;
+    await api("/api/delete-draft", { method: "POST", body: JSON.stringify({ id, confirm: true }) });
+    setDeleteDraftAsk(null);
+    setNotice("已丢掉这场草稿。正史没动。");
+    await refresh();
+  }, [deleteDraftAsk, refresh]);
 
   const applyFillPart = useCallback(async (field: "do_text" | "say_text" | "think_text") => {
     const id = state?.selected;
@@ -1698,6 +1821,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     presencePicker,
     cmdOpen,
     setCmdOpen,
+    writeBusy,
+    fillLiveBusy,
+    notice,
+    setNotice,
+    queuedPresence,
+    toggleComposePerson,
+    plantPromise,
+    fillLive,
+    deleteDraftAsk,
+    askDeleteDraft,
+    confirmDeleteDraft,
+    cancelDeleteDraft,
     editingCanon,
     setEditingCanon,
     planBones,

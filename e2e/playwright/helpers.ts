@@ -35,6 +35,22 @@ export async function openStripboard(page: Page) {
   await expect(page.getByTestId("stripboard")).toBeVisible();
 }
 
+/** 切到时间轴。新书默认是分场条，测钟面时先点过来。 */
+export async function openTimeline(page: Page) {
+  await openWorkspaceTab(page, "时间轴");
+  await expect(page.getByTestId("timeline")).toBeVisible();
+}
+
+/** 写下草稿后回到时间轴，等条出现。写下一场会切到分场条。 */
+export async function writeDraftBar(page: Page, intent: string) {
+  await page.getByTestId("intent").fill(intent);
+  await page.getByTestId("write-next").click();
+  await openTimeline(page);
+  const bar = page.locator(".tl-bar.draft").first();
+  await bar.waitFor();
+  return bar;
+}
+
 /** 点开刚写下的草稿卡，右边栏才能填。拖人不代替点选。 */
 export async function selectDraftCard(page: Page) {
   await openStripboard(page);

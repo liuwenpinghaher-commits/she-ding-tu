@@ -3,9 +3,9 @@ import { describe, it } from "node:test";
 import { DEFAULT_TAB, overflowTabs, readExtraLook, readTab, tabStorageKey, addTabInstance, closeTabInstance, defaultTabInstances } from "./workspaceTabs.ts";
 
 describe("工作区页签", () => {
-  it("新书默认时间轴", () => {
-    assert.equal(DEFAULT_TAB, "时间轴");
-    assert.equal(readTab("渡口", null, null), "时间轴");
+  it("新书默认分场条", () => {
+    assert.equal(DEFAULT_TAB, "分场条");
+    assert.equal(readTab("渡口", null, null), "分场条");
   });
 
   it("地址栏 look 盖过这本书记住的页签", () => {
@@ -16,8 +16,8 @@ describe("工作区页签", () => {
     assert.equal(readTab("渡口", "讲述序", null), "讲述序");
   });
 
-  it("不认识的值回落到时间轴", () => {
-    assert.equal(readTab("渡口", "甘特", "foo"), "时间轴");
+  it("不认识的值回落到分场条", () => {
+    assert.equal(readTab("渡口", "甘特", "foo"), "分场条");
   });
 
   it("出场和进度从地址栏打开，但不替换记住的页签", () => {
@@ -31,17 +31,18 @@ describe("工作区页签", () => {
     assert.equal(tabStorageKey("渡口"), "setting-tab:渡口");
   });
 
-  it("新书默认只有时间轴，可再加一枚带过滤的时间轴", () => {
+  it("新书默认分场条加时间轴，可再加一枚带过滤的时间轴", () => {
     const start = defaultTabInstances();
-    assert.equal(start.length, 1);
-    assert.equal(start[0].kind, "时间轴");
+    assert.equal(start.length, 2);
+    assert.equal(start[0].kind, "分场条");
+    assert.equal(start[1].kind, "时间轴");
     assert.equal(closeTabInstance(start, start[0].id).length, 1);
     const plus = addTabInstance(start, "时间轴", { who: "阿禾" });
-    assert.equal(plus.length, 2);
-    assert.equal(plus[1].kind, "时间轴");
-    assert.notEqual(plus[1].id, "时间轴");
-    assert.equal(plus[1].filter?.who, "阿禾");
-    const board = addTabInstance(start, "分场条");
+    assert.equal(plus.length, 3);
+    assert.equal(plus[2].kind, "时间轴");
+    assert.notEqual(plus[2].id, "时间轴");
+    assert.equal(plus[2].filter?.who, "阿禾");
+    const board = addTabInstance([{ id: "时间轴", kind: "时间轴", title: "时间轴" }], "分场条");
     assert.equal(board[1].id, "分场条");
   });
 

@@ -688,6 +688,20 @@ button.ghost.on { background: var(--bg-selected); color: var(--text); }
   background: var(--bg-canvas); box-shadow: var(--shadow-2); border-radius: var(--radius-1);
   padding: var(--space-2) var(--space-3); z-index: 30;
 }
+.model-badge {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--warn);
+  background: var(--warn-bg);
+  border-radius: var(--radius-1);
+  padding: 1px 7px;
+  line-height: 1.4;
+}
+.field-head-actions { display: flex; align-items: center; gap: 8px; }
+[data-testid="discuss-panel"] .model-badge { display: block; margin: 0 0 var(--space-2); }
+.sit-empty { color: var(--text-aux); }
+.commit-seq { font-size: var(--text-aux-size); color: var(--ok); }
 .banner { background: var(--warn-bg); color: var(--warn); padding: 6px var(--space-3); }
 details summary { cursor: pointer; }
 .acc {

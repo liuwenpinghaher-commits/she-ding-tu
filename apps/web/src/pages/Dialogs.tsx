@@ -2,6 +2,26 @@ import { useEffect, useState } from "react";
 import { useStore } from "../state/store";
 import { DossierPage } from "./DossierPage";
 
+function delBookImpacts(s: ReturnType<typeof useStore>): string[] {
+  const name = s.delBookName;
+  const item = (s.books.items || []).find((b) => b.name === name);
+  const open = s.state?.book === name;
+  const committed = open ? (s.state?.committed || []).length : (item?.committed ?? 0);
+  const drafts = open ? (s.state?.drafts || []).length : (item?.drafts ?? 0);
+  const cols = open ? (s.state?.columns || []).length : (item?.columns ?? 0);
+  const last = open
+    ? (s.state?.committed || []).at(-1)?.intent || (s.state?.drafts || []).at(-1)?.draft.intent
+    : item?.last_intent;
+  const out: string[] = [];
+  if (committed) out.push(`正史 ${committed} 场会一起删掉`);
+  else out.push("这本书还没有正史");
+  if (drafts) out.push(`草稿 ${drafts} 场会一起删掉`);
+  if (cols) out.push(`${cols} 列时间结构会一起删掉`);
+  if (last) out.push(`最后一场「${last}」会没`);
+  out.push("不能撤销，书架上也不再有这本书");
+  return out;
+}
+
 export function Dialogs() {
   const s = useStore();
   const pending = s.state?.pending;
@@ -14,9 +34,11 @@ export function Dialogs() {
     <>
       {s.banner && <div className="banner">{s.banner}</div>}
       {s.toast && (
-        <div className="toast" data-testid="undo-toast">
+        <div className="toast" data-testid="undo-toast" role="status">
           {s.toast}
-          <button type="button" data-testid="toast-undo" onClick={() => s.undo()}>撤销</button>
+          {s.undoStack.length > 0 && (
+            <button type="button" data-testid="toast-undo" onClick={() => s.undo()}>撤销</button>
+          )}
         </div>
       )}
 
@@ -133,6 +155,9 @@ export function Dialogs() {
           <div className="dialog" data-testid="del-book">
             <h3>删除这本书</h3>
             <p>不能撤销。手打书名确认。</p>
+            <ul data-testid="del-book-impacts">
+              {delBookImpacts(s).map((t) => <li key={t}>{t}</li>)}
+            </ul>
             <input data-testid="del-book-type" value={s.delBookType} onChange={(e) => s.setDelBookType(e.target.value)} />
             <button data-testid="del-book-ok" type="button" disabled={s.delBookType !== s.delBookName} onClick={() => s.deleteBook(s.delBookName, s.delBookType)}>确认删除</button>
             <button type="button" onClick={() => s.setDelBookOpen()}>取消</button>

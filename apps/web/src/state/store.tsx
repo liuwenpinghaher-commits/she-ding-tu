@@ -76,6 +76,8 @@ export interface Store {
   discussDraft: string;
   talkPending: TalkPending;
   fillPending: boolean;
+  modelSuggest: boolean;
+  opError: string;
   searchHits: Entity[];
   searchEmpty: boolean;
   searchQ: string;
@@ -268,6 +270,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [discussDraft, setDiscussDraft] = useState("");
   const [talkPending, setTalkPending] = useState<TalkPending>(null);
   const [fillPending, setFillPending] = useState(false);
+  const [modelSuggest, setModelSuggest] = useState(false);
+  const [opError, setOpError] = useState("");
   const [searchHits, setSearchHits] = useState<Entity[]>([]);
   const [searchEmpty, setSearchEmpty] = useState(false);
   const [searchQ, setSearchQ] = useState("");
@@ -736,6 +740,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         setPresencePicker("open");
         await refresh();
         setNotice("已写下这场草稿。任务、地点、人物可以直接改。");
+        setToast("已插一场草稿");
         requestAnimationFrame(() => document.querySelector<HTMLInputElement>("[data-testid=intent]")?.focus());
       }
     } finally {
@@ -768,6 +773,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       await api("/api/select", { method: "POST", body: JSON.stringify({ draft_id: r.id }) });
       await refresh();
       setNotice("已在本列再写一场草稿。");
+      setToast("已插一场草稿");
     }
   }, [intent, placeId, refresh, state, q]);
 
@@ -900,14 +906,19 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       body.visible_to = visibleTo.split(/[,，]/).map((s) => s.trim()).filter(Boolean);
     }
     setCommitting(true);
+    setOpError("");
     try {
       await api("/api/drafts/patch", { method: "POST", body: JSON.stringify(body) });
       await api("/api/commit", { method: "POST", body: JSON.stringify({ id }) });
       setToast("已写入正史。不能撤销。接着写下一场。");
+      setModelSuggest(false);
       dirty.current.clear();
       await refresh();
     } catch (e) {
-      setSidebar(e instanceof Error ? e.message : "写入正史失败");
+      const msg = e instanceof Error ? e.message : "写入正史失败";
+      setSidebar(msg);
+      setOpError(msg);
+      setToast(msg);
     } finally {
       setCommitting(false);
     }
@@ -1082,6 +1093,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       dirty.current.delete("say");
       dirty.current.delete("think");
       await refresh();
+      setToast("已写入此框，仍是草稿");
       return;
     }
     if (!talkPending) return;
@@ -1122,15 +1134,19 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setDiscussDraft(lines.join("\n") || "动作：");
     setDiscussOpen(true);
     setFillPending(true);
+    setModelSuggest(true);
+    setOpError("");
   }, [state?.selected, intent]);
 
   const fillLive = useCallback(async () => {
     const id = state?.selected;
     if (!id || !intent.trim()) {
       setNotice("先写一行本场任务，再让模型填。");
+      setOpError("先写一行本场任务，再让模型填。");
       return;
     }
     setFillLiveBusy(true);
+    setOpError("");
     setNotice("正在让模型填这场…");
     try {
       const r = await api<{ do_text?: string; say_text?: string; think_text?: string }>("/api/fill-live", {
@@ -1146,9 +1162,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setDiscussDraft(lines.join("\n") || "动作：");
       setDiscussOpen(true);
       setFillPending(true);
+      setModelSuggest(true);
       setNotice("模型稿在讨论框里。点「写入此框」才进草稿，定稿还要再点写入正史。");
     } catch (e) {
-      setNotice(e instanceof Error ? e.message : "模型没填成");
+      const msg = e instanceof Error ? e.message : "模型没填成";
+      setNotice(msg);
+      setOpError(msg);
     } finally {
       setFillLiveBusy(false);
     }
@@ -1204,6 +1223,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     await api("/api/delete-draft", { method: "POST", body: JSON.stringify({ id, confirm: true }) });
     setDeleteDraftAsk(null);
     setNotice("已丢掉这场草稿。正史没动。");
+    setToast("已删这场草稿");
     await refresh();
   }, [deleteDraftAsk, refresh]);
 
@@ -1294,6 +1314,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const confirmChange = useCallback(async (choice: string) => {
     await api("/api/structure/confirm", { method: "POST", body: JSON.stringify({ choice }) });
     await refresh();
+    setToast("已改时间结构");
   }, [refresh]);
 
   const cancelChange = useCallback(async () => {
@@ -1412,6 +1433,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       await api("/api/select", { method: "POST", body: JSON.stringify({ draft_id: r.id }) });
     }
     await refresh();
+    setToast("已插一场草稿");
   }, [state, placeId, refresh, writeClock]);
 
   const createAtClock = useCallback(async (t: number) => {
@@ -1779,6 +1801,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     discussDraft,
     talkPending,
     fillPending,
+    modelSuggest,
+    opError,
     searchHits,
     searchEmpty,
     searchQ,

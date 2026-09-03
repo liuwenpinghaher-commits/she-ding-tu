@@ -76,10 +76,10 @@ export function ScenePage() {
         <summary>场页</summary>
       <section data-testid="sit-blocks" className="sit-blocks">
         <div data-testid="sit-task"><strong>本场任务</strong> {s.intent || sit.intent || "还没有"}</div>
-        <div data-testid="sit-shift"><strong>上场转折</strong> {sit.last_value_shift || "还没有"}</div>
-        <div data-testid="sit-world"><strong>世界账</strong> {sit.stakes.length ? sit.stakes.join("；") : "还没有"}</div>
-        <div data-testid="sit-people"><strong>人物账</strong> {[...sit.knowledge_gaps, ...sit.wrong_beliefs].join("；") || "还没有"}</div>
-        <div data-testid="sit-reader"><strong>读者账</strong> {[...sit.reader_knows, ...sit.reader_irony].slice(0, 8).join("；") || "还没有"}</div>
+        <div data-testid="sit-shift"><strong>上场转折</strong> {sit.last_value_shift || <span className="sit-empty">还没写变化</span>}</div>
+        <div data-testid="sit-world"><strong>世界账</strong> {sit.stakes.length ? sit.stakes.join("；") : <span className="sit-empty">此刻没有开着的账</span>}</div>
+        <div data-testid="sit-people"><strong>人物账</strong> {[...sit.knowledge_gaps, ...sit.wrong_beliefs].join("；") || <span className="sit-empty">此刻没有开着的账</span>}</div>
+        <div data-testid="sit-reader"><strong>读者账</strong> {[...sit.reader_knows, ...sit.reader_irony].slice(0, 8).join("；") || <span className="sit-empty">此刻没有开着的账</span>}</div>
         <div data-testid="sit-promises"><strong>未收伏笔</strong> {sit.open_promises.length ? sit.open_promises.map((p) => p.name).join("、") : "没有未收的"}</div>
       </section>
       {!ignoreSug && (
@@ -99,6 +99,9 @@ export function ScenePage() {
       </div>
       <div className="field">
         {locked && <p className="muted">这场已是正史。要点「改这一场」才动。第几次写入正史不会重编号。</p>}
+        {canon && scene?.commit_seq != null && (
+          <p className="commit-seq" data-testid="commit-seq">第 {scene.commit_seq} 次写入正史</p>
+        )}
         <label>场次 <input data-testid="scene-title" value={s.sceneTitle} readOnly={locked} onChange={(e) => s.setSceneTitle(e.target.value)} /></label>
       </div>
       <div className="field">
@@ -113,6 +116,7 @@ export function ScenePage() {
       <div data-testid="knowledge-warn" className={yellow ? "" : "hidden"}>{yellow ? "有标黄，仍可写入正史" : ""}</div>
       {(s.discussOpen || s.discussDraft) && (
         <div data-testid="discuss-panel">
+          {s.modelSuggest && <p className="model-badge" data-testid="model-suggest-badge">模型建议，未定稿</p>}
           <p className="muted">正在讨论：{FIELD_LABEL[s.talkPending?.field || ""] || s.talkPending?.field || "这一格"} · {scene?.intent || ""}</p>
           <p className="muted">讨论不是历史</p>
           <div data-testid="discuss-draft">{s.discussDraft}</div>
@@ -137,6 +141,7 @@ export function ScenePage() {
         title={!s.intent.trim() ? "先写一行本场任务" : "模型填这一场，稿只进讨论框"}
         onClick={s.fillLive}
       >{s.fillLiveBusy ? "正在填…" : "模型填这一场"}</button>
+      {s.opError && <p className="err" data-testid="op-error">{s.opError}</p>}
       <p className="muted" data-testid="commit-why">{s.committing ? "正在写入…" : commitWhy}</p>
       <button
         data-testid="commit"
@@ -403,11 +408,18 @@ function GrowField({
 }) {
   const s = useStore();
   const rows = Math.max(3, value.split("\n").length);
+  const showBadge = s.modelSuggest && !locked;
+  const badgeTestId = testid === "do-text" && !(s.discussOpen || s.discussDraft);
   return (
     <div className="field">
       <div className="field-head">
         <span>{label}</span>
-        <button type="button" data-testid={talkId} onClick={() => s.runTalk(field, value)}>讨论</button>
+        <span className="field-head-actions">
+          {showBadge && (
+            <span className="model-badge" {...(badgeTestId ? { "data-testid": "model-suggest-badge" } : {})}>模型建议，未定稿</span>
+          )}
+          <button type="button" data-testid={talkId} onClick={() => s.runTalk(field, value)}>讨论</button>
+        </span>
       </div>
       <textarea
         data-testid={testid}

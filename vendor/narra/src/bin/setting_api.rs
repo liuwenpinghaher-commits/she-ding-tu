@@ -39,6 +39,7 @@ struct App {
 }
 
 struct Inner {
+    /// 同时只留当前打开的那一本。换书前会 drop 旧会话，避免 N 份嵌入式引擎常驻。
     books: HashMap<String, BookSess>,
     current: Option<String>,
 }
@@ -379,6 +380,62 @@ fn empty_sess(book: SettingBook) -> BookSess {
         lens_person: None,
         craft: BookCraft::default(),
         threads: vec![],
+    }
+}
+
+fn proc_thread_count() -> u32 {
+    std::fs::read_to_string("/proc/self/status")
+        .ok()
+        .and_then(|s| {
+            s.lines().find_map(|line| {
+                line.strip_prefix("Threads:")
+                    .and_then(|rest| rest.trim().parse().ok())
+            })
+        })
+        .unwrap_or(0)
+}
+
+/// 把还在内存里的书草稿/设定写回盘，再整表取出。调用方随后 drop 引擎。
+fn persist_and_take_all(root: &std::path::Path, g: &mut Inner) -> Vec<BookSess> {
+    g.current = None;
+    g.books
+        .drain()
+        .map(|(name, sess)| {
+            persist_drafts(root, &name, &sess.drafts);
+            persist_craft(root, &name, &sess.craft);
+            persist_threads(root, &name, &sess.threads);
+            sess
+        })
+        .collect()
+}
+
+/// Surreal 2.6 没有公开 close。最后一次 Drop 会关掉 route 通道，内部
+/// `run_router` 才 `canceller.cancel()` + `kvs.shutdown()`。
+/// `wait_threads`：删盘前要等后台线程回收，避免 RocksDB 还开着就 unlink。
+async fn release_book_engine(sess: BookSess, wait_threads: bool) {
+    let before = proc_thread_count();
+    drop(sess);
+    tokio::task::yield_now().await;
+    tokio::task::yield_now().await;
+    if !wait_threads {
+        return;
+    }
+    let deadline = std::time::Instant::now() + std::time::Duration::from_millis(400);
+    loop {
+        let now = proc_thread_count();
+        if before >= 8 && now + 4 < before {
+            break;
+        }
+        if std::time::Instant::now() >= deadline {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+    }
+}
+
+async fn release_book_engines(sessions: Vec<BookSess>, wait_threads: bool) {
+    for sess in sessions {
+        release_book_engine(sess, wait_threads).await;
     }
 }
 
@@ -1334,6 +1391,11 @@ async fn create_book(
     if book_db_path(&app.data_root, &name).exists() {
         return Err((StatusCode::CONFLICT, "书已存在，请打开书".into()));
     }
+    let stale = {
+        let mut g = app.inner.lock().await;
+        persist_and_take_all(&app.data_root, &mut g)
+    };
+    release_book_engines(stale, false).await;
     let book = open_book_dir(&app.data_root, &name)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
@@ -1366,9 +1428,13 @@ async fn create_book(
     let mut sess = empty_sess(book);
     sess.craft = craft;
     let mut g = app.inner.lock().await;
+    let extra = persist_and_take_all(&app.data_root, &mut g);
     g.books.insert(name.clone(), sess);
     g.current = Some(name);
-    Ok(Json(book_list_payload(&app.data_root, &g)))
+    let payload = book_list_payload(&app.data_root, &g);
+    drop(g);
+    release_book_engines(extra, false).await;
+    Ok(Json(payload))
 }
 
 async fn open_book(
@@ -1387,6 +1453,11 @@ async fn open_book(
         if !book_db_path(&app.data_root, &name).exists() {
             return Err((StatusCode::NOT_FOUND, "无此书".into()));
         }
+        let stale = {
+            let mut g = app.inner.lock().await;
+            persist_and_take_all(&app.data_root, &mut g)
+        };
+        release_book_engines(stale, false).await;
         let book = open_book_dir(&app.data_root, &name)
             .await
             .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
@@ -1402,7 +1473,11 @@ async fn open_book(
         sess.craft = load_craft(&app.data_root, &name);
         sess.threads = load_threads(&app.data_root, &name);
         let mut g = app.inner.lock().await;
+        let extra = persist_and_take_all(&app.data_root, &mut g);
         g.books.insert(name.clone(), sess);
+        g.current = Some(name.clone());
+        drop(g);
+        release_book_engines(extra, false).await;
     }
     let mut g = app.inner.lock().await;
     g.current = Some(name.clone());
@@ -1512,12 +1587,16 @@ async fn delete_book(
             "删书须带确认参数，须等于书名".into(),
         ));
     }
-    {
+    let sess = {
         let mut g = app.inner.lock().await;
-        g.books.remove(&name);
+        let sess = g.books.remove(&name);
         if g.current.as_deref() == Some(name.as_str()) {
             g.current = None;
         }
+        sess
+    };
+    if let Some(sess) = sess {
+        release_book_engine(sess, true).await;
     }
     let dir = app.data_root.join(&name);
     if dir.exists() {

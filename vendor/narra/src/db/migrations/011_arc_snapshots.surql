@@ -1,7 +1,7 @@
 -- Arc Snapshots: Temporal embedding history for character arc tracking
 -- Captures embedding vectors at each regeneration to track entity evolution.
 
-DEFINE TABLE arc_snapshot SCHEMAFULL;
+DEFINE TABLE arc_snapshot SCHEMAFULL TYPE NORMAL;
 
 DEFINE FIELD entity_id ON arc_snapshot TYPE record;
 DEFINE FIELD entity_type ON arc_snapshot TYPE string

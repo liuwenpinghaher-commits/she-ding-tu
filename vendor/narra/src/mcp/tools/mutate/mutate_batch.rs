@@ -1,7 +1,6 @@
 use crate::mcp::types::{CharacterSpec, EventSpec, LocationSpec, RelationshipSpec};
 use crate::mcp::{EntityResult, MutationResponse, NarraServer};
 use crate::models::{CharacterCreate, EventCreate, LocationCreate};
-use crate::db::compat::RecordIdExt;
 
 impl NarraServer {
     pub(crate) async fn handle_batch_create_characters(
@@ -30,7 +29,7 @@ impl NarraServer {
 
             match result {
                 Ok(character) => {
-                    let entity_id = character.id.to_string();
+                    let entity_id = character.id.to_sql();
                     self.staleness_manager.spawn_regeneration(
                         entity_id.clone(),
                         "character".to_string(),
@@ -86,7 +85,7 @@ impl NarraServer {
         locations: Vec<LocationSpec>,
     ) -> Result<MutationResponse, String> {
         use crate::models::location::{create_location, create_location_with_id};
-        use surrealdb::types::RecordId;
+        use surrealdb::types::{RecordId, ToSql};
 
         let count = locations.len();
         let mut entities = Vec::with_capacity(count);
@@ -122,7 +121,7 @@ impl NarraServer {
 
             match result {
                 Ok(location) => {
-                    let entity_id = location.id.to_string();
+                    let entity_id = location.id.to_sql();
                     self.staleness_manager.spawn_regeneration(
                         entity_id.clone(),
                         "location".to_string(),
@@ -212,7 +211,7 @@ impl NarraServer {
 
             match result {
                 Ok(event) => {
-                    let entity_id = event.id.to_string();
+                    let entity_id = event.id.to_sql();
                     self.staleness_manager.spawn_regeneration(
                         entity_id.clone(),
                         "event".to_string(),
@@ -284,7 +283,7 @@ impl NarraServer {
 
             match create_relationship(&self.db, create).await {
                 Ok(rel) => {
-                    let entity_id = rel.id.to_string();
+                    let entity_id = rel.id.to_sql();
                     // Mark relates_to edge for embedding generation
                     self.staleness_manager.spawn_regeneration(
                         entity_id.clone(),

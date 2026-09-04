@@ -1,7 +1,7 @@
 -- Annotation table: generic ML model outputs cached per entity.
 -- One annotation per (entity_id, model_type) pair.
 
-DEFINE TABLE IF NOT EXISTS annotation SCHEMAFULL;
+DEFINE TABLE annotation SCHEMAFULL TYPE NORMAL;
 DEFINE FIELD IF NOT EXISTS entity_id ON annotation TYPE string;
 DEFINE FIELD IF NOT EXISTS model_type ON annotation TYPE string;
 DEFINE FIELD IF NOT EXISTS model_version ON annotation TYPE string;

@@ -1,8 +1,7 @@
 //! Relationship command handlers for CLI.
 
 use anyhow::Result;
-use surrealdb::types::SurrealValue;
-use crate::db::compat::RecordIdExt;
+use surrealdb::types::{SurrealValue, ToSql};
 
 use crate::cli::output::{
     create_spinner, output_json, output_json_list, print_hint, print_success, print_table,
@@ -35,9 +34,9 @@ pub async fn list_relationships(
                 .iter()
                 .map(|r| {
                     vec![
-                        r.id.to_string(),
-                        r.from_character.to_string(),
-                        r.to_character.to_string(),
+                        r.id.to_sql(),
+                        r.from_character.to_sql(),
+                        r.to_character.to_sql(),
                         r.rel_type.clone(),
                         r.subtype.clone().unwrap_or_default(),
                         r.label.clone().unwrap_or_default(),

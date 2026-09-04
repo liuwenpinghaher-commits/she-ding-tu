@@ -12,7 +12,6 @@ use async_trait::async_trait;
 use serde::Serialize;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
-use crate::db::compat::RecordIdExt;
 
 use crate::db::connection::NarraDb;
 use crate::models::{CertaintyLevel, KnowledgeState};
@@ -121,11 +120,11 @@ pub(crate) fn detect_contradictory_knowledge(
     // Build target sets for comparison
     let a_by_target: HashMap<String, &KnowledgeState> = a_knowledge
         .iter()
-        .map(|k| (k.target.to_string(), k))
+        .map(|k| (k.target.to_sql(), k))
         .collect();
     let b_by_target: HashMap<String, &KnowledgeState> = b_knowledge
         .iter()
-        .map(|k| (k.target.to_string(), k))
+        .map(|k| (k.target.to_sql(), k))
         .collect();
 
     // Check for cases where one believes_wrongly what the other knows
@@ -321,7 +320,7 @@ impl TensionDataProvider for SurrealTensionDataProvider {
         Ok(rows
             .into_iter()
             .map(|r| TensionCharacterInfo {
-                id: r.id.to_string(),
+                id: r.id.to_sql(),
                 name: r.name,
                 profile: r.profile,
             })
@@ -377,15 +376,15 @@ impl TensionDataProvider for SurrealTensionDataProvider {
             .iter()
             .filter_map(|r| {
                 r.tension_level
-                    .map(|t| ((r.from.to_string(), r.to.to_string()), t))
+                    .map(|t| ((r.from.to_sql(), r.to.to_sql()), t))
             })
             .collect();
 
         let mut edges: Vec<RelationshipEdge> = rows
             .into_iter()
             .map(|r| {
-                let from = r.from.to_string();
-                let to = r.to.to_string();
+                let from = r.from.to_sql();
+                let to = r.to.to_sql();
                 let tension = tension_map.get(&(from.clone(), to.clone())).copied();
                 RelationshipEdge {
                     from_id: from,
@@ -399,8 +398,8 @@ impl TensionDataProvider for SurrealTensionDataProvider {
         // Also add perceives edges as relationship edges
         for pr in perc_rows {
             edges.push(RelationshipEdge {
-                from_id: pr.from.to_string(),
-                to_id: pr.to.to_string(),
+                from_id: pr.from.to_sql(),
+                to_id: pr.to.to_sql(),
                 rel_type: "perceives".to_string(),
                 tension_level: pr.tension_level,
             });
@@ -644,7 +643,7 @@ fn format_tension_description(
 mod tests {
     use super::*;
     use crate::models::LearningMethod;
-    use surrealdb::types::{RecordId, SurrealValue};
+    use surrealdb::types::{RecordId, SurrealValue, ToSql};
 
     fn mock_knowledge(
         target_table: &str,

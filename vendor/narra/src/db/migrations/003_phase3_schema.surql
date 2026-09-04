@@ -8,7 +8,7 @@
 -- Supports tracking certainty levels, how knowledge was acquired, and provenance
 -- ==============================================================================
 
-DEFINE TABLE knows SCHEMAFULL TYPE RELATION IN character OUT character|knowledge;
+DEFINE TABLE knows SCHEMAFULL TYPE RELATION IN character OUT character|knowledge ENFORCED;
 
 -- Core knowledge fields
 DEFINE FIELD certainty ON knows TYPE string;

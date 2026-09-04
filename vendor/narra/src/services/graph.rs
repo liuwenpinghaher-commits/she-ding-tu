@@ -8,8 +8,7 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::Arc;
-use surrealdb::types::SurrealValue;
-use crate::db::compat::RecordIdExt;
+use surrealdb::types::{SurrealValue, ToSql};
 
 use crate::models::character::get_character;
 use crate::models::perception::{get_perceptions_from, get_perceptions_of};
@@ -152,7 +151,7 @@ impl MermaidGraphService {
                 // Get outgoing perceptions
                 let outgoing = get_perceptions_from(&self.db, &current_id).await?;
                 for p in &outgoing {
-                    let target = p.to_character.key().to_string();
+                    let target = p.to_character.key.to_sql();
                     if !visited.contains(&target) {
                         queue.push((target, depth + 1));
                     }
@@ -162,7 +161,7 @@ impl MermaidGraphService {
                 // Get incoming perceptions
                 let incoming = get_perceptions_of(&self.db, &current_id).await?;
                 for p in &incoming {
-                    let source = p.from_character.key().to_string();
+                    let source = p.from_character.key.to_sql();
                     if !visited.contains(&source) {
                         queue.push((source, depth + 1));
                     }
@@ -183,7 +182,7 @@ impl MermaidGraphService {
 
                 for rel_target in outgoing_rels.into_iter().chain(incoming_rels) {
                     // Extract bare key from "character:xxx"
-                    let full = rel_target.to_string();
+                    let full = rel_target.to_sql();
                     let key = full.strip_prefix("character:").unwrap_or(&full).to_string();
                     if !visited.contains(&key) {
                         queue.push((key, depth + 1));
@@ -216,12 +215,12 @@ impl MermaidGraphService {
         // Create character ID to name map
         let char_map: HashMap<String, &Character> = characters
             .iter()
-            .map(|c| (c.id.key().to_string(), c))
+            .map(|c| (c.id.key.to_sql(), c))
             .collect();
 
         // Add nodes with labels
         for char in characters {
-            let id = char.id.key().to_string();
+            let id = char.id.key.to_sql();
             let label = Self::format_node_label(char, options.include_roles);
             lines.push(format!("    {}[{}]", id, label));
         }
@@ -231,8 +230,8 @@ impl MermaidGraphService {
 
         // Add edges from perceptions
         for p in perceptions {
-            let from = p.from_character.key().to_string();
-            let to = p.to_character.key().to_string();
+            let from = p.from_character.key.to_sql();
+            let to = p.to_character.key.to_sql();
 
             // Only include if both characters are in the graph
             if !char_map.contains_key(&from) || !char_map.contains_key(&to) {
@@ -345,7 +344,7 @@ impl MermaidGraphService {
                     for scene_id in scenes {
                         results.push(ReverseQueryResult {
                             entity_type: "scene".to_string(),
-                            entity_id: scene_id.to_string(),
+                            entity_id: scene_id.to_sql(),
                             reference_field: "participants".to_string(),
                         });
                     }
@@ -364,7 +363,7 @@ impl MermaidGraphService {
                     for event_id in events {
                         results.push(ReverseQueryResult {
                             entity_type: "event".to_string(),
-                            entity_id: event_id.to_string(),
+                            entity_id: event_id.to_sql(),
                             reference_field: "involved_characters".to_string(),
                         });
                     }
@@ -383,7 +382,7 @@ impl MermaidGraphService {
                     for k_id in knowledge {
                         results.push(ReverseQueryResult {
                             entity_type: "knowledge".to_string(),
-                            entity_id: k_id.to_string(),
+                            entity_id: k_id.to_sql(),
                             reference_field: "character".to_string(),
                         });
                     }
@@ -403,7 +402,7 @@ impl MermaidGraphService {
                     for scene_id in scenes {
                         results.push(ReverseQueryResult {
                             entity_type: "scene".to_string(),
-                            entity_id: scene_id.to_string(),
+                            entity_id: scene_id.to_sql(),
                             reference_field: "primary_location".to_string(),
                         });
                     }
@@ -421,7 +420,7 @@ impl MermaidGraphService {
                         for scene_id in scenes {
                             results.push(ReverseQueryResult {
                                 entity_type: "scene".to_string(),
-                                entity_id: scene_id.to_string(),
+                                entity_id: scene_id.to_sql(),
                                 reference_field: "secondary_locations".to_string(),
                             });
                         }
@@ -441,7 +440,7 @@ impl MermaidGraphService {
                     for scene_id in scenes {
                         results.push(ReverseQueryResult {
                             entity_type: "scene".to_string(),
-                            entity_id: scene_id.to_string(),
+                            entity_id: scene_id.to_sql(),
                             reference_field: "event".to_string(),
                         });
                     }
@@ -517,7 +516,7 @@ impl MermaidGraphService {
             let outgoing: Vec<PerceptionEdge> = result.take(0).unwrap_or_default();
 
             for edge in outgoing {
-                let target_full = edge.target.to_string();
+                let target_full = edge.target.to_sql();
                 let target_key = target_full
                     .split(':')
                     .nth(1)
@@ -556,7 +555,7 @@ impl MermaidGraphService {
             let incoming: Vec<PerceptionEdge> = result.take(0).unwrap_or_default();
 
             for edge in incoming {
-                let target_full = edge.target.to_string();
+                let target_full = edge.target.to_sql();
                 let target_key = target_full
                     .split(':')
                     .nth(1)
@@ -595,7 +594,7 @@ impl MermaidGraphService {
                 let events: Vec<surrealdb::types::RecordId> = result.take(0).unwrap_or_default();
 
                 for event_id in events {
-                    let event_full = event_id.to_string();
+                    let event_full = event_id.to_sql();
                     let event_key = event_full.split(':').nth(1).unwrap_or(&event_full);
 
                     // Get other participants in this event
@@ -608,7 +607,7 @@ impl MermaidGraphService {
                         result.take(0).unwrap_or_default();
 
                     for char_id in coparticipants {
-                        let char_full = char_id.to_string();
+                        let char_full = char_id.to_sql();
                         let char_key = char_full
                             .split(':')
                             .nth(1)

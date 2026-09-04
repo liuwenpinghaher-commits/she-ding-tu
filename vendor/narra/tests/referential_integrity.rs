@@ -8,7 +8,6 @@
 //! - Connection path finding (BFS graph traversal)
 
 mod common;
-use narra::db::compat::RecordIdExt;
 
 use common::builders::{CharacterBuilder, EventBuilder, LocationBuilder, SceneBuilder};
 use common::harness::TestHarness;
@@ -22,6 +21,7 @@ use narra::models::scene::create_scene;
 use narra::models::scene::get_scene;
 use narra::services::graph::MermaidGraphService;
 use narra::NarraError;
+use surrealdb::types::ToSql;
 
 /// Test cascade delete: deleting character removes their knowledge.
 ///
@@ -48,13 +48,13 @@ async fn test_cascade_delete_character_removes_knowledge() {
     println!("Created Alice and knowledge fact");
 
     // Delete the character
-    let alice_key = alice.id.key().to_string();
+    let alice_key = alice.id.key.to_sql();
     delete_character(&harness.db, &alice_key)
         .await
         .expect("Should delete Alice");
 
     // Verify knowledge is also deleted (CASCADE behavior)
-    let query = format!("SELECT * FROM knowledge:{}", knowledge.id.key());
+    let query = format!("SELECT * FROM {}", knowledge.id.to_sql());
     let mut result = harness
         .db
         .query(&query)
@@ -86,8 +86,8 @@ async fn test_cascade_delete_character_removes_relationships() {
         .await
         .expect("Should create Bob");
 
-    let alice_key = alice.id.key().to_string();
-    let bob_key = bob.id.key().to_string();
+    let alice_key = alice.id.key.to_sql();
+    let bob_key = bob.id.key.to_sql();
 
     let perception = create_perception(
         &harness.db,
@@ -113,7 +113,7 @@ async fn test_cascade_delete_character_removes_relationships() {
         .expect("Should delete Alice");
 
     // Verify the perceives edge is also deleted (CASCADE behavior)
-    let query = format!("SELECT * FROM perceives:{}", perception.id.key());
+    let query = format!("SELECT * FROM {}", perception.id.to_sql());
     let mut result = harness
         .db
         .query(&query)
@@ -152,9 +152,9 @@ async fn test_cascade_delete_character_removes_participations() {
     .await
     .expect("Should create event");
 
-    let alice_key = alice.id.key().to_string();
-    let event_key = event.id.key().to_string();
-    let location_key = location.id.key().to_string();
+    let alice_key = alice.id.key.to_sql();
+    let event_key = event.id.key.to_sql();
+    let location_key = location.id.key.to_sql();
 
     let scene = create_scene(
         &harness.db,
@@ -163,7 +163,7 @@ async fn test_cascade_delete_character_removes_participations() {
     .await
     .expect("Should create scene");
 
-    let scene_key = scene.id.key().to_string();
+    let scene_key = scene.id.key.to_sql();
 
     // Create participates_in edge (SCHEMAFULL table requires 'role' field)
     let query = format!(
@@ -222,8 +222,8 @@ async fn test_reject_delete_location_with_scenes() {
     .await
     .expect("Should create event");
 
-    let location_key = location.id.key().to_string();
-    let event_key = event.id.key().to_string();
+    let location_key = location.id.key.to_sql();
+    let event_key = event.id.key.to_sql();
 
     let _scene = create_scene(
         &harness.db,
@@ -271,7 +271,7 @@ async fn test_reject_delete_location_parent() {
         .await
         .expect("Should create parent location");
 
-    let parent_key = parent.id.key().to_string();
+    let parent_key = parent.id.key.to_sql();
 
     let _child = create_location(
         &harness.db,
@@ -332,9 +332,9 @@ async fn test_unset_location_from_secondary_locations() {
     .await
     .expect("Should create event");
 
-    let primary_key = primary_loc.id.key().to_string();
-    let secondary_key = secondary_loc.id.key().to_string();
-    let event_key = event.id.key().to_string();
+    let primary_key = primary_loc.id.key.to_sql();
+    let secondary_key = secondary_loc.id.key.to_sql();
+    let event_key = event.id.key.to_sql();
 
     let scene = create_scene(
         &harness.db,
@@ -347,7 +347,7 @@ async fn test_unset_location_from_secondary_locations() {
 
     println!("Created scene with primary and secondary locations");
 
-    let scene_key = scene.id.key().to_string();
+    let scene_key = scene.id.key.to_sql();
 
     // Verify secondary location is in the array
     let scene_data = get_scene(&harness.db, &scene_key)
@@ -400,9 +400,9 @@ async fn test_reverse_query_finds_scenes_for_character() {
     .await
     .expect("Should create event");
 
-    let alice_key = alice.id.key().to_string();
-    let event_key = event.id.key().to_string();
-    let location_key = location.id.key().to_string();
+    let alice_key = alice.id.key.to_sql();
+    let event_key = event.id.key.to_sql();
+    let location_key = location.id.key.to_sql();
 
     let scene = create_scene(
         &harness.db,
@@ -411,7 +411,7 @@ async fn test_reverse_query_finds_scenes_for_character() {
     .await
     .expect("Should create scene");
 
-    let scene_key = scene.id.key().to_string();
+    let scene_key = scene.id.key.to_sql();
 
     // Create participates_in edge (SCHEMAFULL table requires 'role' field)
     let query = format!(
@@ -471,8 +471,8 @@ async fn test_reverse_query_finds_events_for_character() {
     .await
     .expect("Should create event");
 
-    let alice_key = alice.id.key().to_string();
-    let event_key = event.id.key().to_string();
+    let alice_key = alice.id.key.to_sql();
+    let event_key = event.id.key.to_sql();
 
     // Create involved_in edge
     let query = format!(
@@ -533,9 +533,9 @@ async fn test_connection_path_via_relationship() {
         .await
         .expect("Should create Carol");
 
-    let alice_key = alice.id.key().to_string();
-    let bob_key = bob.id.key().to_string();
-    let carol_key = carol.id.key().to_string();
+    let alice_key = alice.id.key.to_sql();
+    let bob_key = bob.id.key.to_sql();
+    let carol_key = carol.id.key.to_sql();
 
     // Create perceptions: Alice -> Bob
     create_perception(
@@ -630,8 +630,8 @@ async fn test_connection_path_no_connection() {
         .await
         .expect("Should create Bob");
 
-    let alice_key = alice.id.key().to_string();
-    let bob_key = bob.id.key().to_string();
+    let alice_key = alice.id.key.to_sql();
+    let bob_key = bob.id.key.to_sql();
 
     println!("Created two unconnected characters");
 

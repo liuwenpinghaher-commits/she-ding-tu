@@ -1,7 +1,7 @@
 //! CRUD handlers for character, location, event, and scene entities.
 
 use anyhow::Result;
-use crate::db::compat::RecordIdExt;
+use surrealdb::types::ToSql;
 
 use crate::cli::output::{
     output_json, output_json_list, print_error, print_hint, print_success, print_table, OutputMode,
@@ -286,7 +286,7 @@ pub async fn list_characters(ctx: &AppContext, mode: OutputMode) -> Result<()> {
         .iter()
         .map(|c| {
             vec![
-                c.id.to_string(),
+                c.id.to_sql(),
                 c.name.clone(),
                 c.roles.join(", "),
                 c.aliases.join(", "),
@@ -372,7 +372,7 @@ pub async fn list_locations(ctx: &AppContext, mode: OutputMode) -> Result<()> {
         .iter()
         .map(|l| {
             vec![
-                l.id.to_string(),
+                l.id.to_sql(),
                 l.name.clone(),
                 l.loc_type.clone(),
                 l.description.clone().unwrap_or_default(),
@@ -446,7 +446,7 @@ pub async fn list_events(ctx: &AppContext, mode: OutputMode) -> Result<()> {
         .iter()
         .map(|e| {
             vec![
-                e.id.to_string(),
+                e.id.to_sql(),
                 e.title.clone(),
                 e.sequence.to_string(),
                 e.description.clone().unwrap_or_default(),
@@ -534,10 +534,10 @@ pub async fn list_scenes(ctx: &AppContext, mode: OutputMode) -> Result<()> {
         .iter()
         .map(|s| {
             vec![
-                s.id.to_string(),
+                s.id.to_sql(),
                 s.title.clone(),
-                s.event.to_string(),
-                s.primary_location.to_string(),
+                s.event.to_sql(),
+                s.primary_location.to_sql(),
             ]
         })
         .collect();
@@ -574,7 +574,7 @@ async fn list_phases(ctx: &AppContext, mode: OutputMode) -> Result<()> {
             };
             vec![
                 p.phase_order.to_string(),
-                p.id.to_string(),
+                p.id.to_sql(),
                 p.name.clone(),
                 p.label.clone(),
                 p.member_count.to_string(),

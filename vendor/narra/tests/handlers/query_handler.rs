@@ -5,7 +5,7 @@
 //! responses.
 
 use std::sync::Arc;
-use narra::db::compat::RecordIdExt;
+use surrealdb::types::ToSql;
 
 use insta::assert_snapshot;
 use narra::embedding::{EmbeddingConfig, EmbeddingService, LocalEmbeddingService};
@@ -43,7 +43,7 @@ async fn test_lookup_character_success() {
         .create_character(CharacterBuilder::new("Alice").build())
         .await
         .expect("Failed to create character");
-    let char_id = character.id.to_string();
+    let char_id = character.id.to_sql();
 
     // Call handler directly
     let request = QueryRequest::Lookup {
@@ -86,7 +86,7 @@ async fn test_lookup_location_success() {
         .create_location(LocationBuilder::new("The Tower").build())
         .await
         .expect("Failed to create location");
-    let loc_id = location.id.to_string();
+    let loc_id = location.id.to_sql();
 
     // Call handler directly
     let request = QueryRequest::Lookup {
@@ -389,8 +389,8 @@ async fn test_centrality_metrics() {
     create_relationship(
         &harness.db,
         RelationshipCreate {
-            from_character_id: alice.id.key().to_string(),
-            to_character_id: bob.id.key().to_string(),
+            from_character_id: alice.id.key.to_sql(),
+            to_character_id: bob.id.key.to_sql(),
             rel_type: "friendship".to_string(),
             subtype: None,
             label: None,
@@ -402,8 +402,8 @@ async fn test_centrality_metrics() {
     create_relationship(
         &harness.db,
         RelationshipCreate {
-            from_character_id: bob.id.key().to_string(),
-            to_character_id: charlie.id.key().to_string(),
+            from_character_id: bob.id.key.to_sql(),
+            to_character_id: charlie.id.key.to_sql(),
             rel_type: "mentorship".to_string(),
             subtype: None,
             label: None,
@@ -488,8 +488,8 @@ async fn test_influence_propagation() {
     use narra::models::perception::{create_perception, PerceptionCreate};
     create_perception(
         &harness.db,
-        &alice.id.key().to_string(),
-        &bob.id.key().to_string(),
+        &alice.id.key.to_sql(),
+        &bob.id.key.to_sql(),
         PerceptionCreate {
             rel_types: vec!["trusts".to_string()],
             subtype: None,
@@ -504,8 +504,8 @@ async fn test_influence_propagation() {
 
     create_perception(
         &harness.db,
-        &bob.id.key().to_string(),
-        &charlie.id.key().to_string(),
+        &bob.id.key.to_sql(),
+        &charlie.id.key.to_sql(),
         PerceptionCreate {
             rel_types: vec!["trusts".to_string()],
             subtype: None,
@@ -520,7 +520,7 @@ async fn test_influence_propagation() {
 
     // Call influence propagation from Alice
     let request = QueryRequest::InfluencePropagation {
-        from_character_id: format!("character:{}", alice.id.key()),
+        from_character_id: alice.id.to_sql(),
         knowledge_fact: None,
         max_depth: Some(3),
     };

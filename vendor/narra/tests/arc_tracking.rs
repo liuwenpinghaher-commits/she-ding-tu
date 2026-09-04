@@ -9,7 +9,6 @@
 //! - Event ID linking on snapshots
 
 mod common;
-use narra::db::compat::RecordIdExt;
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -26,7 +25,7 @@ use narra::models::character::{
 use narra::models::event::{create_event, EventCreate};
 use narra::session::SessionStateManager;
 use rmcp::handler::server::wrapper::Parameters;
-use surrealdb::types::{Datetime, SurrealValue};
+use surrealdb::types::{Datetime, SurrealValue, ToSql};
 
 /// Helper to create a 384-dimensional test embedding vector.
 /// HNSW indexes on character/knowledge tables require 384-dim vectors.
@@ -239,8 +238,8 @@ async fn test_baseline_arc_snapshots_creates_snapshots() {
     .expect("Should create Bob");
 
     // Manually set embeddings using inline SQL (avoids bind parameter deserialization issues)
-    let alice_id = alice.id.to_string();
-    let bob_id = bob.id.to_string();
+    let alice_id = alice.id.to_sql();
+    let bob_id = bob.id.to_sql();
 
     let alice_emb = test_embedding(1.0);
     let bob_emb = test_embedding(2.0);
@@ -327,7 +326,7 @@ async fn test_baseline_arc_snapshots_idempotent() {
     .await
     .expect("Should create Alice");
 
-    let alice_id = alice.id.to_string();
+    let alice_id = alice.id.to_sql();
     let emb = test_embedding(1.0);
     harness
         .db
@@ -500,7 +499,7 @@ async fn test_arc_history_returns_chronological_snapshots() {
     )
     .await
     .expect("Should create Alice");
-    let alice_id = alice.id.to_string();
+    let alice_id = alice.id.to_sql();
 
     // Insert 3 snapshots with increasing change
     insert_snapshot(&harness, &alice_id, "character", &[1.0, 0.0, 0.0], None).await;
@@ -601,7 +600,7 @@ async fn test_arc_history_limit() {
     )
     .await
     .unwrap();
-    let alice_id = alice.id.to_string();
+    let alice_id = alice.id.to_sql();
 
     for i in 0..10 {
         insert_snapshot(
@@ -650,8 +649,8 @@ async fn test_arc_comparison_converging() {
     )
     .await
     .unwrap();
-    let alice_id = alice.id.to_string();
-    let bob_id = bob.id.to_string();
+    let alice_id = alice.id.to_sql();
+    let bob_id = bob.id.to_sql();
 
     // Start far apart, end close together (converging)
     insert_snapshot(&harness, &alice_id, "character", &[1.0, 0.0, 0.0], None).await;
@@ -727,8 +726,8 @@ async fn test_arc_comparison_with_window() {
     )
     .await
     .unwrap();
-    let alice_id = alice.id.to_string();
-    let bob_id = bob.id.to_string();
+    let alice_id = alice.id.to_sql();
+    let bob_id = bob.id.to_sql();
 
     for i in 0..5 {
         let emb = vec![i as f32, 0.0];
@@ -811,8 +810,8 @@ async fn test_arc_drift_ranks_by_drift() {
     )
     .await
     .unwrap();
-    let alice_id = alice.id.to_string();
-    let bob_id = bob.id.to_string();
+    let alice_id = alice.id.to_sql();
+    let bob_id = bob.id.to_sql();
 
     // Alice: lots of drift
     insert_snapshot(&harness, &alice_id, "character", &[1.0, 0.0], None).await;
@@ -872,7 +871,7 @@ async fn test_arc_drift_type_filter() {
     )
     .await
     .unwrap();
-    let alice_id = alice.id.to_string();
+    let alice_id = alice.id.to_sql();
 
     // Character snapshot with drift
     insert_snapshot(&harness, &alice_id, "character", &[1.0, 0.0], None).await;
@@ -949,7 +948,7 @@ async fn test_arc_moment_latest() {
     )
     .await
     .unwrap();
-    let alice_id = alice.id.to_string();
+    let alice_id = alice.id.to_sql();
 
     insert_snapshot(&harness, &alice_id, "character", &[1.0, 0.0], None).await;
     insert_snapshot(&harness, &alice_id, "character", &[0.0, 1.0], Some(0.5)).await;
@@ -1010,7 +1009,7 @@ async fn test_arc_moment_at_event() {
     )
     .await
     .unwrap();
-    let alice_id = alice.id.to_string();
+    let alice_id = alice.id.to_sql();
 
     // Insert first snapshot
     insert_snapshot(&harness, &alice_id, "character", &[1.0, 0.0], None).await;
@@ -1030,7 +1029,7 @@ async fn test_arc_moment_at_event() {
     )
     .await
     .expect("Should create event");
-    let event_id = event.id.to_string();
+    let event_id = event.id.to_sql();
 
     // Wait, then insert second snapshot
     tokio::time::sleep(std::time::Duration::from_millis(50)).await;
@@ -1088,7 +1087,7 @@ async fn test_regeneration_creates_arc_snapshot() {
     )
     .await
     .expect("Should create Alice");
-    let alice_id = alice.id.to_string();
+    let alice_id = alice.id.to_sql();
 
     // Generate initial embedding (should create snapshot)
     staleness_manager
@@ -1119,7 +1118,7 @@ async fn test_regeneration_creates_arc_snapshot() {
     // Update character and regenerate (should create second snapshot WITH delta)
     update_character(
         &harness.db,
-        &alice.id.key().to_string(),
+        &alice.id.key.to_sql(),
         CharacterUpdate {
             profile: Some(HashMap::from([
                 ("wound".into(), vec!["Found inner peace through meditation at age 30. The world is full of wonder. Approaches challenges with calm confidence.".into()]),
@@ -1216,13 +1215,13 @@ async fn test_snapshot_captures_event_id() {
 
     // Record knowledge with event_id (creates the knowledge entity + knows edge)
     let request = MutationRequest::RecordKnowledge {
-        character_id: alice.id.to_string(),
+        character_id: alice.id.to_sql(),
         target_id: "character:alice".to_string(),
         fact: "The treasure is hidden beneath the old oak tree".to_string(),
         certainty: "knows".to_string(),
         method: Some("discovered".to_string()),
         source_character_id: None,
-        event_id: Some(event.id.to_string()),
+        event_id: Some(event.id.to_sql()),
     };
 
     let _resp = server
@@ -1243,12 +1242,12 @@ async fn test_snapshot_captures_event_id() {
         .expect("Query knowledge");
     let knowledge_ids: Vec<KnowledgeId> = k_resp.take(0).unwrap_or_default();
     assert!(!knowledge_ids.is_empty(), "Knowledge entity should exist");
-    let knowledge_id = knowledge_ids[0].id.to_string();
+    let knowledge_id = knowledge_ids[0].id.to_sql();
 
     // Regenerate with event_id using synchronous path
     // (spawn_regeneration uses tokio::spawn which may not complete in single-threaded test runtime)
     staleness_manager
-        .regenerate_embedding(&knowledge_id, Some(event.id.to_string()))
+        .regenerate_embedding(&knowledge_id, Some(event.id.to_sql()))
         .await
         .expect("Should regenerate knowledge embedding");
 
@@ -1362,8 +1361,8 @@ async fn test_full_arc_tracking_workflow() {
     .await
     .expect("Should create Bob");
 
-    let alice_id = alice.id.to_string();
-    let bob_id = bob.id.to_string();
+    let alice_id = alice.id.to_sql();
+    let bob_id = bob.id.to_sql();
 
     // Step 1: Backfill embeddings
     let stats = backfill_service
@@ -1387,7 +1386,7 @@ async fn test_full_arc_tracking_workflow() {
     // Step 3: Update Alice (character growth)
     update_character(
         &harness.db,
-        &alice.id.key().to_string(),
+        &alice.id.key.to_sql(),
         CharacterUpdate {
             profile: Some(HashMap::from([
                 ("wound".into(), vec!["Learned to trust again at age 25. Some people are worthy of trust. Cautiously extends trust.".into()]),

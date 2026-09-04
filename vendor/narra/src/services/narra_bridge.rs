@@ -1,16 +1,15 @@
 //! 把设定图正史双写进官方 Narra 表。load_canon 场骨架以带 setting_beat 的 scene 为准。
 
 use crate::db::connection::NarraDb;
-use crate::db::compat::RecordIdExt;
 use crate::services::world::{
     Beat, Canon, Column, Delta, Entity, ROLE_PRESENT, STATUS_COMMITTED,
 };
 use crate::NarraError;
 use serde::Deserialize;
-use surrealdb::types::{RecordId, SurrealValue};
-use surrealdb::IndexedResults as Response;
+use surrealdb::types::{RecordId, SurrealValue, ToSql};
+use surrealdb::IndexedResults;
 
-fn check_ctx(resp: Response, ctx: &str) -> Result<(), NarraError> {
+fn check_ctx(resp: IndexedResults, ctx: &str) -> Result<(), NarraError> {
     resp.check()
         .map(|_| ())
         .map_err(|e| NarraError::Database(format!("{ctx}: {e}")))
@@ -61,7 +60,7 @@ pub async fn mirror_entity(db: &NarraDb, e: &Entity) -> Result<(), NarraError> {
                 .bind(("aliases", aliases))
                 .await
                 .map_err(|err| NarraError::Database(err.to_string()))?;
-            check_ctx(resp, &format!("mirror character {}", e.id))?;
+            check_ctx(resp, &format!("mirror character {}", e.id.to_sql()))?;
         }
         "place" => {
             let loc_type = e
@@ -80,7 +79,7 @@ pub async fn mirror_entity(db: &NarraDb, e: &Entity) -> Result<(), NarraError> {
                 .bind(("d", e.profile.get("setup").cloned()))
                 .await
                 .map_err(|err| NarraError::Database(err.to_string()))?;
-            check_ctx(resp, &format!("mirror location {}", e.id))?;
+            check_ctx(resp, &format!("mirror location {}", e.id.to_sql()))?;
         }
         "rule" => {
             let enf = match e.profile.get("enforcement").map(|s| s.trim()) {
@@ -105,7 +104,7 @@ pub async fn mirror_entity(db: &NarraDb, e: &Entity) -> Result<(), NarraError> {
                 .bind(("enf", enf.to_string()))
                 .await
                 .map_err(|err| NarraError::Database(err.to_string()))?;
-            check_ctx(resp, &format!("mirror universe_fact {}", e.id))?;
+            check_ctx(resp, &format!("mirror universe_fact {}", e.id.to_sql()))?;
         }
         _ => {}
     }
@@ -124,7 +123,7 @@ pub async fn mirror_column(db: &NarraDb, c: &Column) -> Result<(), NarraError> {
         .bind(("b", c.clock_to))
         .await
         .map_err(|e| NarraError::Database(e.to_string()))?;
-    check_ctx(resp, &format!("mirror event {}", c.id))
+    check_ctx(resp, &format!("mirror event {}", c.id.to_sql()))
 }
 
 pub async fn delete_mirrored_entity(db: &NarraDb, id: &str) -> Result<(), NarraError> {
@@ -195,7 +194,7 @@ pub async fn mirror_beat(db: &NarraDb, beat: &Beat, col: Option<&Column>) -> Res
         .bind(("ct", beat.clock_to))
         .await
         .map_err(|e| NarraError::Database(e.to_string()))?;
-    check_ctx(resp, &format!("upsert scene {}", beat.id))?;
+    check_ctx(resp, &format!("upsert scene {}", beat.id.to_sql()))?;
 
     let resp = db
         .query("DELETE participates_in WHERE out = $s; DELETE knows WHERE scene = $s; DELETE setting_window WHERE source_beat = $b;")
@@ -203,7 +202,7 @@ pub async fn mirror_beat(db: &NarraDb, beat: &Beat, col: Option<&Column>) -> Res
         .bind(("b", beat_rid.clone()))
         .await
         .map_err(|e| NarraError::Database(e.to_string()))?;
-    check_ctx(resp, &format!("clear edges {}", beat.id))?;
+    check_ctx(resp, &format!("clear edges {}", beat.id.to_sql()))?;
 
     if beat.status != STATUS_COMMITTED {
         return Ok(());

@@ -8,8 +8,7 @@ use crate::db::connection::NarraDb;
 use async_trait::async_trait;
 use serde::Serialize;
 use std::sync::Arc;
-use surrealdb::types::SurrealValue;
-use crate::db::compat::RecordIdExt;
+use surrealdb::types::{SurrealValue, ToSql};
 
 use crate::utils::math::cosine_similarity;
 use crate::NarraError;
@@ -274,7 +273,7 @@ impl PerceptionDataProvider for SurrealPerceptionDataProvider {
         }
 
         let rows: Vec<Row> = resp.take(0)?;
-        Ok(rows.into_iter().next().map(|r| r.id.to_string()))
+        Ok(rows.into_iter().next().map(|r| r.id.to_sql()))
     }
 
     async fn fetch_perspective_snapshots(

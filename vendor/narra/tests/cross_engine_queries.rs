@@ -7,8 +7,7 @@
 //! - Error paths when embedding service unavailable
 
 mod common;
-use surrealdb::types::SurrealValue;
-use narra::db::compat::RecordIdExt;
+use surrealdb::types::{SurrealValue, ToSql};
 
 use std::sync::Arc;
 
@@ -207,22 +206,22 @@ async fn test_semantic_knowledge_finds_by_meaning() {
     // Record knowledge facts via mutations
     let facts = vec![
         (
-            alice.id.to_string(),
+            alice.id.to_sql(),
             "character:alice",
             "The ancient sword Excalibur is hidden in the lake of Avalon",
         ),
         (
-            alice.id.to_string(),
+            alice.id.to_sql(),
             "character:alice",
             "The dragon guarding the northern pass is actually a polymorphed wizard",
         ),
         (
-            bob.id.to_string(),
+            bob.id.to_sql(),
             "character:bob",
             "The royal succession passes through the female line in this kingdom",
         ),
         (
-            bob.id.to_string(),
+            bob.id.to_sql(),
             "character:bob",
             "Trade routes through the mountain pass are controlled by bandits",
         ),
@@ -315,7 +314,7 @@ async fn test_semantic_knowledge_character_filter() {
 
     // Give Alice and Bob different knowledge
     let alice_request = MutationRequest::RecordKnowledge {
-        character_id: alice.id.to_string(),
+        character_id: alice.id.to_sql(),
         target_id: "character:alice".to_string(),
         fact: "The dungeon entrance is concealed behind the waterfall".to_string(),
         certainty: "knows".to_string(),
@@ -329,7 +328,7 @@ async fn test_semantic_knowledge_character_filter() {
         .expect("Should record Alice's knowledge");
 
     let bob_request = MutationRequest::RecordKnowledge {
-        character_id: bob.id.to_string(),
+        character_id: bob.id.to_sql(),
         target_id: "character:bob".to_string(),
         fact: "The secret passage leads underground to the dungeon".to_string(),
         certainty: "knows".to_string(),
@@ -357,7 +356,7 @@ async fn test_semantic_knowledge_character_filter() {
     // Search filtered to Alice only
     let request = QueryRequest::SemanticKnowledge {
         query: "hidden dungeon entrances".to_string(),
-        character_id: Some(alice.id.to_string()),
+        character_id: Some(alice.id.to_sql()),
         limit: Some(10),
     };
     let response = server
@@ -475,8 +474,8 @@ async fn test_semantic_graph_search_ranks_connected_entities() {
     // Create relationships: Alice <-> Bob, Alice <-> Carol
     // CreateRelationship expects bare keys (without "character:" prefix)
     let create_rel_ab = MutationRequest::CreateRelationship {
-        from_character_id: alice.id.key().to_string(),
-        to_character_id: bob.id.key().to_string(),
+        from_character_id: alice.id.key.to_sql(),
+        to_character_id: bob.id.key.to_sql(),
         rel_type: "professional".to_string(),
         subtype: Some("alliance".to_string()),
         label: Some("spy network".to_string()),
@@ -487,8 +486,8 @@ async fn test_semantic_graph_search_ranks_connected_entities() {
         .expect("Should create Alice-Bob relationship");
 
     let create_rel_ac = MutationRequest::CreateRelationship {
-        from_character_id: alice.id.key().to_string(),
-        to_character_id: carol.id.key().to_string(),
+        from_character_id: alice.id.key.to_sql(),
+        to_character_id: carol.id.key.to_sql(),
         rel_type: "professional".to_string(),
         subtype: Some("comrades".to_string()),
         label: Some("battle companions".to_string()),
@@ -500,7 +499,7 @@ async fn test_semantic_graph_search_ranks_connected_entities() {
 
     // SemanticGraphSearch from Alice about espionage/deception
     let request = QueryRequest::SemanticGraphSearch {
-        entity_id: alice.id.to_string(),
+        entity_id: alice.id.to_sql(),
         max_hops: Some(2),
         query: "espionage deception and covert operations".to_string(),
         entity_types: None,
@@ -517,8 +516,8 @@ async fn test_semantic_graph_search_ranks_connected_entities() {
     );
 
     // Bob (spy/deception) should rank higher than Carol (healer) for this query
-    let bob_id = bob.id.to_string();
-    let carol_id = carol.id.to_string();
+    let bob_id = bob.id.to_sql();
+    let carol_id = carol.id.to_sql();
 
     let bob_result = response.results.iter().find(|r| r.id == bob_id);
     let carol_result = response.results.iter().find(|r| r.id == carol_id);
@@ -580,8 +579,8 @@ async fn test_semantic_graph_search_type_filter() {
 
     // Create relationship (expects bare keys without "character:" prefix)
     let create_rel = MutationRequest::CreateRelationship {
-        from_character_id: alice.id.key().to_string(),
-        to_character_id: bob.id.key().to_string(),
+        from_character_id: alice.id.key.to_sql(),
+        to_character_id: bob.id.key.to_sql(),
         rel_type: "friendship".to_string(),
         subtype: None,
         label: None,
@@ -593,7 +592,7 @@ async fn test_semantic_graph_search_type_filter() {
 
     // Search with type filter for "character" only
     let request = QueryRequest::SemanticGraphSearch {
-        entity_id: alice.id.to_string(),
+        entity_id: alice.id.to_sql(),
         max_hops: Some(2),
         query: "companion".to_string(),
         entity_types: Some(vec!["character".to_string()]),
@@ -635,7 +634,7 @@ async fn test_semantic_graph_search_no_connections() {
     .expect("Should create Alice");
 
     let request = QueryRequest::SemanticGraphSearch {
-        entity_id: alice.id.to_string(),
+        entity_id: alice.id.to_sql(),
         max_hops: Some(2),
         query: "anything".to_string(),
         entity_types: None,
@@ -698,13 +697,13 @@ async fn test_record_knowledge_generates_embedding() {
 
     // Record knowledge with event (non-initial methods require an event)
     let request = MutationRequest::RecordKnowledge {
-        character_id: alice.id.to_string(),
+        character_id: alice.id.to_sql(),
         target_id: "character:alice".to_string(),
         fact: "The ancient prophecy speaks of a chosen one who will unite the kingdoms".to_string(),
         certainty: "believes".to_string(),
         method: Some("heard".to_string()),
         source_character_id: None,
-        event_id: Some(event.id.to_string()),
+        event_id: Some(event.id.to_sql()),
     };
     server
         .handle_mutate(Parameters(to_mutation_input(request)))

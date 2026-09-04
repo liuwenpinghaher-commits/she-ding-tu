@@ -5,7 +5,7 @@
 
 use crate::common::harness::TestHarness;
 use crate::common::{builders::CharacterBuilder, to_mutation_input, to_query_input};
-use narra::db::compat::RecordIdExt;
+use surrealdb::types::ToSql;
 
 use insta::assert_snapshot;
 use narra::mcp::types::{MutationRequest, QueryRequest};
@@ -295,7 +295,7 @@ async fn test_query_graph_traversal_zero_depth() {
         .create_character(CharacterBuilder::new("Alice").build())
         .await
         .expect("Create Alice");
-    let alice_id = format!("character:{}", alice.id.key());
+    let alice_id = alice.id.to_sql();
 
     let server = crate::common::create_test_server(&harness).await;
 

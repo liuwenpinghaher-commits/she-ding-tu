@@ -1,7 +1,7 @@
 //! Deep entity exploration handler.
 
 use anyhow::Result;
-use surrealdb::types::SurrealValue;
+use surrealdb::types::{SurrealValue, ToSql};
 
 use crate::cli::output::{
     output_json, print_error, print_header, print_hint, print_kv, print_section, print_table,
@@ -262,10 +262,10 @@ async fn explore_character(
         let rows: Vec<Vec<String>> = relationships
             .iter()
             .map(|r| {
-                let other = if r.from_character.to_string() == entity_id {
-                    r.to_character.to_string()
+                let other = if r.from_character.to_sql() == entity_id {
+                    r.to_character.to_sql()
                 } else {
-                    r.from_character.to_string()
+                    r.from_character.to_sql()
                 };
                 vec![
                     other,
@@ -293,7 +293,7 @@ async fn explore_character(
             .iter()
             .map(|k| {
                 vec![
-                    k.target.to_string(),
+                    k.target.to_sql(),
                     format!("{:?}", k.certainty),
                     format!("{:?}", k.learning_method),
                 ]

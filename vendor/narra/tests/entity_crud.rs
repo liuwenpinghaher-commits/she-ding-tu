@@ -4,12 +4,11 @@
 //! operations work correctly through the SurrealEntityRepository.
 
 mod common;
-use narra::db::compat::RecordIdExt;
 
 use narra::models::{CharacterUpdate, EventUpdate, LocationUpdate, SceneUpdate};
 use narra::repository::{EntityRepository, SurrealEntityRepository};
 use pretty_assertions::assert_eq;
-use surrealdb::types::Datetime;
+use surrealdb::types::{Datetime, ToSql};
 
 use common::builders::{CharacterBuilder, EventBuilder, LocationBuilder, SceneBuilder};
 use common::harness::TestHarness;
@@ -43,7 +42,7 @@ async fn test_character_crud_workflow() {
     assert!(character.roles.contains(&"protagonist".to_string()));
 
     // READ
-    let char_id = character.id.key().to_string();
+    let char_id = character.id.key.to_sql();
     let fetched = repo
         .get_character(&char_id)
         .await
@@ -153,7 +152,7 @@ async fn test_character_list_multiple() {
     assert!(names.contains(&"Charlie"));
 
     // Delete one, verify list updates
-    repo.delete_character(&bob.id.key().to_string())
+    repo.delete_character(&bob.id.key.to_sql())
         .await
         .expect("Failed to delete Bob");
 
@@ -169,10 +168,10 @@ async fn test_character_list_multiple() {
     assert!(names_after.contains(&"Charlie"));
 
     // Clean up
-    repo.delete_character(&alice.id.key().to_string())
+    repo.delete_character(&alice.id.key.to_sql())
         .await
         .ok();
-    repo.delete_character(&charlie.id.key().to_string())
+    repo.delete_character(&charlie.id.key.to_sql())
         .await
         .ok();
 }
@@ -213,7 +212,7 @@ async fn test_location_crud_workflow() {
     assert_eq!(location.loc_type, "building");
 
     // READ
-    let loc_id = location.id.key().to_string();
+    let loc_id = location.id.key.to_sql();
     let fetched = repo
         .get_location(&loc_id)
         .await
@@ -328,7 +327,7 @@ async fn test_event_crud_workflow() {
     assert_eq!(event.sequence, 100);
 
     // READ
-    let event_id = event.id.key().to_string();
+    let event_id = event.id.key.to_sql();
     let fetched = repo
         .get_event(&event_id)
         .await
@@ -432,9 +431,9 @@ async fn test_event_list_ordered_by_sequence() {
     assert_eq!(events[2].title, "Event C");
 
     // Clean up
-    repo.delete_event(&event_a.id.key().to_string()).await.ok();
-    repo.delete_event(&event_b.id.key().to_string()).await.ok();
-    repo.delete_event(&event_c.id.key().to_string()).await.ok();
+    repo.delete_event(&event_a.id.key.to_sql()).await.ok();
+    repo.delete_event(&event_b.id.key.to_sql()).await.ok();
+    repo.delete_event(&event_c.id.key.to_sql()).await.ok();
 }
 
 // =============================================================================
@@ -459,7 +458,7 @@ async fn test_scene_crud_workflow() {
         .create_event(EventBuilder::new("Chapter One").sequence(10).build())
         .await
         .expect("Failed to create event");
-    let event_id = event.id.key().to_string();
+    let event_id = event.id.key.to_sql();
 
     let location = repo
         .create_location(
@@ -469,7 +468,7 @@ async fn test_scene_crud_workflow() {
         )
         .await
         .expect("Failed to create location");
-    let location_id = location.id.key().to_string();
+    let location_id = location.id.key.to_sql();
 
     // CREATE
     let create_data = SceneBuilder::new("Opening Scene", &event_id, &location_id)
@@ -487,11 +486,11 @@ async fn test_scene_crud_workflow() {
         Some("Our heroes meet for the first time".to_string())
     );
     // Verify references are stored
-    assert!(scene.event.to_string().contains(&event_id));
-    assert!(scene.primary_location.to_string().contains(&location_id));
+    assert!(scene.event.to_sql().contains(&event_id));
+    assert!(scene.primary_location.to_sql().contains(&location_id));
 
     // READ
-    let scene_id = scene.id.key().to_string();
+    let scene_id = scene.id.key.to_sql();
     let fetched = repo
         .get_scene(&scene_id)
         .await
@@ -528,7 +527,7 @@ async fn test_scene_crud_workflow() {
         Some("A fateful meeting at the tavern".to_string())
     );
     // Event and location should be unchanged (partial update)
-    assert!(updated.event.to_string().contains(&event_id));
+    assert!(updated.event.to_sql().contains(&event_id));
 
     // Verify update persists
     let refetched = repo
@@ -579,13 +578,13 @@ async fn test_scene_list_multiple_at_event() {
         .create_event(EventBuilder::new("The Festival").sequence(50).build())
         .await
         .expect("Failed to create event");
-    let event_id = event.id.key().to_string();
+    let event_id = event.id.key.to_sql();
 
     let location1 = repo
         .create_location(LocationBuilder::new("Main Stage").loc_type("venue").build())
         .await
         .expect("Failed to create location 1");
-    let location1_id = location1.id.key().to_string();
+    let location1_id = location1.id.key.to_sql();
 
     let location2 = repo
         .create_location(
@@ -595,7 +594,7 @@ async fn test_scene_list_multiple_at_event() {
         )
         .await
         .expect("Failed to create location 2");
-    let location2_id = location2.id.key().to_string();
+    let location2_id = location2.id.key.to_sql();
 
     // Create multiple scenes at the same event
     let scene1 = repo
@@ -625,7 +624,7 @@ async fn test_scene_list_multiple_at_event() {
     assert!(titles.contains(&"The Secret Meeting"));
 
     // Delete one scene, verify list updates
-    repo.delete_scene(&scene1.id.key().to_string())
+    repo.delete_scene(&scene1.id.key.to_sql())
         .await
         .expect("Failed to delete scene 1");
 
@@ -634,7 +633,7 @@ async fn test_scene_list_multiple_at_event() {
     assert_eq!(after_delete[0].title, "The Secret Meeting");
 
     // Clean up
-    repo.delete_scene(&scene2.id.key().to_string()).await.ok();
+    repo.delete_scene(&scene2.id.key.to_sql()).await.ok();
     repo.delete_event(&event_id).await.ok();
     repo.delete_location(&location1_id).await.ok();
     repo.delete_location(&location2_id).await.ok();

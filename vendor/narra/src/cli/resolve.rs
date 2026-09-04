@@ -4,8 +4,7 @@ use crate::db::connection::NarraDb;
 use anyhow::Result;
 use serde::Deserialize;
 use std::sync::Arc;
-use surrealdb::types::SurrealValue;
-use crate::db::compat::RecordIdExt;
+use surrealdb::types::{SurrealValue, ToSql};
 
 use crate::init::AppContext;
 use crate::services::{SearchFilter, SearchService};
@@ -203,7 +202,7 @@ async fn exact_name_match(db: &Arc<NarraDb>, input: &str) -> Result<Vec<Resolved
     for r in characters.unwrap_or_default() {
         resolved.push(ResolvedEntity {
             entity_type: "character".to_string(),
-            id: r.id.to_string(),
+            id: r.id.to_sql(),
             name: r.name,
             method: ResolutionMethod::Exact,
         });
@@ -211,7 +210,7 @@ async fn exact_name_match(db: &Arc<NarraDb>, input: &str) -> Result<Vec<Resolved
     for r in locations.unwrap_or_default() {
         resolved.push(ResolvedEntity {
             entity_type: "location".to_string(),
-            id: r.id.to_string(),
+            id: r.id.to_sql(),
             name: r.name,
             method: ResolutionMethod::Exact,
         });
@@ -219,7 +218,7 @@ async fn exact_name_match(db: &Arc<NarraDb>, input: &str) -> Result<Vec<Resolved
     for r in events.unwrap_or_default() {
         resolved.push(ResolvedEntity {
             entity_type: "event".to_string(),
-            id: r.id.to_string(),
+            id: r.id.to_sql(),
             name: r.name,
             method: ResolutionMethod::Exact,
         });
@@ -227,7 +226,7 @@ async fn exact_name_match(db: &Arc<NarraDb>, input: &str) -> Result<Vec<Resolved
     for r in scenes.unwrap_or_default() {
         resolved.push(ResolvedEntity {
             entity_type: "scene".to_string(),
-            id: r.id.to_string(),
+            id: r.id.to_sql(),
             name: r.name,
             method: ResolutionMethod::Exact,
         });

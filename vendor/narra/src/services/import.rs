@@ -1,7 +1,6 @@
 use std::sync::Arc;
-use crate::db::compat::RecordIdExt;
 
-use surrealdb::types::RecordId;
+use surrealdb::types::{RecordId, ToSql};
 
 use crate::db::connection::NarraDb;
 
@@ -167,7 +166,7 @@ impl ImportService {
                 match create_character_with_id(&self.db, id, create_data).await {
                     Ok(c) => {
                         result.created += 1;
-                        self.spawn_regen(&c.id.to_string(), "character");
+                        self.spawn_regen(&c.id.to_sql(), "character");
                     }
                     Err(e) => {
                         result
@@ -179,7 +178,7 @@ impl ImportService {
                 match create_character(&self.db, create_data).await {
                     Ok(c) => {
                         result.created += 1;
-                        self.spawn_regen(&c.id.to_string(), "character");
+                        self.spawn_regen(&c.id.to_sql(), "character");
                     }
                     Err(e) => {
                         result
@@ -277,7 +276,7 @@ impl ImportService {
                 match create_location_with_id(&self.db, id, create_data).await {
                     Ok(loc) => {
                         result.created += 1;
-                        self.spawn_regen(&loc.id.to_string(), "location");
+                        self.spawn_regen(&loc.id.to_sql(), "location");
                     }
                     Err(e) => {
                         result
@@ -289,7 +288,7 @@ impl ImportService {
                 match create_location(&self.db, create_data).await {
                     Ok(loc) => {
                         result.created += 1;
-                        self.spawn_regen(&loc.id.to_string(), "location");
+                        self.spawn_regen(&loc.id.to_sql(), "location");
                     }
                     Err(e) => {
                         result
@@ -384,7 +383,7 @@ impl ImportService {
                 match create_event_with_id(&self.db, id, create_data).await {
                     Ok(ev) => {
                         result.created += 1;
-                        self.spawn_regen(&ev.id.to_string(), "event");
+                        self.spawn_regen(&ev.id.to_sql(), "event");
                     }
                     Err(e) => {
                         result
@@ -396,7 +395,7 @@ impl ImportService {
                 match create_event(&self.db, create_data).await {
                     Ok(ev) => {
                         result.created += 1;
-                        self.spawn_regen(&ev.id.to_string(), "event");
+                        self.spawn_regen(&ev.id.to_sql(), "event");
                     }
                     Err(e) => {
                         result
@@ -521,8 +520,8 @@ impl ImportService {
                 match create_scene_with_id(&self.db, id, create_data).await {
                     Ok(s) => {
                         result.created += 1;
-                        self.spawn_regen(&s.id.to_string(), "scene");
-                        s.id.key().to_string()
+                        self.spawn_regen(&s.id.to_sql(), "scene");
+                        s.id.key.to_sql()
                     }
                     Err(e) => {
                         result
@@ -535,8 +534,8 @@ impl ImportService {
                 match create_scene(&self.db, create_data).await {
                     Ok(s) => {
                         result.created += 1;
-                        self.spawn_regen(&s.id.to_string(), "scene");
-                        s.id.key().to_string()
+                        self.spawn_regen(&s.id.to_sql(), "scene");
+                        s.id.key.to_sql()
                     }
                     Err(e) => {
                         result
@@ -605,7 +604,7 @@ impl ImportService {
             match create_relationship(&self.db, create_data).await {
                 Ok(rel) => {
                     result.created += 1;
-                    self.spawn_regen(&rel.id.to_string(), "relates_to");
+                    self.spawn_regen(&rel.id.to_sql(), "relates_to");
                 }
                 Err(e) => {
                     result.errors.push(format!(
@@ -665,7 +664,7 @@ impl ImportService {
                 .map(|m| parse_learning_method(m))
                 .unwrap_or(LearningMethod::Initial);
 
-            let knowledge_target = format!("knowledge:{}", knowledge_entity.id.key());
+            let knowledge_target = knowledge_entity.id.to_sql();
             let char_key = spec
                 .character_id
                 .split(':')
@@ -689,7 +688,7 @@ impl ImportService {
             match create_knowledge_state(&self.db, char_key, &knowledge_target, create).await {
                 Ok(_) => {
                     result.created += 1;
-                    let knowledge_entity_id = knowledge_entity.id.to_string();
+                    let knowledge_entity_id = knowledge_entity.id.to_sql();
                     self.staleness_manager.spawn_regeneration(
                         knowledge_entity_id,
                         "knowledge".to_string(),
@@ -766,7 +765,7 @@ impl ImportService {
                 match create_note_with_id(&self.db, id, create_data).await {
                     Ok(n) => {
                         result.created += 1;
-                        n.id.key().to_string()
+                        n.id.key.to_sql()
                     }
                     Err(e) => {
                         result
@@ -779,7 +778,7 @@ impl ImportService {
                 match create_note(&self.db, create_data).await {
                     Ok(n) => {
                         result.created += 1;
-                        n.id.key().to_string()
+                        n.id.key.to_sql()
                     }
                     Err(e) => {
                         result
@@ -890,7 +889,7 @@ impl ImportService {
                 match create_fact_with_id(&self.db, id, create_data).await {
                     Ok(f) => {
                         result.created += 1;
-                        f.id.key().to_string()
+                        f.id.key.to_sql()
                     }
                     Err(e) => {
                         result
@@ -903,7 +902,7 @@ impl ImportService {
                 match create_fact(&self.db, create_data).await {
                     Ok(f) => {
                         result.created += 1;
-                        f.id.key().to_string()
+                        f.id.key.to_sql()
                     }
                     Err(e) => {
                         result

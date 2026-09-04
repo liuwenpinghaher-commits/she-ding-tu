@@ -8,7 +8,6 @@ use crate::db::connection::NarraDb;
 use crate::NarraError;
 use serde::{Deserialize, Serialize};
 use surrealdb::types::{Datetime, RecordId, SurrealValue};
-use crate::db::compat::RecordIdExt;
 
 /// A cached ML model annotation for an entity.
 #[derive(Debug, Clone, Serialize, Deserialize, SurrealValue)]

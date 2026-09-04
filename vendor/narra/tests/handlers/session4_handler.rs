@@ -7,11 +7,11 @@ use narra::mcp::{MutationRequest, QueryRequest};
 use narra::models::fact::{self, FactCreate};
 use narra::models::knowledge::{create_knowledge_state, KnowledgeStateCreate, LearningMethod};
 use narra::models::{EnforcementLevel, FactCategory};
-use narra::db::compat::RecordIdExt;
 use narra::repository::{
     EntityRepository, KnowledgeRepository, SurrealEntityRepository, SurrealKnowledgeRepository,
 };
 use rmcp::handler::server::wrapper::Parameters;
+use surrealdb::types::ToSql;
 
 use crate::common::{
     builders::{CharacterBuilder, EventBuilder, KnowledgeBuilder},
@@ -37,7 +37,7 @@ async fn test_investigate_contradictions_clean() {
     let server = crate::common::create_test_server(&harness).await;
 
     let request = QueryRequest::InvestigateContradictions {
-        entity_id: format!("character:{}", alice.id.key()),
+        entity_id: alice.id.to_sql(),
         max_depth: 3,
     };
 
@@ -69,7 +69,7 @@ async fn test_investigate_contradictions_depth_1() {
     let server = crate::common::create_test_server(&harness).await;
 
     let request = QueryRequest::InvestigateContradictions {
-        entity_id: format!("character:{}", alice.id.key()),
+        entity_id: alice.id.to_sql(),
         max_depth: 1,
     };
 
@@ -442,8 +442,8 @@ async fn test_temporal_all_knowledge() {
 
     create_knowledge_state(
         &harness.db,
-        &alice.id.key().to_string(),
-        &knowledge.id.to_string(),
+        &alice.id.key.to_sql(),
+        &knowledge.id.to_sql(),
         KnowledgeStateCreate {
             certainty: narra::models::knowledge::CertaintyLevel::Knows,
             learning_method: LearningMethod::Initial,
@@ -459,7 +459,7 @@ async fn test_temporal_all_knowledge() {
     let server = crate::common::create_test_server(&harness).await;
 
     let request = QueryRequest::Temporal {
-        character_id: format!("character:{}", alice.id.key()),
+        character_id: alice.id.to_sql(),
         event_id: None,
         event_name: None,
     };
@@ -500,13 +500,13 @@ async fn test_temporal_at_event() {
 
     create_knowledge_state(
         &harness.db,
-        &alice.id.key().to_string(),
-        &knowledge.id.to_string(),
+        &alice.id.key.to_sql(),
+        &knowledge.id.to_sql(),
         KnowledgeStateCreate {
             certainty: narra::models::knowledge::CertaintyLevel::Suspects,
             learning_method: LearningMethod::Overheard,
             source_character: None,
-            event: Some(event.id.key().to_string()),
+            event: Some(event.id.key.to_sql()),
             premises: None,
             truth_value: None,
         },
@@ -517,8 +517,8 @@ async fn test_temporal_at_event() {
     let server = crate::common::create_test_server(&harness).await;
 
     let request = QueryRequest::Temporal {
-        character_id: format!("character:{}", alice.id.key()),
-        event_id: Some(format!("event:{}", event.id.key())),
+        character_id: alice.id.to_sql(),
+        event_id: Some(event.id.to_sql()),
         event_name: None,
     };
 
@@ -547,7 +547,7 @@ async fn test_temporal_no_knowledge() {
     let server = crate::common::create_test_server(&harness).await;
 
     let request = QueryRequest::Temporal {
-        character_id: format!("character:{}", alice.id.key()),
+        character_id: alice.id.to_sql(),
         event_id: None,
         event_name: None,
     };

@@ -1,8 +1,7 @@
 //! Find handler for CLI — hybrid search by default, plus semantic subcommands.
 
 use anyhow::Result;
-use surrealdb::types::SurrealValue;
-use crate::db::compat::RecordIdExt;
+use surrealdb::types::{SurrealValue, ToSql};
 
 use crate::cli::output::{
     create_spinner, output_json, output_json_list, print_hint, print_table, OutputMode,
@@ -316,7 +315,7 @@ pub async fn handle_semantic_join(
         .iter()
         .map(|r| {
             vec![
-                r.id.to_string(),
+                r.id.to_sql(),
                 r.entity_type.clone(),
                 r.name.clone(),
                 format!("{:.4}", r.score),
@@ -426,7 +425,7 @@ pub async fn handle_semantic_knowledge(
         .iter()
         .map(|r| {
             vec![
-                r.id.to_string(),
+                r.id.to_sql(),
                 r.name.clone(),
                 r.character_name.as_deref().unwrap_or("-").to_string(),
                 format!("{:.4}", r.score),
@@ -544,7 +543,7 @@ pub async fn handle_semantic_graph_search(
         for e in entities {
             let similarity = cosine_similarity(&e.embedding, &query_vector);
             scored_results.push(ScoredResult {
-                id: e.id.to_string(),
+                id: e.id.to_sql(),
                 entity_type: e.entity_type,
                 name: e.name,
                 score: similarity,

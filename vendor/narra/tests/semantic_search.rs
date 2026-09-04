@@ -8,7 +8,6 @@
 //! - Empty embeddings handled correctly
 
 mod common;
-use narra::db::compat::RecordIdExt;
 
 use common::harness::TestHarness;
 use narra::embedding::backfill::BackfillService;
@@ -22,6 +21,7 @@ use narra::models::CharacterCreate;
 use narra::services::{SearchFilter, SearchService, SurrealSearchService};
 use std::collections::HashMap;
 use std::sync::Arc;
+use surrealdb::types::ToSql;
 
 /// Test semantic search finds characters by psychological meaning.
 ///
@@ -116,8 +116,8 @@ async fn test_semantic_search_finds_by_meaning() {
     assert!(!results.is_empty(), "Semantic search should return results");
 
     // Alice should rank higher than Bob (duty is semantically closer to Alice's wound)
-    let alice_id = format!("character:{}", alice.id.key());
-    let bob_id = format!("character:{}", bob.id.key());
+    let alice_id = alice.id.to_sql();
+    let bob_id = bob.id.to_sql();
 
     let alice_result = results.iter().find(|r| r.id == alice_id);
     let bob_result = results.iter().find(|r| r.id == bob_id);
@@ -232,8 +232,8 @@ async fn test_semantic_search_scene_by_mood() {
     println!("Semantic search results for 'tense': {:?}", results);
     assert!(!results.is_empty(), "Should find scenes");
 
-    let confrontation_id = format!("scene:{}", confrontation.id.key());
-    let festival_id = format!("scene:{}", festival.id.key());
+    let confrontation_id = confrontation.id.to_sql();
+    let festival_id = festival.id.to_sql();
 
     let confrontation_result = results.iter().find(|r| r.id == confrontation_id);
     let festival_result = results.iter().find(|r| r.id == festival_id);
@@ -324,7 +324,7 @@ async fn test_hybrid_search_combines_keyword_and_meaning() {
     println!("Hybrid search results for 'betrayal by Bob': {:?}", results);
     assert!(!results.is_empty(), "Hybrid search should return results");
 
-    let bob_id = format!("character:{}", bob.id.key());
+    let bob_id = bob.id.to_sql();
 
     // Bob should definitely appear (keyword match on "Bob")
     let bob_result = results.iter().find(|r| r.id == bob_id);

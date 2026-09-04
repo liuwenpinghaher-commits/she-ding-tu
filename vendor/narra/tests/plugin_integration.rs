@@ -14,12 +14,12 @@ use narra::mcp::tools::SessionContextRequest;
 use narra::mcp::NarraServer;
 use narra::models::{CharacterCreate, LocationCreate};
 use narra::repository::{EntityRepository, SurrealEntityRepository};
-use narra::db::compat::RecordIdExt;
 use narra::session::{
     generate_startup_context, PendingDecision, SessionStateManager, StartupVerbosity,
 };
 use std::sync::Arc;
 use tempfile::TempDir;
+use surrealdb::types::ToSql;
 
 #[tokio::test]
 async fn test_session_state_persists_across_restarts() {
@@ -129,8 +129,8 @@ async fn test_startup_context_knows_last_work() {
 
     // Create session and record accesses
     let manager = SessionStateManager::load_or_create(&session_path).unwrap();
-    let char1_id = format!("character:{}", char1.id.key());
-    let char2_id = format!("character:{}", char2.id.key());
+    let char1_id = char1.id.to_sql();
+    let char2_id = char2.id.to_sql();
 
     manager.record_access(&char1_id).await;
     manager.record_access(&char2_id).await;
@@ -203,10 +203,10 @@ async fn test_startup_surfaces_recent_context() {
     // Create session with accesses
     let manager = SessionStateManager::load_or_create(&session_path).unwrap();
     manager
-        .record_access(&format!("character:{}", char1.id.key()))
+        .record_access(&char1.id.to_sql())
         .await;
     manager
-        .record_access(&format!("location:{}", loc1.id.key()))
+        .record_access(&loc1.id.to_sql())
         .await;
     manager.mark_session_end().await;
 
@@ -284,9 +284,9 @@ async fn test_hot_entity_tracking() {
 
     // Create session and access: A, B, C, A, B, A
     let manager = SessionStateManager::load_or_create(&session_path).unwrap();
-    let a_id = format!("character:{}", char_a.id.key());
-    let b_id = format!("character:{}", char_b.id.key());
-    let c_id = format!("character:{}", char_c.id.key());
+    let a_id = char_a.id.to_sql();
+    let b_id = char_b.id.to_sql();
+    let c_id = char_c.id.to_sql();
 
     manager.record_access(&a_id).await;
     manager.record_access(&b_id).await;
@@ -521,7 +521,7 @@ async fn test_get_session_context_mcp_tool() {
     // Setup session manager
     let session_manager = Arc::new(SessionStateManager::load_or_create(&session_path).unwrap());
     session_manager
-        .record_access(&format!("character:{}", char1.id.key()))
+        .record_access(&char1.id.to_sql())
         .await;
     session_manager.mark_session_end().await;
 

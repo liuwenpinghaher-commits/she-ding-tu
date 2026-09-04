@@ -7,8 +7,7 @@
 //! - Semantic midpoints: what bridges two concepts?
 
 use std::sync::Arc;
-use surrealdb::types::SurrealValue;
-use crate::db::compat::RecordIdExt;
+use surrealdb::types::{SurrealValue, ToSql};
 
 use crate::db::connection::NarraDb;
 use serde::{Deserialize, Serialize};
@@ -393,7 +392,7 @@ impl VectorOpsService {
             let rows: Vec<Row> = resp.take(0).unwrap_or_default();
 
             for row in rows {
-                let id_str = row.id.to_string();
+                let id_str = row.id.to_sql();
                 if exclude_ids.contains(&id_str.as_str()) {
                     continue;
                 }

@@ -9,8 +9,7 @@ use async_trait::async_trait;
 use graphrs::{algorithms::centrality, Edge, Graph, GraphSpecs, Node};
 use std::collections::HashMap;
 use std::sync::Arc;
-use surrealdb::types::SurrealValue;
-use crate::db::compat::RecordIdExt;
+use surrealdb::types::{SurrealValue, ToSql};
 
 use crate::NarraError;
 
@@ -116,7 +115,7 @@ impl GraphDataProvider for SurrealGraphDataProvider {
         Ok(characters
             .into_iter()
             .map(|c| CharacterNodeInfo {
-                id: c.id.to_string(),
+                id: c.id.to_sql(),
                 name: c.name,
             })
             .collect())
@@ -128,8 +127,8 @@ impl GraphDataProvider for SurrealGraphDataProvider {
         Ok(edges
             .into_iter()
             .map(|e| PerceptionEdgeInfo {
-                from_id: e.from.to_string(),
-                to_id: e.to.to_string(),
+                from_id: e.from.to_sql(),
+                to_id: e.to.to_sql(),
             })
             .collect())
     }
@@ -148,8 +147,8 @@ impl GraphDataProvider for SurrealGraphDataProvider {
         Ok(edges
             .into_iter()
             .map(|e| PerceptionEdgeInfo {
-                from_id: e.from.to_string(),
-                to_id: e.to.to_string(),
+                from_id: e.from.to_sql(),
+                to_id: e.to.to_sql(),
             })
             .collect())
     }

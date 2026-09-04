@@ -8,9 +8,9 @@
 //! Uses raw DB queries to set up test data without embedding dependencies.
 
 mod common;
-use narra::db::compat::RecordIdExt;
 
 use std::sync::Arc;
+use surrealdb::types::ToSql;
 
 use common::{harness::TestHarness, to_query_input};
 use narra::embedding::NoopEmbeddingService;
@@ -92,8 +92,8 @@ async fn test_situation_report_structured_output() {
     .await
     .unwrap();
 
-    let alice_key = alice.id.key().to_string();
-    let bob_key = bob.id.key().to_string();
+    let alice_key = alice.id.key.to_sql();
+    let bob_key = bob.id.key.to_sql();
 
     // Create perception with high tension
     create_perception_pair(
@@ -201,8 +201,8 @@ async fn test_character_dossier_with_knowledge() {
     .await
     .unwrap();
 
-    let alice_key = alice.id.key().to_string();
-    let bob_key = bob.id.key().to_string();
+    let alice_key = alice.id.key.to_sql();
+    let bob_key = bob.id.key.to_sql();
 
     // Create relationship
     harness
@@ -286,7 +286,7 @@ async fn test_character_dossier_mcp() {
     .unwrap();
 
     let request = QueryRequest::CharacterDossier {
-        character_id: alice.id.to_string(),
+        character_id: alice.id.to_sql(),
         detail_level: None,
     };
     let response = server
@@ -327,8 +327,8 @@ async fn test_scene_prep_two_characters() {
     .await
     .unwrap();
 
-    let alice_key = alice.id.key().to_string();
-    let bob_key = bob.id.key().to_string();
+    let alice_key = alice.id.key.to_sql();
+    let bob_key = bob.id.key.to_sql();
 
     // High-tension perception
     create_perception_pair(
@@ -474,7 +474,7 @@ async fn test_situation_report_detail_levels() {
         )
         .await
         .unwrap();
-        keys.push(c.id.key().to_string());
+        keys.push(c.id.key.to_sql());
     }
 
     // Create high-tension perceptions between many pairs
@@ -565,8 +565,8 @@ async fn test_character_dossier_detail_level_summary() {
         .await
         .unwrap();
 
-        let alice_key = alice.id.key().to_string();
-        let other_key = other.id.key().to_string();
+        let alice_key = alice.id.key.to_sql();
+        let other_key = other.id.key.to_sql();
         create_perception_pair(
             &harness.db,
             &alice_key,
@@ -594,7 +594,7 @@ async fn test_character_dossier_detail_level_summary() {
 
     // Summary mode
     let summary_request = QueryRequest::CharacterDossier {
-        character_id: alice.id.to_string(),
+        character_id: alice.id.to_sql(),
         detail_level: Some("summary".to_string()),
     };
     let summary_response = server
@@ -604,7 +604,7 @@ async fn test_character_dossier_detail_level_summary() {
 
     // Full mode
     let full_request = QueryRequest::CharacterDossier {
-        character_id: alice.id.to_string(),
+        character_id: alice.id.to_sql(),
         detail_level: Some("full".to_string()),
     };
     let full_response = server
@@ -661,7 +661,7 @@ async fn test_scene_planning_detail_level_summary() {
 
     // Summary mode
     let summary_request = QueryRequest::ScenePlanning {
-        character_ids: vec![alice.id.to_string(), bob.id.to_string()],
+        character_ids: vec![alice.id.to_sql(), bob.id.to_sql()],
         detail_level: Some("summary".to_string()),
     };
     let summary_response = server
@@ -671,7 +671,7 @@ async fn test_scene_planning_detail_level_summary() {
 
     // Full mode
     let full_request = QueryRequest::ScenePlanning {
-        character_ids: vec![alice.id.to_string(), bob.id.to_string()],
+        character_ids: vec![alice.id.to_sql(), bob.id.to_sql()],
         detail_level: Some("full".to_string()),
     };
     let full_response = server
@@ -733,7 +733,7 @@ async fn test_hints_max_three() {
 
     // Lookup — generates hints
     let request = QueryRequest::Lookup {
-        entity_id: alice.id.to_string(),
+        entity_id: alice.id.to_sql(),
         detail_level: Some(narra::mcp::DetailLevel::Standard),
     };
     let response = server
@@ -811,14 +811,14 @@ async fn test_scene_prep_with_narrative_tensions() {
         .create_character(CharacterBuilder::new("Bob").build())
         .await
         .unwrap();
-    let alice_key = alice.id.key().to_string();
-    let bob_key = bob.id.key().to_string();
+    let alice_key = alice.id.key.to_sql();
+    let bob_key = bob.id.key.to_sql();
 
     let event = entity_repo
         .create_event(EventBuilder::new("Discovery").sequence(1).build())
         .await
         .unwrap();
-    let event_key = event.id.key().to_string();
+    let event_key = event.id.key.to_sql();
 
     // Create a knowledge entity (target for knowledge states)
     let fact = knowledge_repo
@@ -829,7 +829,7 @@ async fn test_scene_prep_with_narrative_tensions() {
         )
         .await
         .unwrap();
-    let fact_id = format!("knowledge:{}", fact.id.key());
+    let fact_id = fact.id.to_sql();
 
     // Alice knows the fact, Bob believes wrongly
     create_knowledge_state(
@@ -902,7 +902,7 @@ async fn test_scene_prep_with_character_roles() {
         .create_character(CharacterBuilder::new("Hub").build())
         .await
         .unwrap();
-    let hub_key = hub.id.key().to_string();
+    let hub_key = hub.id.key.to_sql();
 
     let mut spoke_keys = vec![];
     for i in 0..5 {
@@ -910,7 +910,7 @@ async fn test_scene_prep_with_character_roles() {
             .create_character(CharacterBuilder::new(format!("Spoke{}", i)).build())
             .await
             .unwrap();
-        let spoke_key = spoke.id.key().to_string();
+        let spoke_key = spoke.id.key.to_sql();
 
         // Both relationship AND perception (social_hub needs perception edges)
         create_relationship(
@@ -1004,8 +1004,8 @@ async fn test_character_dossier_with_narrative_tensions() {
     .await
     .unwrap();
 
-    let alice_key = alice.id.key().to_string();
-    let bob_key = bob.id.key().to_string();
+    let alice_key = alice.id.key.to_sql();
+    let bob_key = bob.id.key.to_sql();
 
     // Create conflicting loyalties: Alice is allied with Bob, but also rivals
     create_relationship(
@@ -1095,7 +1095,7 @@ async fn test_character_dossier_annotation_fields_none() {
 
     let service = CompositeIntelligenceService::new(harness.db.clone());
     let dossier = service
-        .character_dossier(&alice.id.to_string())
+        .character_dossier(&alice.id.to_sql())
         .await
         .expect("Dossier should succeed");
 
@@ -1136,7 +1136,7 @@ async fn test_scene_plan_annotation_fields_none() {
 
     let service = CompositeIntelligenceService::new(harness.db.clone());
     let plan = service
-        .scene_prep(&[alice.id.to_string(), bob.id.to_string()])
+        .scene_prep(&[alice.id.to_sql(), bob.id.to_sql()])
         .await
         .expect("Scene prep should succeed");
 

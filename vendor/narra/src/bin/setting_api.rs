@@ -383,18 +383,6 @@ fn empty_sess(book: SettingBook) -> BookSess {
     }
 }
 
-fn proc_thread_count() -> u32 {
-    std::fs::read_to_string("/proc/self/status")
-        .ok()
-        .and_then(|s| {
-            s.lines().find_map(|line| {
-                line.strip_prefix("Threads:")
-                    .and_then(|rest| rest.trim().parse().ok())
-            })
-        })
-        .unwrap_or(0)
-}
-
 /// 把还在内存里的书草稿/设定写回盘，再整表取出。调用方随后 drop 引擎。
 fn persist_and_take_all(root: &std::path::Path, g: &mut Inner) -> Vec<BookSess> {
     g.current = None;
@@ -409,34 +397,15 @@ fn persist_and_take_all(root: &std::path::Path, g: &mut Inner) -> Vec<BookSess> 
         .collect()
 }
 
-fn proc_fd_count() -> u32 {
-    std::fs::read_dir("/proc/self/fd")
-        .map(|d| d.count() as u32)
-        .unwrap_or(0)
-}
-
-/// v3 仍无公开 `Surreal::shutdown`。最后一次 Drop 才关嵌入式引擎。
-/// 换书/删书先丢掉句柄，再轮询线程和 fd，避免下一本叠在旧 RocksDB 上。
+/// 关掉一本已取出的书：丢掉 `Surreal` 句柄。
+///
+/// v3 没有公开 `Surreal::shutdown`。3.1.0 修了 #7304 之后，官方关闭路径就是
+/// 最后一个客户端 Drop（嵌入式 RocksDB 的 fd/线程随 Drop 释放）。
+/// `invalidate()` 只清登录态，不能拿来关引擎。
 async fn release_book_engine(sess: BookSess) {
-    let before_t = proc_thread_count();
-    let before_fd = proc_fd_count();
     drop(sess);
+    // Drop 的清理跑在当前任务之后；让出一次，避免紧接着 open 下一本时撞上旧引擎。
     tokio::task::yield_now().await;
-    tokio::task::yield_now().await;
-    let deadline = std::time::Instant::now() + std::time::Duration::from_millis(2000);
-    loop {
-        let t = proc_thread_count();
-        let fd = proc_fd_count();
-        let threads_down = before_t >= 8 && t + 5 < before_t;
-        let fds_down = before_fd >= 20 && fd + 10 < before_fd;
-        if threads_down || fds_down {
-            break;
-        }
-        if std::time::Instant::now() >= deadline {
-            break;
-        }
-        tokio::time::sleep(std::time::Duration::from_millis(20)).await;
-    }
 }
 
 async fn release_book_engines(sessions: Vec<BookSess>) {

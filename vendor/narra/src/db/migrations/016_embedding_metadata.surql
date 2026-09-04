@@ -1,7 +1,7 @@
 -- Embedding metadata: tracks active embedding model info per world.
 -- Used to detect model mismatches after provider changes.
 
-DEFINE TABLE IF NOT EXISTS world_meta SCHEMAFULL;
+DEFINE TABLE world_meta SCHEMAFULL TYPE NORMAL;
 
 DEFINE FIELD IF NOT EXISTS embedding_model ON TABLE world_meta TYPE option<string>;
 DEFINE FIELD IF NOT EXISTS embedding_dimensions ON TABLE world_meta TYPE option<int>;

@@ -7,9 +7,9 @@
 //! complete history of what characters knew and when.
 
 mod common;
-use narra::db::compat::RecordIdExt;
 
 use pretty_assertions::assert_eq;
+use surrealdb::types::ToSql;
 
 use narra::models::{CertaintyLevel, KnowledgeStateCreate, LearningMethod};
 use narra::repository::{
@@ -35,7 +35,7 @@ async fn test_knowledge_fact_crud() {
         .create_character(CharacterBuilder::new("Narrator").role("narrator").build())
         .await
         .expect("Should create narrator");
-    let narrator_id = narrator.id.key().to_string();
+    let narrator_id = narrator.id.key.to_sql();
 
     // Create a knowledge fact
     let fact = knowledge_repo
@@ -51,7 +51,7 @@ async fn test_knowledge_fact_crud() {
 
     // Retrieve by ID
     let fetched = knowledge_repo
-        .get_knowledge(&fact.id.key().to_string())
+        .get_knowledge(&fact.id.key.to_sql())
         .await
         .expect("Should fetch knowledge")
         .expect("Knowledge should exist");
@@ -71,7 +71,7 @@ async fn test_knowledge_search() {
         .create_character(CharacterBuilder::new("Narrator").build())
         .await
         .expect("Narrator");
-    let narrator_id = narrator.id.key().to_string();
+    let narrator_id = narrator.id.key.to_sql();
 
     // Create multiple facts
     knowledge_repo
@@ -125,14 +125,14 @@ async fn test_knowledge_certainty_levels() {
         .create_character(CharacterBuilder::new("Detective Alice").build())
         .await
         .expect("Character");
-    let character_id = character.id.key().to_string();
+    let character_id = character.id.key.to_sql();
 
     // Create narrator to own the fact
     let narrator = entity_repo
         .create_character(CharacterBuilder::new("Narrator").build())
         .await
         .expect("Narrator");
-    let narrator_id = narrator.id.key().to_string();
+    let narrator_id = narrator.id.key.to_sql();
 
     let fact = knowledge_repo
         .create_knowledge(
@@ -142,14 +142,14 @@ async fn test_knowledge_certainty_levels() {
         )
         .await
         .expect("Fact");
-    let fact_id = format!("knowledge:{}", fact.id.key());
+    let fact_id = fact.id.to_sql();
 
     // Create event for provenance
     let event = entity_repo
         .create_event(EventBuilder::new("Discovery").sequence(1).build())
         .await
         .expect("Event");
-    let event_id = event.id.key().to_string();
+    let event_id = event.id.key.to_sql();
 
     // Test: create knowledge state with SUSPECTS certainty
     let state = knowledge_repo
@@ -193,14 +193,14 @@ async fn test_knowledge_certainty_workflow() {
         .create_character(CharacterBuilder::new("Alice").build())
         .await
         .expect("Character");
-    let char_id = character.id.key().to_string();
+    let char_id = character.id.key.to_sql();
 
     // Create narrator to own the fact
     let narrator = entity_repo
         .create_character(CharacterBuilder::new("Narrator").build())
         .await
         .expect("Narrator");
-    let narrator_id = narrator.id.key().to_string();
+    let narrator_id = narrator.id.key.to_sql();
 
     let fact = knowledge_repo
         .create_knowledge(
@@ -210,14 +210,14 @@ async fn test_knowledge_certainty_workflow() {
         )
         .await
         .expect("Fact");
-    let fact_id = format!("knowledge:{}", fact.id.key());
+    let fact_id = fact.id.to_sql();
 
     // Event 1: Initial suspicion
     let event1 = entity_repo
         .create_event(EventBuilder::new("Finds muddy boots").sequence(1).build())
         .await
         .expect("Event 1");
-    let event1_id = event1.id.key().to_string();
+    let event1_id = event1.id.key.to_sql();
 
     // Event 2: Growing evidence
     let event2 = entity_repo
@@ -228,14 +228,14 @@ async fn test_knowledge_certainty_workflow() {
         )
         .await
         .expect("Event 2");
-    let event2_id = event2.id.key().to_string();
+    let event2_id = event2.id.key.to_sql();
 
     // Event 3: Confession
     let event3 = entity_repo
         .create_event(EventBuilder::new("Confession obtained").sequence(3).build())
         .await
         .expect("Event 3");
-    let event3_id = event3.id.key().to_string();
+    let event3_id = event3.id.key.to_sql();
 
     // Initial state: Suspects
     knowledge_repo
@@ -302,27 +302,27 @@ async fn test_knowledge_at_event() {
         .create_character(CharacterBuilder::new("Witness").build())
         .await
         .expect("Character");
-    let char_id = character.id.key().to_string();
+    let char_id = character.id.key.to_sql();
 
     // Create narrator to own facts
     let narrator = entity_repo
         .create_character(CharacterBuilder::new("Narrator").build())
         .await
         .expect("Narrator");
-    let narrator_id = narrator.id.key().to_string();
+    let narrator_id = narrator.id.key.to_sql();
 
     // Create sequence of events
     let event1 = entity_repo
         .create_event(EventBuilder::new("Sees suspect").sequence(1).build())
         .await
         .expect("Event 1");
-    let event1_id = event1.id.key().to_string();
+    let event1_id = event1.id.key.to_sql();
 
     let event2 = entity_repo
         .create_event(EventBuilder::new("Hears alibi").sequence(2).build())
         .await
         .expect("Event 2");
-    let event2_id = event2.id.key().to_string();
+    let event2_id = event2.id.key.to_sql();
 
     // Create two facts
     let fact1 = knowledge_repo
@@ -333,7 +333,7 @@ async fn test_knowledge_at_event() {
         )
         .await
         .expect("Fact 1");
-    let fact1_id = format!("knowledge:{}", fact1.id.key());
+    let fact1_id = fact1.id.to_sql();
 
     let fact2 = knowledge_repo
         .create_knowledge(
@@ -343,7 +343,7 @@ async fn test_knowledge_at_event() {
         )
         .await
         .expect("Fact 2");
-    let fact2_id = format!("knowledge:{}", fact2.id.key());
+    let fact2_id = fact2.id.to_sql();
 
     // Character learns fact1 at event1
     knowledge_repo
@@ -420,14 +420,14 @@ async fn test_knowledge_history_append_only() {
         .create_character(CharacterBuilder::new("Investigator").build())
         .await
         .expect("Character");
-    let char_id = character.id.key().to_string();
+    let char_id = character.id.key.to_sql();
 
     // Create narrator to own fact
     let narrator = entity_repo
         .create_character(CharacterBuilder::new("Narrator").build())
         .await
         .expect("Narrator");
-    let narrator_id = narrator.id.key().to_string();
+    let narrator_id = narrator.id.key.to_sql();
 
     let fact = knowledge_repo
         .create_knowledge(
@@ -437,7 +437,7 @@ async fn test_knowledge_history_append_only() {
         )
         .await
         .expect("Fact");
-    let fact_id = format!("knowledge:{}", fact.id.key());
+    let fact_id = fact.id.to_sql();
 
     // Create three events for the progression
     let event1 = entity_repo
@@ -452,9 +452,9 @@ async fn test_knowledge_history_append_only() {
         .create_event(EventBuilder::new("E3").sequence(3).build())
         .await
         .expect("E3");
-    let e1_id = event1.id.key().to_string();
-    let e2_id = event2.id.key().to_string();
-    let e3_id = event3.id.key().to_string();
+    let e1_id = event1.id.key.to_sql();
+    let e2_id = event2.id.key.to_sql();
+    let e3_id = event3.id.key.to_sql();
 
     // Initial: Suspects
     knowledge_repo
@@ -523,20 +523,20 @@ async fn test_knowledge_provenance_source() {
         .create_character(CharacterBuilder::new("Alice").role("detective").build())
         .await
         .expect("Alice");
-    let alice_id = alice.id.key().to_string();
+    let alice_id = alice.id.key.to_sql();
 
     let bob = entity_repo
         .create_character(CharacterBuilder::new("Bob").role("witness").build())
         .await
         .expect("Bob");
-    let bob_id = bob.id.key().to_string();
+    let bob_id = bob.id.key.to_sql();
 
     // Create narrator to own fact
     let narrator = entity_repo
         .create_character(CharacterBuilder::new("Narrator").build())
         .await
         .expect("Narrator");
-    let narrator_id = narrator.id.key().to_string();
+    let narrator_id = narrator.id.key.to_sql();
 
     // Create a fact and event
     let fact = knowledge_repo
@@ -547,13 +547,13 @@ async fn test_knowledge_provenance_source() {
         )
         .await
         .expect("Fact");
-    let fact_id = format!("knowledge:{}", fact.id.key());
+    let fact_id = fact.id.to_sql();
 
     let event = entity_repo
         .create_event(EventBuilder::new("Bob's testimony").sequence(1).build())
         .await
         .expect("Event");
-    let event_id = event.id.key().to_string();
+    let event_id = event.id.key.to_sql();
 
     // Bob knows the fact first (direct knowledge)
     knowledge_repo
@@ -598,7 +598,7 @@ async fn test_knowledge_provenance_source() {
     // Alice's knowledge should have Bob as source
     let alice_state = knowers
         .iter()
-        .find(|s| s.character.key().to_string() == alice_id)
+        .find(|s| s.character.key.to_sql() == alice_id)
         .expect("Alice should be a knower");
 
     assert!(
@@ -608,7 +608,7 @@ async fn test_knowledge_provenance_source() {
     let source_id = alice_state
         .source_character
         .as_ref()
-        .map(|r| r.key().to_string());
+        .map(|r| r.key.to_sql());
     assert_eq!(
         source_id,
         Some(bob_id.clone()),
@@ -645,7 +645,7 @@ async fn test_multi_character_knowledge_isolation() {
         .create_character(CharacterBuilder::new("Narrator").build())
         .await
         .expect("Narrator");
-    let narrator_id = narrator.id.key().to_string();
+    let narrator_id = narrator.id.key.to_sql();
 
     // Three facts
     let fact1 = knowledge_repo
@@ -677,13 +677,13 @@ async fn test_multi_character_knowledge_isolation() {
         .create_event(EventBuilder::new("E").sequence(1).build())
         .await
         .expect("E");
-    let event_id = event.id.key().to_string();
+    let event_id = event.id.key.to_sql();
 
     // Alice knows fact1 and fact2
     knowledge_repo
         .create_knowledge_state(
-            &alice.id.key().to_string(),
-            &format!("knowledge:{}", fact1.id.key()),
+            &alice.id.key.to_sql(),
+            &fact1.id.to_sql(),
             KnowledgeStateCreate {
                 certainty: CertaintyLevel::Knows,
                 learning_method: LearningMethod::Discovered,
@@ -695,8 +695,8 @@ async fn test_multi_character_knowledge_isolation() {
         .expect("Alice-F1");
     knowledge_repo
         .create_knowledge_state(
-            &alice.id.key().to_string(),
-            &format!("knowledge:{}", fact2.id.key()),
+            &alice.id.key.to_sql(),
+            &fact2.id.to_sql(),
             KnowledgeStateCreate {
                 certainty: CertaintyLevel::Knows,
                 learning_method: LearningMethod::Discovered,
@@ -710,8 +710,8 @@ async fn test_multi_character_knowledge_isolation() {
     // Bob knows fact2 and fact3
     knowledge_repo
         .create_knowledge_state(
-            &bob.id.key().to_string(),
-            &format!("knowledge:{}", fact2.id.key()),
+            &bob.id.key.to_sql(),
+            &fact2.id.to_sql(),
             KnowledgeStateCreate {
                 certainty: CertaintyLevel::Knows,
                 learning_method: LearningMethod::Discovered,
@@ -723,8 +723,8 @@ async fn test_multi_character_knowledge_isolation() {
         .expect("Bob-F2");
     knowledge_repo
         .create_knowledge_state(
-            &bob.id.key().to_string(),
-            &format!("knowledge:{}", fact3.id.key()),
+            &bob.id.key.to_sql(),
+            &fact3.id.to_sql(),
             KnowledgeStateCreate {
                 certainty: CertaintyLevel::Knows,
                 learning_method: LearningMethod::Discovered,
@@ -739,15 +739,15 @@ async fn test_multi_character_knowledge_isolation() {
 
     // Verify isolation
     let alice_knowledge = knowledge_repo
-        .get_character_knowledge_states(&alice.id.key().to_string())
+        .get_character_knowledge_states(&alice.id.key.to_sql())
         .await
         .expect("Alice's knowledge");
     let bob_knowledge = knowledge_repo
-        .get_character_knowledge_states(&bob.id.key().to_string())
+        .get_character_knowledge_states(&bob.id.key.to_sql())
         .await
         .expect("Bob's knowledge");
     let charlie_knowledge = knowledge_repo
-        .get_character_knowledge_states(&charlie.id.key().to_string())
+        .get_character_knowledge_states(&charlie.id.key.to_sql())
         .await
         .expect("Charlie's knowledge");
 

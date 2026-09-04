@@ -2,8 +2,7 @@
 
 use anyhow::Result;
 use serde::Serialize;
-use surrealdb::types::SurrealValue;
-use crate::db::compat::RecordIdExt;
+use surrealdb::types::{SurrealValue, ToSql};
 
 use crate::cli::output::{
     output_json, output_json_list, print_error, print_header, print_hint, print_kv, print_success,
@@ -1103,12 +1102,12 @@ pub async fn handle_temporal(
             .iter()
             .map(|s| {
                 vec![
-                    s.target.to_string(),
+                    s.target.to_sql(),
                     format!("{:?}", s.certainty),
                     format!("{:?}", s.learning_method),
                     s.event
                         .as_ref()
-                        .map(|e: &surrealdb::types::RecordId| e.to_string())
+                        .map(|e: &surrealdb::types::RecordId| e.to_sql())
                         .unwrap_or_else(|| "-".to_string()),
                 ]
             })

@@ -3,6 +3,7 @@
 mod common;
 
 use std::sync::Arc;
+use surrealdb::types::ToSql;
 
 use common::harness::TestHarness;
 use narra::models::character::create_character;
@@ -74,7 +75,7 @@ async fn test_entity_resource_with_character() {
     .await
     .expect("Should create character");
 
-    let char_id = character.id.to_string();
+    let char_id = character.id.to_sql();
 
     // Create context service
     let context_service: Arc<dyn narra::services::ContextService + Send + Sync> = Arc::new(

@@ -1,6 +1,5 @@
 use crate::mcp::{EntityResult, MutationResponse, NarraServer};
-use surrealdb::types::SurrealValue;
-use crate::db::compat::RecordIdExt;
+use surrealdb::types::{SurrealValue, ToSql};
 
 impl NarraServer {
     pub(crate) async fn handle_create_relationship(
@@ -25,7 +24,7 @@ impl NarraServer {
             .await
             .map_err(|e| format!("Failed to create relationship: {}", e))?;
 
-        let entity_id = relationship.id.to_string();
+        let entity_id = relationship.id.to_sql();
 
         // Trigger embedding generation for the relates_to edge itself
         self.staleness_manager.spawn_regeneration(
@@ -227,7 +226,7 @@ impl NarraServer {
                 .map_err(|e| format!("Failed to parse {} entities: {}", etype, e))?;
 
             for entity in &entities {
-                let entity_id = entity.id.to_string();
+                let entity_id = entity.id.to_sql();
 
                 // Check if snapshot already exists
                 let mut count_response = self
@@ -377,7 +376,7 @@ async fn mark_perspective_stale_for_pair(
         Ok(mut resp) => {
             let edges: Vec<EdgeId> = resp.take(0).unwrap_or_default();
             for edge in edges {
-                let id_str = edge.id.to_string();
+                let id_str = edge.id.to_sql();
                 if let Err(e) = staleness_manager.mark_stale(&id_str).await {
                     tracing::warn!("Failed to mark perspective stale for {}: {}", id_str, e);
                 }

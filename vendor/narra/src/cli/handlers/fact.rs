@@ -1,6 +1,7 @@
 //! Fact CRUD handlers for CLI.
 
 use anyhow::Result;
+use surrealdb::types::ToSql;
 
 use crate::cli::output::{
     output_json, output_json_list, print_error, print_success, print_table, OutputMode,
@@ -71,7 +72,7 @@ pub async fn list_facts(
         .map(|f| {
             let cats: Vec<String> = f.categories.iter().map(|c| format!("{:?}", c)).collect();
             vec![
-                f.id.to_string(),
+                f.id.to_sql(),
                 f.title.clone(),
                 cats.join(", "),
                 format!("{:?}", f.enforcement_level),

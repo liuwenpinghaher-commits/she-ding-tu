@@ -3,8 +3,7 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
-use surrealdb::types::SurrealValue;
-use crate::db::compat::RecordIdExt;
+use surrealdb::types::{SurrealValue, ToSql};
 
 use crate::embedding::reranker::RerankerService;
 use crate::embedding::EmbeddingService;
@@ -143,7 +142,7 @@ pub struct SearchResult {
 impl From<SearchResultInternal> for SearchResult {
     fn from(internal: SearchResultInternal) -> Self {
         Self {
-            id: internal.id.to_string(),
+            id: internal.id.to_sql(),
             entity_type: internal.entity_type,
             name: internal.name,
             // BM25 scores can be negative; normalize to positive for API consumers
@@ -455,7 +454,7 @@ impl SearchService for SurrealSearchService {
                         let mut seen = std::collections::HashSet::new();
                         let mut results = Vec::new();
                         for r in title_results.into_iter().chain(body_results) {
-                            let id_str = r.id.to_string();
+                            let id_str = r.id.to_sql();
                             if seen.insert(id_str) {
                                 results.push(SearchResult::from(r));
                             }
@@ -565,12 +564,12 @@ impl SearchService for SurrealSearchService {
                         }
 
                         let notes: Vec<NoteWithBody> = body_response.take(0).unwrap_or_default();
-                        Some(notes.into_iter().map(|n| (n.id.to_string(), n.entity_type, n.name, n.body)).collect::<Vec<_>>())
+                        Some(notes.into_iter().map(|n| (n.id.to_sql(), n.entity_type, n.name, n.body)).collect::<Vec<_>>())
                     } else {
                         None
                     };
 
-                    Ok::<_, NarraError>((entity_type, entities.into_iter().map(|e| (e.id.to_string(), e.entity_type, e.name)).collect::<Vec<_>>(), note_bodies))
+                    Ok::<_, NarraError>((entity_type, entities.into_iter().map(|e| (e.id.to_sql(), e.entity_type, e.name)).collect::<Vec<_>>(), note_bodies))
                 }
             })
             .collect();
@@ -1124,7 +1123,7 @@ impl SearchService for SurrealSearchService {
 
                 if weighted_score >= min_score {
                     Some(SearchResult {
-                        id: char.id.to_string(),
+                        id: char.id.to_sql(),
                         entity_type: "character".to_string(),
                         name: char.name,
                         score: weighted_score,

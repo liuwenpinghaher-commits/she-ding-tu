@@ -9,8 +9,7 @@
 //! Tests marked `#[ignore]` require real embeddings (run with `cargo test --ignored`).
 
 mod common;
-use surrealdb::types::SurrealValue;
-use narra::db::compat::RecordIdExt;
+use surrealdb::types::{SurrealValue, ToSql};
 
 use std::sync::Arc;
 
@@ -123,8 +122,8 @@ async fn test_unresolved_tensions_finds_asymmetric_pairs() {
     .await
     .expect("Create Bob");
 
-    let alice_key = alice.id.key().to_string();
-    let bob_key = bob.id.key().to_string();
+    let alice_key = alice.id.key.to_sql();
+    let bob_key = bob.id.key.to_sql();
 
     // Create bidirectional perceives edges
     create_perception_pair(
@@ -235,8 +234,8 @@ async fn test_unresolved_tensions_min_asymmetry_filter() {
     .await
     .unwrap();
 
-    let alice_key = alice.id.key().to_string();
-    let bob_key = bob.id.key().to_string();
+    let alice_key = alice.id.key.to_sql();
+    let bob_key = bob.id.key.to_sql();
 
     create_perception_pair(
         &harness.db,
@@ -331,8 +330,8 @@ async fn test_unresolved_tensions_one_way_only() {
     // Only one-way perception
     create_perception(
         &harness.db,
-        &alice.id.key().to_string(),
-        &bob.id.key().to_string(),
+        &alice.id.key.to_sql(),
+        &bob.id.key.to_sql(),
         PerceptionCreate {
             rel_types: vec!["rival".into()],
             subtype: None,
@@ -400,8 +399,8 @@ async fn test_unresolved_tensions_max_shared_scenes() {
     .await
     .unwrap();
 
-    let alice_key = alice.id.key().to_string();
-    let bob_key = bob.id.key().to_string();
+    let alice_key = alice.id.key.to_sql();
+    let bob_key = bob.id.key.to_sql();
 
     create_perception_pair(
         &harness.db,
@@ -496,7 +495,7 @@ async fn test_unresolved_tensions_max_shared_scenes() {
         .unwrap();
 
         // Add both characters to scene via participates_in
-        let scene_id = scene.id.to_string();
+        let scene_id = scene.id.to_sql();
         harness
             .db
             .query(format!(
@@ -588,7 +587,7 @@ async fn test_unresolved_tensions_limit() {
         );
     }
 
-    let keys: Vec<String> = chars.iter().map(|c| c.id.key().to_string()).collect();
+    let keys: Vec<String> = chars.iter().map(|c| c.id.key.to_sql()).collect();
 
     // Create bidirectional perceptions for all pairs
     for i in 0..3 {
@@ -970,13 +969,13 @@ async fn test_what_if_no_character_embedding() {
     )
     .await
     .unwrap();
-    let alice_key = alice.id.key().to_string();
+    let alice_key = alice.id.key.to_sql();
 
     // Create knowledge fact via proper mutation
     server
         .handle_mutate(Parameters(to_mutation_input(
             MutationRequest::RecordKnowledge {
-                character_id: alice.id.to_string(),
+                character_id: alice.id.to_sql(),
                 target_id: "treasure_secret".to_string(),
                 fact: "The treasure is hidden under the mountain".to_string(),
                 certainty: "knows".to_string(),
@@ -1000,7 +999,7 @@ async fn test_what_if_no_character_embedding() {
         .unwrap();
     let k_ids: Vec<KId> = k_resp.take(0).unwrap_or_default();
     assert!(!k_ids.is_empty(), "Knowledge should exist");
-    let knowledge_key = k_ids[0].id.key().to_string();
+    let knowledge_key = k_ids[0].id.key.to_sql();
 
     let request = QueryRequest::WhatIf {
         character_id: alice_key,
@@ -1072,7 +1071,7 @@ async fn test_what_if_full_workflow() {
 
     // Record knowledge that Bob knows a secret
     let record_request = MutationRequest::RecordKnowledge {
-        character_id: bob.id.to_string(),
+        character_id: bob.id.to_sql(),
         target_id: "secret".to_string(),
         fact: "Alice is the lost princess of the Northern Kingdom".to_string(),
         certainty: "knows".to_string(),
@@ -1107,13 +1106,13 @@ async fn test_what_if_full_workflow() {
         .expect("Query knowledge");
     let knowledge_ids: Vec<KnowledgeId> = k_resp.take(0).unwrap_or_default();
     assert!(!knowledge_ids.is_empty(), "Knowledge entity should exist");
-    let knowledge_key = knowledge_ids[0].id.key().to_string();
+    let knowledge_key = knowledge_ids[0].id.key.to_sql();
 
     // Create a perceives edge so Bob → Alice (for cascade test)
     create_perception(
         &harness.db,
-        &bob.id.key().to_string(),
-        &alice.id.key().to_string(),
+        &bob.id.key.to_sql(),
+        &alice.id.key.to_sql(),
         PerceptionCreate {
             rel_types: vec!["ally".into()],
             perception: Some("a brave warrior".into()),
@@ -1141,7 +1140,7 @@ async fn test_what_if_full_workflow() {
 
     // Now run WhatIf: "What if Alice learned the secret?"
     let request = QueryRequest::WhatIf {
-        character_id: alice.id.key().to_string(),
+        character_id: alice.id.key.to_sql(),
         fact_id: knowledge_key,
         certainty: Some("suspects".to_string()),
         source_character: None,
@@ -1248,7 +1247,7 @@ async fn test_what_if_id_normalization() {
 
     // Create knowledge
     let record_request = MutationRequest::RecordKnowledge {
-        character_id: alice.id.to_string(),
+        character_id: alice.id.to_sql(),
         target_id: "mysecret".to_string(),
         fact: "The world is flat".to_string(),
         certainty: "suspects".to_string(),
@@ -1282,11 +1281,11 @@ async fn test_what_if_id_normalization() {
         .await
         .unwrap();
     let k_ids: Vec<KnowledgeId> = k_resp.take(0).unwrap_or_default();
-    let knowledge_key = k_ids[0].id.key().to_string();
+    let knowledge_key = k_ids[0].id.key.to_sql();
 
     // Call with bare keys (no prefix)
     let request = QueryRequest::WhatIf {
-        character_id: alice.id.key().to_string(), // bare key
+        character_id: alice.id.key.to_sql(), // bare key
         fact_id: knowledge_key.clone(),           // bare key
         certainty: None,
         source_character: None,
@@ -1302,7 +1301,7 @@ async fn test_what_if_id_normalization() {
 
     // Call with full IDs
     let request = QueryRequest::WhatIf {
-        character_id: alice.id.to_string(),              // full ID
+        character_id: alice.id.to_sql(),              // full ID
         fact_id: format!("knowledge:{}", knowledge_key), // full ID
         certainty: None,
         source_character: None,
@@ -1352,7 +1351,7 @@ async fn test_what_if_conflict_detection() {
     server
         .handle_mutate(Parameters(to_mutation_input(
             MutationRequest::RecordKnowledge {
-                character_id: alice.id.to_string(),
+                character_id: alice.id.to_sql(),
                 target_id: "bob_innocence".to_string(),
                 fact: "Bob is completely innocent and trustworthy".to_string(),
                 certainty: "knows".to_string(),
@@ -1368,7 +1367,7 @@ async fn test_what_if_conflict_detection() {
     server
         .handle_mutate(Parameters(to_mutation_input(
             MutationRequest::RecordKnowledge {
-                character_id: alice.id.to_string(), // owned by alice but we'll treat as a fact
+                character_id: alice.id.to_sql(), // owned by alice but we'll treat as a fact
                 target_id: "bob_guilt".to_string(),
                 fact: "Bob is guilty of the crime and cannot be trusted".to_string(),
                 certainty: "knows".to_string(),
@@ -1404,11 +1403,11 @@ async fn test_what_if_conflict_detection() {
         .unwrap();
     let facts: Vec<KFact> = resp.take(0).unwrap_or_default();
     assert!(!facts.is_empty(), "Should find the guilt fact");
-    let guilt_key = facts[0].id.key().to_string();
+    let guilt_key = facts[0].id.key.to_sql();
 
     // WhatIf: what if Alice learns the guilt fact?
     let request = QueryRequest::WhatIf {
-        character_id: alice.id.key().to_string(),
+        character_id: alice.id.key.to_sql(),
         fact_id: guilt_key,
         certainty: Some("knows".to_string()),
         source_character: None,
@@ -1517,7 +1516,7 @@ async fn test_knowledge_conflicts_empty_when_no_conflicts() {
     server
         .handle_mutate(Parameters(to_mutation_input(
             MutationRequest::RecordKnowledge {
-                character_id: alice.id.to_string(),
+                character_id: alice.id.to_sql(),
                 target_id: "fact1".to_string(),
                 fact: "The sun rises in the east".to_string(),
                 certainty: "knows".to_string(),
@@ -1570,7 +1569,7 @@ async fn test_knowledge_conflicts_finds_believes_wrongly() {
     server
         .handle_mutate(Parameters(to_mutation_input(
             MutationRequest::RecordKnowledge {
-                character_id: alice.id.to_string(),
+                character_id: alice.id.to_sql(),
                 target_id: "secret_identity".to_string(),
                 fact: "Bob is a simple merchant".to_string(),
                 certainty: "believes_wrongly".to_string(),
@@ -1649,8 +1648,8 @@ async fn test_knowledge_conflicts_filters_by_character() {
         server
             .handle_mutate(Parameters(to_mutation_input(
                 MutationRequest::RecordKnowledge {
-                    character_id: char.id.to_string(),
-                    target_id: format!("secret_{}", char.id.key()),
+                    character_id: char.id.to_sql(),
+                    target_id: format!("secret_{}", char.id.key.to_sql()),
                     fact: "Wrong belief".to_string(),
                     certainty: "believes_wrongly".to_string(),
                     method: Some("initial".to_string()),
@@ -1663,7 +1662,7 @@ async fn test_knowledge_conflicts_filters_by_character() {
     }
 
     // Filter to Alice only
-    let alice_key = alice.id.key().to_string();
+    let alice_key = alice.id.key.to_sql();
     let request = QueryRequest::KnowledgeConflicts {
         character_id: Some(alice_key.clone()),
         limit: None,
@@ -1704,7 +1703,7 @@ async fn test_knowledge_conflicts_respects_limit() {
         server
             .handle_mutate(Parameters(to_mutation_input(
                 MutationRequest::RecordKnowledge {
-                    character_id: alice.id.to_string(),
+                    character_id: alice.id.to_sql(),
                     target_id: format!("wrong_belief_{}", i),
                     fact: format!("Wrong belief number {}", i),
                     certainty: "believes_wrongly".to_string(),

@@ -6,8 +6,7 @@
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-use surrealdb::types::SurrealValue;
-use crate::db::compat::RecordIdExt;
+use surrealdb::types::{SurrealValue, ToSql};
 
 use crate::db::connection::NarraDb;
 use tokio::time::Instant;
@@ -180,7 +179,7 @@ impl StalenessManager {
         for r in related {
             if let Some(ids) = r.related {
                 for id in ids {
-                    let entity_id_str = id.to_string();
+                    let entity_id_str = id.to_sql();
                     self.mark_stale(&entity_id_str).await?;
                     count += 1;
                 }

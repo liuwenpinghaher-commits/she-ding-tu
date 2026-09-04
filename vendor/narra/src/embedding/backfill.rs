@@ -6,8 +6,7 @@
 
 use std::collections::HashMap;
 use std::sync::Arc;
-use surrealdb::types::SurrealValue;
-use crate::db::compat::RecordIdExt;
+use surrealdb::types::{SurrealValue, ToSql};
 
 use crate::db::connection::NarraDb;
 use serde::Serialize;
@@ -286,7 +285,7 @@ impl BackfillService {
             let mut ids = Vec::new();
 
             for character in chunk {
-                let char_id = character.id.to_string();
+                let char_id = character.id.to_sql();
                 let relationships = all_relationships.get(&char_id).cloned().unwrap_or_default();
                 let perceptions = all_perceptions.get(&char_id).cloned().unwrap_or_default();
 
@@ -310,7 +309,7 @@ impl BackfillService {
         stats.total_entities += locations.len();
 
         for chunk in locations.chunks(50) {
-            let ids: Vec<String> = chunk.iter().map(|l| l.id.to_string()).collect();
+            let ids: Vec<String> = chunk.iter().map(|l| l.id.to_sql()).collect();
             let texts: Vec<String> = chunk.iter().map(location_composite).collect();
 
             self.embed_and_update_batch(&ids, &texts, "location", stats)
@@ -329,7 +328,7 @@ impl BackfillService {
         stats.total_entities += events.len();
 
         for chunk in events.chunks(50) {
-            let ids: Vec<String> = chunk.iter().map(|e| e.id.to_string()).collect();
+            let ids: Vec<String> = chunk.iter().map(|e| e.id.to_sql()).collect();
             let texts: Vec<String> = chunk.iter().map(event_composite).collect();
 
             self.embed_and_update_batch(&ids, &texts, "event", stats)
@@ -383,7 +382,7 @@ impl BackfillService {
                     scene_ctx.event_title.as_deref(),
                     scene_ctx.location_name.as_deref(),
                 ));
-                ids.push(scene_ctx.id.to_string());
+                ids.push(scene_ctx.id.to_sql());
             }
 
             self.embed_and_update_batch(&ids, &texts, "scene", stats)
@@ -421,7 +420,7 @@ impl BackfillService {
             let mut ids = Vec::new();
 
             for knowledge in chunk {
-                let entity_id = knowledge.id.to_string();
+                let entity_id = knowledge.id.to_sql();
 
                 let edge = edge_map.get(&entity_id);
                 let certainty = edge.and_then(|e| e.0.as_deref()).unwrap_or("knows");
@@ -513,7 +512,7 @@ impl BackfillService {
                     &knowledge,
                     &shared_scenes,
                 ));
-                ids.push(edge.id.to_string());
+                ids.push(edge.id.to_sql());
             }
 
             self.embed_and_update_batch(&ids, &texts, "perspective", stats)
@@ -591,7 +590,7 @@ impl BackfillService {
             let mut narrative_needs_update = Vec::new();
 
             for character in chunk {
-                let char_id = character.id.to_string();
+                let char_id = character.id.to_sql();
 
                 // Check which facets need updates
                 let needs_identity = {
@@ -890,7 +889,7 @@ impl BackfillService {
         stats.total_entities += edges.len();
 
         for edge in &edges {
-            let entity_id = edge.id.to_string();
+            let entity_id = edge.id.to_sql();
 
             let composite = relationship_composite(
                 edge.from_name.as_deref().unwrap_or("Unknown"),
@@ -918,7 +917,7 @@ impl BackfillService {
         stats.total_entities += notes.len();
 
         for chunk in notes.chunks(50) {
-            let ids: Vec<String> = chunk.iter().map(|n| n.id.to_string()).collect();
+            let ids: Vec<String> = chunk.iter().map(|n| n.id.to_sql()).collect();
             let texts: Vec<String> = chunk.iter().map(note_composite).collect();
 
             self.embed_and_update_batch(&ids, &texts, "note", stats)
@@ -937,7 +936,7 @@ impl BackfillService {
         stats.total_entities += facts.len();
 
         for chunk in facts.chunks(50) {
-            let ids: Vec<String> = chunk.iter().map(|f| f.id.to_string()).collect();
+            let ids: Vec<String> = chunk.iter().map(|f| f.id.to_sql()).collect();
             let texts: Vec<String> = chunk.iter().map(fact_composite).collect();
 
             self.embed_and_update_batch(&ids, &texts, "fact", stats)

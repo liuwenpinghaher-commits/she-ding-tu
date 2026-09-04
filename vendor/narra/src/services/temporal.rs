@@ -15,8 +15,7 @@ use ndarray::{Array1, Array2};
 use serde::Serialize;
 use std::collections::HashMap;
 use std::sync::Arc;
-use surrealdb::types::SurrealValue;
-use crate::db::compat::RecordIdExt;
+use surrealdb::types::{SurrealValue, ToSql};
 
 // ---------------------------------------------------------------------------
 // Types
@@ -232,7 +231,7 @@ impl TemporalDataProvider for SurrealTemporalDataProvider {
             }
 
             for row in rows {
-                let id_str = row.id.to_string();
+                let id_str = row.id.to_sql();
                 let (normalized_positions, original_sequences) = self
                     .get_sequence_positions(entity_type, &id_str, max_seq)
                     .await?;
@@ -350,14 +349,14 @@ impl TemporalDataProvider for SurrealTemporalDataProvider {
         let mut narrative_phases = Vec::with_capacity(phases.len());
 
         for p in &phases {
-            let phase_key = p.id.key().to_string();
+            let phase_key = p.id.key.to_sql();
 
             let memberships = phase::get_phase_members(&self.db, &phase_key).await?;
 
             let members: Vec<PhaseMember> = memberships
                 .iter()
                 .map(|m| PhaseMember {
-                    entity_id: m.entity.to_string(),
+                    entity_id: m.entity.to_sql(),
                     entity_type: m.entity_type.clone(),
                     name: m.entity_name.clone(),
                     centrality: m.centrality as f32,

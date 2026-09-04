@@ -1,9 +1,8 @@
 use std::collections::HashSet;
-use crate::db::compat::RecordIdExt;
 
 use crate::db::connection::NarraDb;
 use serde::{Deserialize, Serialize};
-use surrealdb::types::{Datetime, RecordId, SurrealValue};
+use surrealdb::types::{Datetime, RecordId, SurrealValue, ToSql};
 
 use crate::models::event::get_event;
 use crate::NarraError;
@@ -524,7 +523,7 @@ fn deduplicate_by_target(states: Vec<KnowledgeState>) -> Vec<KnowledgeState> {
     let mut seen = HashSet::new();
     states
         .into_iter()
-        .filter(|s| seen.insert(s.target.to_string()))
+        .filter(|s| seen.insert(s.target.to_sql()))
         .collect()
 }
 
@@ -740,7 +739,7 @@ pub async fn get_possible_sources(
 
     // If no event, no scene-based sources
     let event_id = match state.event {
-        Some(ref e) => e.key().to_string(),
+        Some(ref e) => e.key.to_sql(),
         None => return Ok(vec![]),
     };
 
@@ -763,8 +762,8 @@ pub async fn get_possible_sources(
     let participants: Vec<CharId> = result.take(0)?;
 
     // Filter out the character themselves
-    // RecordId::to_string() gives "table:key" format
-    let character_key = state.character.to_string();
+    // RecordId::to_sql() gives "table:key"
+    let character_key = state.character.to_sql();
     Ok(participants
         .into_iter()
         .map(|p| p.character_id)

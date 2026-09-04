@@ -2,8 +2,7 @@ use crate::mcp::NarraServer;
 use crate::mcp::{EntityResult, QueryResponse};
 use crate::services::arc::ArcService;
 use crate::utils::math::cosine_similarity;
-use surrealdb::types::SurrealValue;
-use crate::db::compat::RecordIdExt;
+use surrealdb::types::{SurrealValue, ToSql};
 
 impl NarraServer {
     pub(crate) async fn handle_arc_history(
@@ -745,7 +744,7 @@ impl NarraServer {
             let sim = cosine_similarity(&fact_embedding, &k.embedding);
             if sim > 0.7 {
                 conflicts.push(EntityResult {
-                    id: k.id.to_string(),
+                    id: k.id.to_sql(),
                     entity_type: "what_if_conflict".to_string(),
                     name: format!("Potential conflict (similarity: {:.3})", sim),
                     content: format!(

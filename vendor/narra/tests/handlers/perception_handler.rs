@@ -7,7 +7,7 @@ use narra::mcp::QueryRequest;
 use narra::models::perception::{create_perception, PerceptionCreate};
 use narra::repository::{EntityRepository, SurrealEntityRepository};
 use rmcp::handler::server::wrapper::Parameters;
-use narra::db::compat::RecordIdExt;
+use surrealdb::types::ToSql;
 
 use crate::common::harness::TestHarness;
 use crate::common::{builders::CharacterBuilder, to_query_input};
@@ -28,8 +28,8 @@ async fn setup_perception_pair(harness: &TestHarness) -> (String, String) {
     // Alice perceives Bob
     create_perception(
         &harness.db,
-        &alice.id.key().to_string(),
-        &bob.id.key().to_string(),
+        &alice.id.key.to_sql(),
+        &bob.id.key.to_sql(),
         PerceptionCreate {
             rel_types: vec!["rival".to_string()],
             subtype: None,
@@ -45,8 +45,8 @@ async fn setup_perception_pair(harness: &TestHarness) -> (String, String) {
     // Bob perceives Alice
     create_perception(
         &harness.db,
-        &bob.id.key().to_string(),
-        &alice.id.key().to_string(),
+        &bob.id.key.to_sql(),
+        &alice.id.key.to_sql(),
         PerceptionCreate {
             rel_types: vec!["rival".to_string()],
             subtype: None,
@@ -59,8 +59,8 @@ async fn setup_perception_pair(harness: &TestHarness) -> (String, String) {
     .await
     .expect("Bob->Alice perception");
 
-    let alice_id = format!("character:{}", alice.id.key());
-    let bob_id = format!("character:{}", bob.id.key());
+    let alice_id = alice.id.to_sql();
+    let bob_id = bob.id.to_sql();
 
     (alice_id, bob_id)
 }
@@ -119,8 +119,8 @@ async fn test_perception_gap_no_perception() {
     let server = crate::common::create_test_server(&harness).await;
 
     let request = QueryRequest::PerceptionGap {
-        observer_id: format!("character:{}", alice.id.key()),
-        target_id: format!("character:{}", bob.id.key()),
+        observer_id: alice.id.to_sql(),
+        target_id: bob.id.to_sql(),
     };
 
     let response = server
@@ -159,8 +159,8 @@ async fn test_perception_matrix_needs_perspectives() {
     // Bob perceives Alice (creates edge, but no perspective embedding with Noop)
     create_perception(
         &harness.db,
-        &bob.id.key().to_string(),
-        &alice.id.key().to_string(),
+        &bob.id.key.to_sql(),
+        &alice.id.key.to_sql(),
         PerceptionCreate {
             rel_types: vec!["ally".to_string()],
             subtype: None,
@@ -176,7 +176,7 @@ async fn test_perception_matrix_needs_perspectives() {
     let server = crate::common::create_test_server(&harness).await;
 
     let request = QueryRequest::PerceptionMatrix {
-        target_id: format!("character:{}", alice.id.key()),
+        target_id: alice.id.to_sql(),
         limit: Some(20),
     };
 
@@ -205,7 +205,7 @@ async fn test_perception_matrix_no_observers() {
     let server = crate::common::create_test_server(&harness).await;
 
     let request = QueryRequest::PerceptionMatrix {
-        target_id: format!("character:{}", alice.id.key()),
+        target_id: alice.id.to_sql(),
         limit: Some(20),
     };
 

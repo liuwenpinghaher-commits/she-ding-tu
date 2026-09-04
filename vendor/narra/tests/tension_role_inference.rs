@@ -3,7 +3,6 @@
 //! Tests both services against real SurrealDB with crafted narrative topologies.
 
 mod common;
-use narra::db::compat::RecordIdExt;
 
 use common::builders::{CharacterBuilder, EventBuilder, KnowledgeBuilder};
 use common::harness::TestHarness;
@@ -16,6 +15,7 @@ use narra::repository::{
     EntityRepository, KnowledgeRepository, SurrealEntityRepository, SurrealKnowledgeRepository,
 };
 use narra::services::{RoleInferenceService, TensionService};
+use surrealdb::types::ToSql;
 
 /// Helper: create a character and return (full_id, key)
 async fn create_char(harness: &TestHarness, name: &str) -> (String, String) {
@@ -24,7 +24,7 @@ async fn create_char(harness: &TestHarness, name: &str) -> (String, String) {
         .create_character(CharacterBuilder::new(name).build())
         .await
         .expect("create character");
-    let key = c.id.key().to_string();
+    let key = c.id.key.to_sql();
     let full = format!("character:{}", key);
     (full, key)
 }
@@ -36,7 +36,7 @@ async fn create_evt(harness: &TestHarness, title: &str, seq: i64) -> String {
         .create_event(EventBuilder::new(title).sequence(seq).build())
         .await
         .expect("create event");
-    e.id.key().to_string()
+    e.id.key.to_sql()
 }
 
 /// Helper: create knowledge state with all required fields
@@ -92,7 +92,7 @@ async fn test_tension_contradictory_knowledge() {
         )
         .await
         .unwrap();
-    let fact_id = format!("knowledge:{}", fact.id.key());
+    let fact_id = fact.id.to_sql();
 
     add_knowledge_state(
         &harness,
@@ -275,7 +275,7 @@ async fn test_tension_severity_ordering() {
         )
         .await
         .unwrap();
-    let fact_id = format!("knowledge:{}", fact.id.key());
+    let fact_id = fact.id.to_sql();
 
     add_knowledge_state(
         &harness,
@@ -368,7 +368,7 @@ async fn test_tension_min_severity_filter() {
         )
         .await
         .unwrap();
-    let fact_id = format!("knowledge:{}", fact.id.key());
+    let fact_id = fact.id.to_sql();
 
     add_knowledge_state(
         &harness,
@@ -527,7 +527,7 @@ async fn test_role_inference_deceived_character() {
             )
             .await
             .unwrap();
-        let fact_id = format!("knowledge:{}", fact.id.key());
+        let fact_id = fact.id.to_sql();
 
         add_knowledge_state(
             &harness,
@@ -818,7 +818,7 @@ async fn test_combined_rich_narrative_world() {
         )
         .await
         .unwrap();
-    let fact_id = format!("knowledge:{}", fact.id.key());
+    let fact_id = fact.id.to_sql();
 
     add_knowledge_state(
         &harness,

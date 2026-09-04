@@ -2,7 +2,6 @@
 
 use anyhow::Result;
 use colored::Colorize;
-use crate::db::compat::RecordIdExt;
 
 use crate::cli::output::{create_spinner, output_json, print_error, print_success, OutputMode};
 use crate::init::AppContext;
@@ -67,7 +66,7 @@ async fn batch_characters(ctx: &AppContext, yaml: &str, mode: OutputMode) -> Res
 
         match result {
             Ok(character) => {
-                let entity_id = character.id.to_string();
+                let entity_id = character.id.to_sql();
                 ctx.staleness_manager.spawn_regeneration(
                     entity_id.clone(),
                     "character".to_string(),
@@ -86,7 +85,7 @@ async fn batch_characters(ctx: &AppContext, yaml: &str, mode: OutputMode) -> Res
 
 async fn batch_locations(ctx: &AppContext, yaml: &str, mode: OutputMode) -> Result<()> {
     use crate::models::location::{create_location, create_location_with_id};
-    use surrealdb::types::RecordId;
+    use surrealdb::types::{RecordId, ToSql};
 
     let specs: Vec<LocationSpec> =
         serde_yaml_ng::from_str(yaml).map_err(|e| anyhow::anyhow!("Invalid YAML: {}", e))?;
@@ -127,7 +126,7 @@ async fn batch_locations(ctx: &AppContext, yaml: &str, mode: OutputMode) -> Resu
 
         match result {
             Ok(location) => {
-                let entity_id = location.id.to_string();
+                let entity_id = location.id.to_sql();
                 ctx.staleness_manager.spawn_regeneration(
                     entity_id.clone(),
                     "location".to_string(),
@@ -185,7 +184,7 @@ async fn batch_events(ctx: &AppContext, yaml: &str, mode: OutputMode) -> Result<
 
         match result {
             Ok(event) => {
-                let entity_id = event.id.to_string();
+                let entity_id = event.id.to_sql();
                 ctx.staleness_manager.spawn_regeneration(
                     entity_id.clone(),
                     "event".to_string(),
@@ -225,7 +224,7 @@ async fn batch_relationships(ctx: &AppContext, yaml: &str, mode: OutputMode) -> 
 
         match create_relationship(&ctx.db, data).await {
             Ok(rel) => {
-                let entity_id = rel.id.to_string();
+                let entity_id = rel.id.to_sql();
                 ctx.staleness_manager.spawn_regeneration(
                     entity_id.clone(),
                     "relates_to".to_string(),

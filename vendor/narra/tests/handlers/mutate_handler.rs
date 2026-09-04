@@ -5,7 +5,6 @@
 //! MutationResponse structures.
 
 use insta::assert_snapshot;
-use narra::db::compat::RecordIdExt;
 use narra::mcp::{
     CharacterSpec, DetailLevel, EventSpec, LocationSpec, MutationRequest, QueryRequest,
     RelationshipSpec,
@@ -13,6 +12,7 @@ use narra::mcp::{
 use narra::repository::{EntityRepository, SurrealEntityRepository};
 use pretty_assertions::assert_eq;
 use rmcp::handler::server::wrapper::Parameters;
+use surrealdb::types::ToSql;
 
 use crate::common::{
     builders::{CharacterBuilder, EventBuilder, LocationBuilder},
@@ -409,8 +409,8 @@ async fn test_create_scene_success() {
 
     let request = MutationRequest::CreateScene {
         title: "Opening Scene".to_string(),
-        event_id: event.id.to_string(),
-        location_id: location.id.to_string(),
+        event_id: event.id.to_sql(),
+        location_id: location.id.to_sql(),
         summary: Some("The story begins".to_string()),
     };
     let response = server
@@ -445,7 +445,7 @@ async fn test_create_scene_malformed_event_id() {
     let request = MutationRequest::CreateScene {
         title: "Bad Scene".to_string(),
         event_id: "not-a-valid-record-id".to_string(), // Malformed, not "table:key" format
-        location_id: location.id.to_string(),
+        location_id: location.id.to_sql(),
         summary: None,
     };
     let response = server

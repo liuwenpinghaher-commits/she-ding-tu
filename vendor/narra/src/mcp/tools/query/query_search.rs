@@ -3,8 +3,7 @@ use crate::mcp::{EntityResult, QueryResponse, SearchMetadataFilter};
 use crate::repository::RelationshipRepository;
 use crate::services::{EntityType, SearchFilter};
 use crate::utils::math::cosine_similarity;
-use surrealdb::types::SurrealValue;
-use crate::db::compat::RecordIdExt;
+use surrealdb::types::{SurrealValue, ToSql};
 
 use super::{parse_entity_types, parse_metadata_filter};
 
@@ -409,7 +408,7 @@ impl NarraServer {
         let entity_results: Vec<EntityResult> = all_results
             .iter()
             .map(|r| EntityResult {
-                id: r.id.to_string(),
+                id: r.id.to_sql(),
                 entity_type: r.entity_type.clone(),
                 name: r.name.clone(),
                 content: r.name.clone(),
@@ -513,7 +512,7 @@ impl NarraServer {
                     .unwrap_or_default();
 
                 EntityResult {
-                    id: r.id.to_string(),
+                    id: r.id.to_sql(),
                     entity_type: r.entity_type,
                     name: r.name.clone(),
                     content: format!("{}{}", r.name, known_by),
@@ -661,7 +660,7 @@ impl NarraServer {
                         .map(|entity| {
                             let similarity = cosine_similarity(&entity.embedding, &qv);
                             (
-                                entity.id.to_string(),
+                                entity.id.to_sql(),
                                 entity.entity_type,
                                 entity.name,
                                 similarity,

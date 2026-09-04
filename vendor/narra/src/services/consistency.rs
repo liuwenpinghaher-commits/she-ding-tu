@@ -10,8 +10,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::time::{timeout, Duration};
-use surrealdb::types::SurrealValue;
-use crate::db::compat::RecordIdExt;
+use surrealdb::types::{SurrealValue, ToSql};
 
 use crate::models::event::get_event;
 use crate::models::fact::{
@@ -310,7 +309,7 @@ impl ConsistencyChecker {
                     .take(0)
                     .map_err(|e| NarraError::Database(e.to_string()))?;
                 for t in targets {
-                    connected.push(t.to_string());
+                    connected.push(t.to_sql());
                 }
 
                 // Scenes character is involved in
@@ -327,7 +326,7 @@ impl ConsistencyChecker {
                     .take(0)
                     .map_err(|e| NarraError::Database(e.to_string()))?;
                 for t in targets {
-                    connected.push(t.to_string());
+                    connected.push(t.to_sql());
                 }
             }
             "scene" => {
@@ -345,7 +344,7 @@ impl ConsistencyChecker {
                     .take(0)
                     .map_err(|e| NarraError::Database(e.to_string()))?;
                 for t in targets {
-                    connected.push(t.to_string());
+                    connected.push(t.to_sql());
                 }
             }
             "fact" => {
@@ -363,7 +362,7 @@ impl ConsistencyChecker {
                     .take(0)
                     .map_err(|e| NarraError::Database(e.to_string()))?;
                 for t in targets {
-                    connected.push(t.to_string());
+                    connected.push(t.to_sql());
                 }
             }
             _ => {}
@@ -427,7 +426,7 @@ impl ConsistencyChecker {
                 map_enforcement_to_severity(fact.enforcement_level, confidence, is_intentional);
 
             Some(Violation {
-                fact_id: fact.id.to_string(),
+                fact_id: fact.id.to_sql(),
                 fact_title: fact.title.clone(),
                 severity,
                 message: format!(
@@ -674,7 +673,7 @@ impl ConsistencyChecker {
         for knowledge_state in &knowledge_states {
             if let Some(learning_event_id) = &knowledge_state.event {
                 // Get the learning event to find its sequence number
-                let learning_event_key = learning_event_id.key().to_string();
+                let learning_event_key = learning_event_id.key.to_sql();
 
                 if let Some(learning_event) = get_event(&self.db, &learning_event_key).await? {
                     let learning_sequence = learning_event.sequence;
@@ -682,18 +681,18 @@ impl ConsistencyChecker {
                     // Check each scene where character participates
                     for participation in &participations {
                         // Get the scene to access its event
-                        let scene_key = participation.scene.key().to_string();
+                        let scene_key = participation.scene.key.to_sql();
                         if let Some(scene) = get_scene(&self.db, &scene_key).await? {
                             // Get the scene's event to check sequence
-                            let scene_event_key = scene.event.key().to_string();
+                            let scene_event_key = scene.event.key.to_sql();
 
                             if let Some(scene_event) = get_event(&self.db, &scene_event_key).await?
                             {
                                 // Violation if scene happens before learning event
                                 if scene_event.sequence < learning_sequence {
                                     // Extract target ID for fact checking
-                                    let target_key = knowledge_state.target.key().to_string();
-                                    let target_full = knowledge_state.target.to_string();
+                                    let target_key = knowledge_state.target.key.to_sql();
+                                    let target_full = knowledge_state.target.to_sql();
 
                                     // Check if this relates to a Strict fact
                                     let is_strict =
@@ -805,7 +804,7 @@ impl ConsistencyChecker {
 
         for perception_ab in &outgoing_perceptions {
             // Get the target character's key
-            let char_b_key = perception_ab.to_character.key().to_string();
+            let char_b_key = perception_ab.to_character.key.to_sql();
 
             // Get reverse perception B->A (if exists)
             if let Some(perception_ba) = get_perception(&self.db, &char_b_key, character_id).await?
@@ -816,7 +815,7 @@ impl ConsistencyChecker {
                     && perception_ba.rel_types.contains(&"parent".to_string())
                 {
                     violations.push(Violation {
-                        fact_id: format!("relationship:{}", perception_ab.id.key()),
+                        fact_id: format!("relationship:{}", perception_ab.id.key.to_sql()),
                         fact_title: "Impossible relationship state".to_string(),
                         severity: ConsistencySeverity::Critical,
                         message: format!(
@@ -833,7 +832,7 @@ impl ConsistencyChecker {
                     && perception_ba.rel_types.contains(&"child".to_string())
                 {
                     violations.push(Violation {
-                        fact_id: format!("relationship:{}", perception_ab.id.key()),
+                        fact_id: format!("relationship:{}", perception_ab.id.key.to_sql()),
                         fact_title: "Impossible relationship state".to_string(),
                         severity: ConsistencySeverity::Critical,
                         message: format!(
@@ -889,7 +888,7 @@ impl ConsistencyChecker {
                         };
 
                         violations.push(Violation {
-                            fact_id: format!("relationship:{}", perception_ab.id.key()),
+                            fact_id: format!("relationship:{}", perception_ab.id.key.to_sql()),
                             fact_title: "Relationship asymmetry".to_string(),
                             severity,
                             message: format!(

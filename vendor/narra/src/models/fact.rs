@@ -8,8 +8,7 @@ use crate::db::connection::NarraDb;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_with::skip_serializing_none;
-use surrealdb::types::{Datetime, RecordId, SurrealValue};
-use crate::db::compat::RecordIdExt;
+use surrealdb::types::{Datetime, RecordId, SurrealValue, ToSql};
 
 use crate::NarraError;
 
@@ -490,5 +489,5 @@ pub async fn get_entities_for_fact(db: &NarraDb, fact_id: &str) -> Result<Vec<St
     }
 
     let wrappers: Vec<OutWrapper> = result.take(0)?;
-    Ok(wrappers.into_iter().map(|w| w.out.to_string()).collect())
+    Ok(wrappers.into_iter().map(|w| w.out.to_sql()).collect())
 }

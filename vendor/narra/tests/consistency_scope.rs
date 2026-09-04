@@ -7,7 +7,6 @@
 //! which entities they apply to during consistency checking.
 
 mod common;
-use narra::db::compat::RecordIdExt;
 
 use common::harness::TestHarness;
 use narra::models::character::create_character;
@@ -18,6 +17,7 @@ use narra::models::fact::{
 };
 use narra::models::CharacterCreate;
 use narra::services::{ConsistencyChecker, ConsistencyService};
+use surrealdb::types::ToSql;
 
 // =============================================================================
 // POV SCOPE: Character
@@ -53,9 +53,9 @@ async fn test_pov_scope_character_applies_to_target_only() {
     .await
     .expect("Create Bob");
 
-    let alice_id = alice.id.to_string();
-    let alice_key = alice.id.key().to_string();
-    let bob_id = bob.id.to_string();
+    let alice_id = alice.id.to_sql();
+    let alice_key = alice.id.key.to_sql();
+    let bob_id = bob.id.to_sql();
 
     // Create a Strict fact scoped to Alice only: "No magic for Alice"
     let fact = create_fact_with_id(
@@ -76,7 +76,7 @@ async fn test_pov_scope_character_applies_to_target_only() {
     .expect("Create fact");
 
     // Link fact to both characters
-    let fact_key = fact.id.key().to_string();
+    let fact_key = fact.id.key.to_sql();
     link_fact_to_entity(db, &fact_key, &alice_id, "manual", None)
         .await
         .expect("Link to Alice");
@@ -146,8 +146,8 @@ async fn test_pov_scope_group_applies_to_role_members() {
     .await
     .expect("Create Mage");
 
-    let warrior_id = warrior.id.to_string();
-    let mage_id = mage.id.to_string();
+    let warrior_id = warrior.id.to_sql();
+    let mage_id = mage.id.to_sql();
 
     // Create fact scoped to "warriors" group: "No magic for warriors"
     let fact = create_fact_with_id(
@@ -167,7 +167,7 @@ async fn test_pov_scope_group_applies_to_role_members() {
     .await
     .expect("Create fact");
 
-    let fact_key = fact.id.key().to_string();
+    let fact_key = fact.id.key.to_sql();
     link_fact_to_entity(db, &fact_key, &warrior_id, "manual", None)
         .await
         .expect("Link to Warrior");
@@ -241,9 +241,9 @@ async fn test_pov_scope_except_excludes_listed_characters() {
     .await
     .expect("Create Bob");
 
-    let alice_id = alice.id.to_string();
-    let alice_key = alice.id.key().to_string();
-    let bob_id = bob.id.to_string();
+    let alice_id = alice.id.to_sql();
+    let alice_key = alice.id.key.to_sql();
+    let bob_id = bob.id.to_sql();
 
     // Create fact: "No magic" except for Alice (she's the chosen one)
     let fact = create_fact_with_id(
@@ -266,7 +266,7 @@ async fn test_pov_scope_except_excludes_listed_characters() {
     .await
     .expect("Create fact");
 
-    let fact_key = fact.id.key().to_string();
+    let fact_key = fact.id.key.to_sql();
     link_fact_to_entity(db, &fact_key, &alice_id, "manual", None)
         .await
         .expect("Link to Alice");
@@ -350,8 +350,8 @@ async fn test_temporal_scope_before_valid_from_skips_fact() {
     .await
     .expect("Create character");
 
-    let char_id = character.id.to_string();
-    let later_event_id = later_event.id.to_string();
+    let char_id = character.id.to_sql();
+    let later_event_id = later_event.id.to_sql();
 
     // Create a Strict fact that only becomes valid from the later event
     let fact = create_fact_with_id(
@@ -375,7 +375,7 @@ async fn test_temporal_scope_before_valid_from_skips_fact() {
     .await
     .expect("Create temporal fact");
 
-    let fact_key = fact.id.key().to_string();
+    let fact_key = fact.id.key.to_sql();
     link_fact_to_entity(db, &fact_key, &char_id, "manual", None)
         .await
         .expect("Link fact");
@@ -450,8 +450,8 @@ async fn test_temporal_scope_after_valid_until_skips_fact() {
     .await
     .expect("Create character");
 
-    let char_id = character.id.to_string();
-    let seal_event_id = seal_event.id.to_string();
+    let char_id = character.id.to_sql();
+    let seal_event_id = seal_event.id.to_sql();
 
     // Fact valid only UNTIL the seal breaks (seq 20)
     let fact = create_fact_with_id(
@@ -475,7 +475,7 @@ async fn test_temporal_scope_after_valid_until_skips_fact() {
     .await
     .expect("Create fact");
 
-    let fact_key = fact.id.key().to_string();
+    let fact_key = fact.id.key.to_sql();
     link_fact_to_entity(db, &fact_key, &char_id, "manual", None)
         .await
         .expect("Link fact");
@@ -521,8 +521,8 @@ async fn test_combined_pov_and_temporal_scope_intersection() {
     .await
     .expect("Create Alice");
 
-    let alice_id = alice.id.to_string();
-    let alice_key = alice.id.key().to_string();
+    let alice_id = alice.id.to_sql();
+    let alice_key = alice.id.key.to_sql();
 
     // Create events — the fact expires at seq 30
     let _early_event = create_event(
@@ -568,7 +568,7 @@ async fn test_combined_pov_and_temporal_scope_intersection() {
     .await
     .expect("Create current event");
 
-    let expiry_id = expiry_event.id.to_string();
+    let expiry_id = expiry_event.id.to_sql();
 
     // Fact scoped to Alice AND valid until seq 30
     let fact = create_fact_with_id(
@@ -592,7 +592,7 @@ async fn test_combined_pov_and_temporal_scope_intersection() {
     .await
     .expect("Create combined fact");
 
-    let fact_key = fact.id.key().to_string();
+    let fact_key = fact.id.key.to_sql();
     link_fact_to_entity(db, &fact_key, &alice_id, "manual", None)
         .await
         .expect("Link fact");
@@ -638,7 +638,7 @@ async fn test_no_scope_fact_applies_globally() {
     .await
     .expect("Create character");
 
-    let char_id = character.id.to_string();
+    let char_id = character.id.to_sql();
 
     // Create Strict fact with NO scope
     let fact = create_fact_with_id(
@@ -655,7 +655,7 @@ async fn test_no_scope_fact_applies_globally() {
     .await
     .expect("Create fact");
 
-    let fact_key = fact.id.key().to_string();
+    let fact_key = fact.id.key.to_sql();
     link_fact_to_entity(db, &fact_key, &char_id, "manual", None)
         .await
         .expect("Link fact");

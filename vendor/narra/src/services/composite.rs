@@ -6,7 +6,6 @@ use crate::models::annotation::{EmotionOutput, ThemeOutput};
 use serde::Serialize;
 use std::sync::Arc;
 use surrealdb::types::SurrealValue;
-use crate::db::compat::RecordIdExt;
 
 use crate::models::knowledge::find_knowledge_conflicts;
 use crate::services::role_inference::InferredRole;

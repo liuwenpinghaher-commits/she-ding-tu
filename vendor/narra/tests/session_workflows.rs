@@ -3,7 +3,6 @@
 //! Tests hot entity tracking, context restoration, and startup summaries.
 
 mod common;
-use narra::db::compat::RecordIdExt;
 
 use narra::repository::{EntityRepository, SurrealEntityRepository};
 use narra::services::{CachedContextService, ContextConfig, ContextService};
@@ -11,6 +10,7 @@ use narra::session::{PendingDecision, SessionStateManager};
 use pretty_assertions::assert_eq;
 use std::sync::Arc;
 use tempfile::TempDir;
+use surrealdb::types::ToSql;
 
 use common::builders::CharacterBuilder;
 use common::harness::TestHarness;
@@ -195,7 +195,7 @@ async fn test_session_full_lifecycle() {
             )
             .await
             .expect("Character");
-        character_id = format!("character:{}", character.id.key());
+        character_id = character.id.to_sql();
 
         // Track access and pin
         session_manager.record_access(&character_id).await;
@@ -352,9 +352,9 @@ async fn test_context_scoring() {
         .await
         .expect("Charlie");
 
-    let alice_id = format!("character:{}", alice.id.key());
-    let bob_id = format!("character:{}", bob.id.key());
-    let charlie_id = format!("character:{}", charlie.id.key());
+    let alice_id = alice.id.to_sql();
+    let bob_id = bob.id.to_sql();
+    let charlie_id = charlie.id.to_sql();
 
     // Pin Alice
     session_manager.pin_entity(&alice_id).await;
@@ -419,7 +419,7 @@ async fn test_context_hot_entities() {
         .await
         .expect("Alice");
 
-    let alice_id = format!("character:{}", alice.id.key());
+    let alice_id = alice.id.to_sql();
 
     // Record access to make it a "hot" entity
     session_manager.record_access(&alice_id).await;

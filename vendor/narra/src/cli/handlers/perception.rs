@@ -3,7 +3,6 @@
 use anyhow::Result;
 use serde::Serialize;
 use surrealdb::types::SurrealValue;
-use crate::db::compat::RecordIdExt;
 
 use crate::cli::output::{
     create_spinner, output_json, print_header, print_hint, print_kv, print_success, print_table,

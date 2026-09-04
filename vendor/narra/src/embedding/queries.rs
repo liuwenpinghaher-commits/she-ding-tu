@@ -5,8 +5,7 @@
 
 use crate::db::connection::NarraDb;
 use tracing::warn;
-use surrealdb::types::SurrealValue;
-use crate::db::compat::RecordIdExt;
+use surrealdb::types::{SurrealValue, ToSql};
 
 /// Fetch observer's knowledge about a target character (text-match on target name).
 ///
@@ -78,10 +77,10 @@ pub async fn fetch_shared_scenes(
     let scenes_a: Vec<surrealdb::types::RecordId> = resp_a.take(0).unwrap_or_default();
     let scenes_b: Vec<surrealdb::types::RecordId> = resp_b.take(0).unwrap_or_default();
 
-    let set_b: std::collections::HashSet<String> = scenes_b.iter().map(|r| r.to_string()).collect();
+    let set_b: std::collections::HashSet<String> = scenes_b.iter().map(|r| r.to_sql()).collect();
     let shared: Vec<String> = scenes_a
         .iter()
-        .map(|r| r.to_string())
+        .map(|r| r.to_sql())
         .filter(|s| set_b.contains(s))
         .take(5)
         .collect();

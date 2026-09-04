@@ -3,7 +3,6 @@
 //! Tests cover FACT-01 (create), FACT-02 (categorize), FACT-03 (enforcement levels),
 //! FACT-04 (update/delete) at the database level.
 
-use narra::db::compat::RecordIdExt;
 use narra::db::{
     connection::{init_db, DbConfig},
     schema::apply_schema,
@@ -12,7 +11,7 @@ use narra::models::fact::{
     create_fact, delete_fact, get_fact, list_facts, update_fact, EnforcementLevel, FactCategory,
     FactCreate, FactScope, FactUpdate, PovScope, TemporalScope,
 };
-use surrealdb::types::Datetime;
+use surrealdb::types::{Datetime, ToSql};
 use tempfile::tempdir;
 
 #[tokio::test]
@@ -52,7 +51,7 @@ async fn test_create_fact_basic() {
     assert!(fact.scope.is_none());
 
     // Verify we can retrieve it
-    let retrieved = get_fact(&db, fact.id.key().to_string().as_str())
+    let retrieved = get_fact(&db, fact.id.key.to_sql().as_str())
         .await
         .unwrap()
         .unwrap();
@@ -263,7 +262,7 @@ async fn test_update_fact() {
     // Update enforcement level from Warning to Strict
     let updated = update_fact(
         &db,
-        fact.id.key().to_string().as_str(),
+        fact.id.key.to_sql().as_str(),
         FactUpdate {
             title: None,
             description: Some(
@@ -314,7 +313,7 @@ async fn test_delete_fact() {
     .await
     .unwrap();
 
-    let fact_id = fact.id.key().to_string();
+    let fact_id = fact.id.key.to_sql();
 
     // Verify it exists
     assert!(get_fact(&db, &fact_id).await.unwrap().is_some());
@@ -436,7 +435,7 @@ async fn test_fact_persistence_across_reconnect() {
     .unwrap();
 
     // Verify we can read it back
-    let retrieved = get_fact(&db, fact.id.key().to_string().as_str())
+    let retrieved = get_fact(&db, fact.id.key.to_sql().as_str())
         .await
         .unwrap()
         .unwrap();

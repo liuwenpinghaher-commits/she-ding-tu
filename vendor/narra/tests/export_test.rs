@@ -1,5 +1,4 @@
 mod common;
-use narra::db::compat::RecordIdExt;
 
 use common::harness::TestHarness;
 use narra::mcp::tools::ExportRequest;
@@ -9,6 +8,7 @@ use narra::models::{CharacterCreate, EventCreate, LocationCreate, SceneCreate};
 use narra::repository::{EntityRepository, SurrealEntityRepository};
 use narra::services::export::ExportService;
 use std::sync::Arc;
+use surrealdb::types::ToSql;
 
 #[tokio::test]
 async fn test_export_empty_world() {
@@ -270,8 +270,8 @@ async fn test_export_all_entity_types() {
     narra::models::scene::add_scene_participant(
         &harness.db,
         SceneParticipantCreate {
-            character_id: alice.id.key().to_string(),
-            scene_id: scene.id.key().to_string(),
+            character_id: alice.id.key.to_sql(),
+            scene_id: scene.id.key.to_sql(),
             role: "protagonist".to_string(),
             notes: Some("Leading the charge".to_string()),
         },
@@ -283,8 +283,8 @@ async fn test_export_all_entity_types() {
     narra::models::relationship::create_relationship(
         &harness.db,
         narra::models::RelationshipCreate {
-            from_character_id: alice.id.key().to_string(),
-            to_character_id: bob.id.key().to_string(),
+            from_character_id: alice.id.key.to_sql(),
+            to_character_id: bob.id.key.to_sql(),
             rel_type: "rivalry".to_string(),
             subtype: None,
             label: Some("bitter rivals".to_string()),
@@ -305,8 +305,8 @@ async fn test_export_all_entity_types() {
     .unwrap();
     narra::models::knowledge::create_knowledge_state(
         &harness.db,
-        &alice.id.key().to_string(),
-        &format!("knowledge:{}", knowledge.id.key()),
+        &alice.id.key.to_sql(),
+        &knowledge.id.to_sql(),
         narra::models::knowledge::KnowledgeStateCreate::default(),
     )
     .await
@@ -325,8 +325,8 @@ async fn test_export_all_entity_types() {
     .unwrap();
     narra::models::note::attach_note(
         &harness.db,
-        &note.id.key().to_string(),
-        &format!("character:{}", alice.id.key()),
+        &note.id.key.to_sql(),
+        &alice.id.to_sql(),
     )
     .await
     .unwrap();
@@ -347,8 +347,8 @@ async fn test_export_all_entity_types() {
     .unwrap();
     narra::models::fact::link_fact_to_entity(
         &harness.db,
-        &fact.id.key().to_string(),
-        &format!("character:{}", alice.id.key()),
+        &fact.id.key.to_sql(),
+        &alice.id.to_sql(),
         "manual",
         None,
     )
@@ -424,8 +424,8 @@ async fn test_export_scene_with_participants() {
     narra::models::scene::add_scene_participant(
         &harness.db,
         SceneParticipantCreate {
-            character_id: alice.id.key().to_string(),
-            scene_id: scene.id.key().to_string(),
+            character_id: alice.id.key.to_sql(),
+            scene_id: scene.id.key.to_sql(),
             role: "pov".to_string(),
             notes: Some("Discovering the secret".to_string()),
         },
@@ -473,8 +473,8 @@ async fn test_export_knowledge_with_facts() {
 
     narra::models::knowledge::create_knowledge_state(
         &harness.db,
-        &alice.id.key().to_string(),
-        &format!("knowledge:{}", knowledge.id.key()),
+        &alice.id.key.to_sql(),
+        &knowledge.id.to_sql(),
         narra::models::knowledge::KnowledgeStateCreate {
             certainty: narra::models::knowledge::CertaintyLevel::Suspects,
             learning_method: narra::models::knowledge::LearningMethod::Initial,
@@ -521,8 +521,8 @@ async fn test_export_notes_with_attachments() {
 
     narra::models::note::attach_note(
         &harness.db,
-        &note.id.key().to_string(),
-        &format!("character:{}", alice.id.key()),
+        &note.id.key.to_sql(),
+        &alice.id.to_sql(),
     )
     .await
     .unwrap();
@@ -569,8 +569,8 @@ async fn test_export_facts_with_links() {
 
     narra::models::fact::link_fact_to_entity(
         &harness.db,
-        &fact.id.key().to_string(),
-        &format!("character:{}", alice.id.key()),
+        &fact.id.key.to_sql(),
+        &alice.id.to_sql(),
         "manual",
         Some(0.9),
     )

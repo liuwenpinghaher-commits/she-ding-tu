@@ -1,7 +1,7 @@
 //! Knowledge command handlers for CLI.
 
 use anyhow::Result;
-use crate::db::compat::RecordIdExt;
+use surrealdb::types::ToSql;
 
 use crate::cli::output::{
     output_json, output_json_list, print_error, print_success, print_table, OutputMode,
@@ -33,11 +33,11 @@ pub async fn list_knowledge(
                 .iter()
                 .map(|s| {
                     vec![
-                        s.id.to_string(),
-                        s.target.to_string(),
+                        s.id.to_sql(),
+                        s.target.to_sql(),
                         format!("{:?}", s.certainty),
                         format!("{:?}", s.learning_method),
-                        s.event.as_ref().map(|e| e.to_string()).unwrap_or_default(),
+                        s.event.as_ref().map(|e| e.to_sql()).unwrap_or_default(),
                     ]
                 })
                 .collect();
@@ -114,7 +114,7 @@ pub async fn record_knowledge(
         _ => LearningMethod::Initial,
     };
 
-    let target = knowledge.id.to_string();
+    let target = knowledge.id.to_sql();
 
     let state_data = KnowledgeStateCreate {
         certainty: certainty_level,

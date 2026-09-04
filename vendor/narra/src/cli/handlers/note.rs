@@ -1,7 +1,7 @@
 //! Note CRUD handlers for CLI.
 
 use anyhow::Result;
-use crate::db::compat::RecordIdExt;
+use surrealdb::types::ToSql;
 
 use crate::cli::output::{
     output_json, output_json_list, print_error, print_success, print_table, OutputMode,
@@ -30,7 +30,7 @@ pub async fn list_notes(ctx: &AppContext, entity: Option<&str>, mode: OutputMode
             } else {
                 n.body.clone()
             };
-            vec![n.id.to_string(), n.title.clone(), body_preview]
+            vec![n.id.to_sql(), n.title.clone(), body_preview]
         })
         .collect();
 
@@ -51,7 +51,7 @@ pub async fn create_note(
     };
 
     let created = note::create_note(&ctx.db, data).await?;
-    let note_key = created.id.key().to_string();
+    let note_key = created.id.key.to_sql();
 
     for entity_id in attach_to {
         match note::attach_note(&ctx.db, &note_key, entity_id).await {

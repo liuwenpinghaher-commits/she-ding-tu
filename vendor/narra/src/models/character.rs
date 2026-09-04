@@ -3,7 +3,6 @@ use serde::{Deserialize, Serialize};
 use serde_with::skip_serializing_none;
 use std::collections::HashMap;
 use surrealdb::types::{Datetime, RecordId, SurrealValue};
-use crate::db::compat::RecordIdExt;
 
 use crate::NarraError;
 

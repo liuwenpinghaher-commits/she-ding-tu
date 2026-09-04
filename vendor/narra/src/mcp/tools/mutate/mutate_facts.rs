@@ -3,6 +3,7 @@ use crate::models::fact::{
     create_fact, delete_fact, link_fact_to_entity, unlink_fact_from_entity, update_fact,
     EnforcementLevel, FactCategory, FactCreate, FactUpdate,
 };
+use surrealdb::types::ToSql;
 
 impl NarraServer {
     pub(crate) async fn handle_create_fact(
@@ -34,7 +35,7 @@ impl NarraServer {
             .await
             .map_err(|e| format!("Failed to create fact: {}", e))?;
 
-        let entity_id = fact.id.to_string();
+        let entity_id = fact.id.to_sql();
 
         // Trigger embedding generation for the new fact
         if let Err(e) = self.staleness_manager.mark_stale(&entity_id).await {
@@ -98,7 +99,7 @@ impl NarraServer {
             .map_err(|e| format!("Failed to update fact: {}", e))?
             .ok_or_else(|| format!("Fact not found: {}", fact_id))?;
 
-        let entity_id = fact.id.to_string();
+        let entity_id = fact.id.to_sql();
 
         // Trigger embedding regeneration
         if let Err(e) = self.staleness_manager.mark_stale(&entity_id).await {
@@ -153,7 +154,7 @@ impl NarraServer {
             .map_err(|e| format!("Failed to delete fact: {}", e))?
             .ok_or_else(|| format!("Fact not found: {}", fact_id))?;
 
-        let entity_id = fact.id.to_string();
+        let entity_id = fact.id.to_sql();
 
         let result = EntityResult {
             id: entity_id.clone(),
@@ -195,7 +196,7 @@ impl NarraServer {
         let entity_name = entity_id.split(':').next_back().unwrap_or(&entity_id);
 
         let result = EntityResult {
-            id: application.id.to_string(),
+            id: application.id.to_sql(),
             entity_type: "fact_application".to_string(),
             name: format!("Fact {} -> {}", fact_key, entity_id),
             content: format!("Linked fact {} to {}", fact_key, entity_id),

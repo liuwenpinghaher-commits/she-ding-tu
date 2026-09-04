@@ -10,8 +10,7 @@ use ndarray::{Array1, Array2};
 use serde::Serialize;
 use std::collections::HashMap;
 use std::sync::Arc;
-use surrealdb::types::SurrealValue;
-use crate::db::compat::RecordIdExt;
+use surrealdb::types::{SurrealValue, ToSql};
 
 use crate::services::EntityType;
 use crate::NarraError;
@@ -132,7 +131,7 @@ impl ClusteringDataProvider for SurrealClusteringDataProvider {
 
             for entity in entities {
                 entity_data.push(EmbeddedEntity {
-                    id: entity.id.to_string(),
+                    id: entity.id.to_sql(),
                     entity_type: entity.entity_type,
                     name: entity.name,
                     embedding: entity.embedding,

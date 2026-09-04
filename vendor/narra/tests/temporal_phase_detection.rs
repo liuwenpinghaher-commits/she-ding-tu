@@ -9,7 +9,6 @@
 //! - Multi-type entity clustering
 
 mod common;
-use narra::db::compat::RecordIdExt;
 
 use common::builders::{CharacterBuilder, EventBuilder, LocationBuilder, SceneBuilder};
 use common::harness::TestHarness;
@@ -19,6 +18,7 @@ use narra::models::location::create_location;
 use narra::models::scene::create_scene;
 use narra::services::temporal::TemporalService;
 use narra::services::{EntityType, PhaseWeights};
+use surrealdb::types::ToSql;
 
 /// Helper to set a fake embedding vector for an entity.
 ///
@@ -91,8 +91,8 @@ async fn test_phase_detection_two_distinct_phases() {
         &harness.db,
         SceneBuilder::new(
             "First Meeting",
-            event_early.id.key().to_string(),
-            location_tavern.id.key().to_string(),
+            event_early.id.key.to_sql(),
+            location_tavern.id.key.to_sql(),
         )
         .summary("Alice and Bob meet for the first time")
         .build(),
@@ -104,8 +104,8 @@ async fn test_phase_detection_two_distinct_phases() {
         &harness.db,
         SceneBuilder::new(
             "Making Plans",
-            event_early.id.key().to_string(),
-            location_tavern.id.key().to_string(),
+            event_early.id.key.to_sql(),
+            location_tavern.id.key.to_sql(),
         )
         .summary("They discuss their quest")
         .build(),
@@ -114,22 +114,22 @@ async fn test_phase_detection_two_distinct_phases() {
     .unwrap();
 
     // Set embeddings for early phase (use 0.5 as the value)
-    set_embedding(&harness, &event_early.id.to_string(), 0.5)
+    set_embedding(&harness, &event_early.id.to_sql(), 0.5)
         .await
         .unwrap();
-    set_embedding(&harness, &location_tavern.id.to_string(), 0.5)
+    set_embedding(&harness, &location_tavern.id.to_sql(), 0.5)
         .await
         .unwrap();
-    set_embedding(&harness, &char_alice.id.to_string(), 0.5)
+    set_embedding(&harness, &char_alice.id.to_sql(), 0.5)
         .await
         .unwrap();
-    set_embedding(&harness, &char_bob.id.to_string(), 0.5)
+    set_embedding(&harness, &char_bob.id.to_sql(), 0.5)
         .await
         .unwrap();
-    set_embedding(&harness, &scene_early_1.id.to_string(), 0.5)
+    set_embedding(&harness, &scene_early_1.id.to_sql(), 0.5)
         .await
         .unwrap();
-    set_embedding(&harness, &scene_early_2.id.to_string(), 0.5)
+    set_embedding(&harness, &scene_early_2.id.to_sql(), 0.5)
         .await
         .unwrap();
 
@@ -167,8 +167,8 @@ async fn test_phase_detection_two_distinct_phases() {
         &harness.db,
         SceneBuilder::new(
             "The Confrontation",
-            event_late.id.key().to_string(),
-            location_castle.id.key().to_string(),
+            event_late.id.key.to_sql(),
+            location_castle.id.key.to_sql(),
         )
         .summary("Heroes face the villain")
         .build(),
@@ -180,8 +180,8 @@ async fn test_phase_detection_two_distinct_phases() {
         &harness.db,
         SceneBuilder::new(
             "Victory",
-            event_late.id.key().to_string(),
-            location_castle.id.key().to_string(),
+            event_late.id.key.to_sql(),
+            location_castle.id.key.to_sql(),
         )
         .summary("Good triumphs")
         .build(),
@@ -190,19 +190,19 @@ async fn test_phase_detection_two_distinct_phases() {
     .unwrap();
 
     // Set embeddings for late phase (use -0.5 as the value, orthogonal to 0.5)
-    set_embedding(&harness, &event_late.id.to_string(), -0.5)
+    set_embedding(&harness, &event_late.id.to_sql(), -0.5)
         .await
         .unwrap();
-    set_embedding(&harness, &location_castle.id.to_string(), -0.5)
+    set_embedding(&harness, &location_castle.id.to_sql(), -0.5)
         .await
         .unwrap();
-    set_embedding(&harness, &char_villain.id.to_string(), -0.5)
+    set_embedding(&harness, &char_villain.id.to_sql(), -0.5)
         .await
         .unwrap();
-    set_embedding(&harness, &scene_late_1.id.to_string(), -0.5)
+    set_embedding(&harness, &scene_late_1.id.to_sql(), -0.5)
         .await
         .unwrap();
-    set_embedding(&harness, &scene_late_2.id.to_string(), -0.5)
+    set_embedding(&harness, &scene_late_2.id.to_sql(), -0.5)
         .await
         .unwrap();
 
@@ -416,8 +416,8 @@ async fn test_query_around_anchor() {
         &harness.db,
         SceneBuilder::new(
             "Early Meeting",
-            event_early.id.key().to_string(),
-            location.id.key().to_string(),
+            event_early.id.key.to_sql(),
+            location.id.key.to_sql(),
         )
         .summary("Alice and Bob talk")
         .build(),
@@ -429,8 +429,8 @@ async fn test_query_around_anchor() {
         &harness.db,
         SceneBuilder::new(
             "Late Battle",
-            event_late.id.key().to_string(),
-            location.id.key().to_string(),
+            event_late.id.key.to_sql(),
+            location.id.key.to_sql(),
         )
         .summary("Alice fights Villain")
         .build(),
@@ -439,28 +439,28 @@ async fn test_query_around_anchor() {
     .unwrap();
 
     // Set embeddings (Alice: 0.3, Bob: 0.5, Villain: -0.5)
-    set_embedding(&harness, &char_alice.id.to_string(), 0.3)
+    set_embedding(&harness, &char_alice.id.to_sql(), 0.3)
         .await
         .unwrap();
-    set_embedding(&harness, &char_bob.id.to_string(), 0.5)
+    set_embedding(&harness, &char_bob.id.to_sql(), 0.5)
         .await
         .unwrap();
-    set_embedding(&harness, &char_villain.id.to_string(), -0.5)
+    set_embedding(&harness, &char_villain.id.to_sql(), -0.5)
         .await
         .unwrap();
-    set_embedding(&harness, &event_early.id.to_string(), 0.5)
+    set_embedding(&harness, &event_early.id.to_sql(), 0.5)
         .await
         .unwrap();
-    set_embedding(&harness, &event_late.id.to_string(), -0.5)
+    set_embedding(&harness, &event_late.id.to_sql(), -0.5)
         .await
         .unwrap();
-    set_embedding(&harness, &location.id.to_string(), 0.0)
+    set_embedding(&harness, &location.id.to_sql(), 0.0)
         .await
         .unwrap();
-    set_embedding(&harness, &scene_early.id.to_string(), 0.5)
+    set_embedding(&harness, &scene_early.id.to_sql(), 0.5)
         .await
         .unwrap();
-    set_embedding(&harness, &scene_late.id.to_string(), -0.5)
+    set_embedding(&harness, &scene_late.id.to_sql(), -0.5)
         .await
         .unwrap();
 
@@ -502,14 +502,14 @@ async fn test_query_around_anchor() {
     let temporal_service = TemporalService::new(harness.db.clone());
     let result = temporal_service
         .query_around(
-            &char_alice.id.to_string(),
+            &char_alice.id.to_sql(),
             vec![EntityType::Character, EntityType::Event, EntityType::Scene],
             20,
         )
         .await
         .unwrap();
 
-    assert_eq!(result.anchor.entity_id, char_alice.id.to_string());
+    assert_eq!(result.anchor.entity_id, char_alice.id.to_sql());
 
     // Alice should have shared scenes with both Bob and Villain
     let bob_neighbor = result
@@ -593,8 +593,8 @@ async fn test_phase_detection_custom_weights() {
         &harness.db,
         SceneBuilder::new(
             "Early Scene",
-            event_early.id.key().to_string(),
-            location.id.key().to_string(),
+            event_early.id.key.to_sql(),
+            location.id.key.to_sql(),
         )
         .build(),
     )
@@ -604,8 +604,8 @@ async fn test_phase_detection_custom_weights() {
         &harness.db,
         SceneBuilder::new(
             "Late Scene",
-            event_late.id.key().to_string(),
-            location.id.key().to_string(),
+            event_late.id.key.to_sql(),
+            location.id.key.to_sql(),
         )
         .build(),
     )
@@ -613,31 +613,31 @@ async fn test_phase_detection_custom_weights() {
     .unwrap();
 
     // Set embeddings
-    set_embedding(&harness, &alice.id.to_string(), 0.5)
+    set_embedding(&harness, &alice.id.to_sql(), 0.5)
         .await
         .unwrap();
-    set_embedding(&harness, &bob.id.to_string(), -0.5)
+    set_embedding(&harness, &bob.id.to_sql(), -0.5)
         .await
         .unwrap();
-    set_embedding(&harness, &charlie.id.to_string(), 0.5)
+    set_embedding(&harness, &charlie.id.to_sql(), 0.5)
         .await
         .unwrap();
-    set_embedding(&harness, &diana.id.to_string(), -0.5)
+    set_embedding(&harness, &diana.id.to_sql(), -0.5)
         .await
         .unwrap();
-    set_embedding(&harness, &event_early.id.to_string(), 0.0)
+    set_embedding(&harness, &event_early.id.to_sql(), 0.0)
         .await
         .unwrap();
-    set_embedding(&harness, &event_late.id.to_string(), 0.0)
+    set_embedding(&harness, &event_late.id.to_sql(), 0.0)
         .await
         .unwrap();
-    set_embedding(&harness, &location.id.to_string(), 0.0)
+    set_embedding(&harness, &location.id.to_sql(), 0.0)
         .await
         .unwrap();
-    set_embedding(&harness, &scene_early.id.to_string(), 0.0)
+    set_embedding(&harness, &scene_early.id.to_sql(), 0.0)
         .await
         .unwrap();
-    set_embedding(&harness, &scene_late.id.to_string(), 0.0)
+    set_embedding(&harness, &scene_late.id.to_sql(), 0.0)
         .await
         .unwrap();
 
@@ -803,8 +803,8 @@ async fn test_transitions_end_to_end() {
         &harness.db,
         SceneBuilder::new(
             "First Meeting",
-            event_early.id.key().to_string(),
-            location_tavern.id.key().to_string(),
+            event_early.id.key.to_sql(),
+            location_tavern.id.key.to_sql(),
         )
         .summary("Alice and Bob meet")
         .build(),
@@ -813,19 +813,19 @@ async fn test_transitions_end_to_end() {
     .unwrap();
 
     // Set embeddings for early phase
-    set_embedding(&harness, &event_early.id.to_string(), 0.5)
+    set_embedding(&harness, &event_early.id.to_sql(), 0.5)
         .await
         .unwrap();
-    set_embedding(&harness, &location_tavern.id.to_string(), 0.5)
+    set_embedding(&harness, &location_tavern.id.to_sql(), 0.5)
         .await
         .unwrap();
-    set_embedding(&harness, &char_alice.id.to_string(), 0.3)
+    set_embedding(&harness, &char_alice.id.to_sql(), 0.3)
         .await
         .unwrap();
-    set_embedding(&harness, &char_bob.id.to_string(), 0.5)
+    set_embedding(&harness, &char_bob.id.to_sql(), 0.5)
         .await
         .unwrap();
-    set_embedding(&harness, &scene_early.id.to_string(), 0.5)
+    set_embedding(&harness, &scene_early.id.to_sql(), 0.5)
         .await
         .unwrap();
 
@@ -860,8 +860,8 @@ async fn test_transitions_end_to_end() {
         &harness.db,
         SceneBuilder::new(
             "Final Battle",
-            event_late.id.key().to_string(),
-            location_castle.id.key().to_string(),
+            event_late.id.key.to_sql(),
+            location_castle.id.key.to_sql(),
         )
         .summary("Alice confronts the villain")
         .build(),
@@ -870,16 +870,16 @@ async fn test_transitions_end_to_end() {
     .unwrap();
 
     // Set embeddings for late phase
-    set_embedding(&harness, &event_late.id.to_string(), -0.5)
+    set_embedding(&harness, &event_late.id.to_sql(), -0.5)
         .await
         .unwrap();
-    set_embedding(&harness, &location_castle.id.to_string(), -0.5)
+    set_embedding(&harness, &location_castle.id.to_sql(), -0.5)
         .await
         .unwrap();
-    set_embedding(&harness, &char_villain.id.to_string(), -0.5)
+    set_embedding(&harness, &char_villain.id.to_sql(), -0.5)
         .await
         .unwrap();
-    set_embedding(&harness, &scene_late.id.to_string(), -0.5)
+    set_embedding(&harness, &scene_late.id.to_sql(), -0.5)
         .await
         .unwrap();
 
@@ -1029,8 +1029,8 @@ async fn test_phase_filtered_search() {
         &harness.db,
         SceneBuilder::new(
             "Early Meeting",
-            event_early.id.key().to_string(),
-            location.id.key().to_string(),
+            event_early.id.key.to_sql(),
+            location.id.key.to_sql(),
         )
         .summary("Alice and Bob meet")
         .build(),
@@ -1060,8 +1060,8 @@ async fn test_phase_filtered_search() {
         &harness.db,
         SceneBuilder::new(
             "Final Battle",
-            event_late.id.key().to_string(),
-            location.id.key().to_string(),
+            event_late.id.key.to_sql(),
+            location.id.key.to_sql(),
         )
         .summary("Alice fights Villain")
         .build(),
@@ -1070,28 +1070,28 @@ async fn test_phase_filtered_search() {
     .unwrap();
 
     // Set embeddings (early: 0.5, late: -0.5)
-    set_embedding(&harness, &event_early.id.to_string(), 0.5)
+    set_embedding(&harness, &event_early.id.to_sql(), 0.5)
         .await
         .unwrap();
-    set_embedding(&harness, &char_alice.id.to_string(), 0.3)
+    set_embedding(&harness, &char_alice.id.to_sql(), 0.3)
         .await
         .unwrap();
-    set_embedding(&harness, &char_bob.id.to_string(), 0.5)
+    set_embedding(&harness, &char_bob.id.to_sql(), 0.5)
         .await
         .unwrap();
-    set_embedding(&harness, &scene_early.id.to_string(), 0.5)
+    set_embedding(&harness, &scene_early.id.to_sql(), 0.5)
         .await
         .unwrap();
-    set_embedding(&harness, &event_late.id.to_string(), -0.5)
+    set_embedding(&harness, &event_late.id.to_sql(), -0.5)
         .await
         .unwrap();
-    set_embedding(&harness, &char_villain.id.to_string(), -0.5)
+    set_embedding(&harness, &char_villain.id.to_sql(), -0.5)
         .await
         .unwrap();
-    set_embedding(&harness, &scene_late.id.to_string(), -0.5)
+    set_embedding(&harness, &scene_late.id.to_sql(), -0.5)
         .await
         .unwrap();
-    set_embedding(&harness, &location.id.to_string(), 0.0)
+    set_embedding(&harness, &location.id.to_sql(), 0.0)
         .await
         .unwrap();
 
@@ -1153,18 +1153,18 @@ async fn test_phase_filtered_search() {
 
     // Determine which phase is "early" (should contain Bob who is only in early phase)
     let early_phase_id = *entity_phases
-        .get(&char_bob.id.to_string())
+        .get(&char_bob.id.to_sql())
         .expect("Bob should be in a phase");
 
     // Verify Bob is only in early phase
     assert!(
-        entity_phases.contains_key(&char_bob.id.to_string()),
+        entity_phases.contains_key(&char_bob.id.to_sql()),
         "Bob should be in exactly one phase"
     );
 
     // Verify Villain is NOT in early phase
     let villain_phase_id = *entity_phases
-        .get(&char_villain.id.to_string())
+        .get(&char_villain.id.to_sql())
         .expect("Villain should be in a phase");
     assert_ne!(
         early_phase_id, villain_phase_id,
@@ -1196,13 +1196,13 @@ async fn test_phase_filtered_search() {
     assert!(
         early_phase_members
             .iter()
-            .any(|id| id.contains(&char_bob.id.key().to_string())),
+            .any(|id| id.contains(&char_bob.id.key.to_sql())),
         "Early phase should contain Bob"
     );
     assert!(
         !early_phase_members
             .iter()
-            .any(|id| id.contains(&char_villain.id.key().to_string())),
+            .any(|id| id.contains(&char_villain.id.key.to_sql())),
         "Early phase should NOT contain Villain"
     );
 }
@@ -1248,8 +1248,8 @@ async fn test_phase_colored_graph_output() {
         &harness.db,
         SceneBuilder::new(
             "Early Scene",
-            event_early.id.key().to_string(),
-            location.id.key().to_string(),
+            event_early.id.key.to_sql(),
+            location.id.key.to_sql(),
         )
         .build(),
     )
@@ -1260,8 +1260,8 @@ async fn test_phase_colored_graph_output() {
         &harness.db,
         SceneBuilder::new(
             "Late Scene",
-            event_late.id.key().to_string(),
-            location.id.key().to_string(),
+            event_late.id.key.to_sql(),
+            location.id.key.to_sql(),
         )
         .build(),
     )
@@ -1269,25 +1269,25 @@ async fn test_phase_colored_graph_output() {
     .unwrap();
 
     // Set embeddings (distinct clusters)
-    set_embedding(&harness, &event_early.id.to_string(), 0.5)
+    set_embedding(&harness, &event_early.id.to_sql(), 0.5)
         .await
         .unwrap();
-    set_embedding(&harness, &char_alice.id.to_string(), 0.5)
+    set_embedding(&harness, &char_alice.id.to_sql(), 0.5)
         .await
         .unwrap();
-    set_embedding(&harness, &scene_early.id.to_string(), 0.5)
+    set_embedding(&harness, &scene_early.id.to_sql(), 0.5)
         .await
         .unwrap();
-    set_embedding(&harness, &event_late.id.to_string(), -0.5)
+    set_embedding(&harness, &event_late.id.to_sql(), -0.5)
         .await
         .unwrap();
-    set_embedding(&harness, &char_bob.id.to_string(), -0.5)
+    set_embedding(&harness, &char_bob.id.to_sql(), -0.5)
         .await
         .unwrap();
-    set_embedding(&harness, &scene_late.id.to_string(), -0.5)
+    set_embedding(&harness, &scene_late.id.to_sql(), -0.5)
         .await
         .unwrap();
-    set_embedding(&harness, &location.id.to_string(), 0.0)
+    set_embedding(&harness, &location.id.to_sql(), 0.0)
         .await
         .unwrap();
 
@@ -1314,8 +1314,8 @@ async fn test_phase_colored_graph_output() {
     create_relationship(
         &harness.db,
         RelationshipCreate {
-            from_character_id: char_alice.id.key().to_string(),
-            to_character_id: char_bob.id.key().to_string(),
+            from_character_id: char_alice.id.key.to_sql(),
+            to_character_id: char_bob.id.key.to_sql(),
             rel_type: "knows".to_string(),
             subtype: None,
             label: None,

@@ -3,7 +3,6 @@
 //! Tests perception edges, graph traversal, and Mermaid diagram generation.
 
 mod common;
-use narra::db::compat::RecordIdExt;
 
 use narra::models::perception::{create_perception, get_perceptions_from, PerceptionCreate};
 use narra::repository::{
@@ -12,6 +11,7 @@ use narra::repository::{
 };
 use narra::services::{GraphOptions, GraphScope, GraphService, MermaidGraphService};
 use pretty_assertions::assert_eq;
+use surrealdb::types::ToSql;
 
 use common::builders::CharacterBuilder;
 use common::harness::TestHarness;
@@ -40,8 +40,8 @@ async fn test_perception_edge_creation() {
     // Create perception: Alice sees Bob as a suspect
     let perception = create_perception(
         &harness.db,
-        &alice.id.key().to_string(),
-        &bob.id.key().to_string(),
+        &alice.id.key.to_sql(),
+        &bob.id.key.to_sql(),
         PerceptionCreate {
             rel_types: vec!["suspicion".to_string()],
             subtype: None,
@@ -81,8 +81,8 @@ async fn test_perception_filtering_by_viewer() {
     // Alice sees Bob as friend
     create_perception(
         &harness.db,
-        &alice.id.key().to_string(),
-        &bob.id.key().to_string(),
+        &alice.id.key.to_sql(),
+        &bob.id.key.to_sql(),
         PerceptionCreate {
             rel_types: vec!["friendship".to_string()],
             subtype: None,
@@ -98,8 +98,8 @@ async fn test_perception_filtering_by_viewer() {
     // Charlie sees Bob as rival
     create_perception(
         &harness.db,
-        &charlie.id.key().to_string(),
-        &bob.id.key().to_string(),
+        &charlie.id.key.to_sql(),
+        &bob.id.key.to_sql(),
         PerceptionCreate {
             rel_types: vec!["rivalry".to_string()],
             subtype: None,
@@ -113,7 +113,7 @@ async fn test_perception_filtering_by_viewer() {
     .expect("Charlie->Bob");
 
     // Query from Alice's perspective
-    let alice_view = get_perceptions_from(&harness.db, &alice.id.key().to_string())
+    let alice_view = get_perceptions_from(&harness.db, &alice.id.key.to_sql())
         .await
         .expect("Alice's perceptions");
 
@@ -121,7 +121,7 @@ async fn test_perception_filtering_by_viewer() {
     assert_eq!(alice_view[0].rel_types, vec!["friendship"]);
 
     // Query from Charlie's perspective
-    let charlie_view = get_perceptions_from(&harness.db, &charlie.id.key().to_string())
+    let charlie_view = get_perceptions_from(&harness.db, &charlie.id.key.to_sql())
         .await
         .expect("Charlie's perceptions");
 
@@ -161,8 +161,8 @@ async fn test_multi_hop_traversal() {
     // Create edges: Alice->Bob->Charlie->David using perceives edge
     create_perception(
         &harness.db,
-        &alice.id.key().to_string(),
-        &bob.id.key().to_string(),
+        &alice.id.key.to_sql(),
+        &bob.id.key.to_sql(),
         PerceptionCreate {
             rel_types: vec!["friendship".to_string()],
             subtype: None,
@@ -177,8 +177,8 @@ async fn test_multi_hop_traversal() {
 
     create_perception(
         &harness.db,
-        &bob.id.key().to_string(),
-        &charlie.id.key().to_string(),
+        &bob.id.key.to_sql(),
+        &charlie.id.key.to_sql(),
         PerceptionCreate {
             rel_types: vec!["mentorship".to_string()],
             subtype: None,
@@ -193,8 +193,8 @@ async fn test_multi_hop_traversal() {
 
     create_perception(
         &harness.db,
-        &charlie.id.key().to_string(),
-        &david.id.key().to_string(),
+        &charlie.id.key.to_sql(),
+        &david.id.key.to_sql(),
         PerceptionCreate {
             rel_types: vec!["family".to_string()],
             subtype: None,
@@ -211,7 +211,7 @@ async fn test_multi_hop_traversal() {
     // Note: get_connected_entities uses relates_to edges, not perceives.
     // For perception-based traversal, the MermaidGraphService BFS handles this.
     let connected_depth_2 = relationship_repo
-        .get_connected_entities(&format!("character:{}", alice.id.key()), 2)
+        .get_connected_entities(&alice.id.to_sql(), 2)
         .await
         .expect("Should get connected entities");
 
@@ -226,7 +226,7 @@ async fn test_multi_hop_traversal() {
     let diagram_depth2 = graph_service
         .generate_mermaid(
             GraphScope::CharacterCentered {
-                character_id: alice.id.key().to_string(),
+                character_id: alice.id.key.to_sql(),
                 depth: 2,
             },
             GraphOptions::default(),
@@ -251,7 +251,7 @@ async fn test_multi_hop_traversal() {
     let diagram_depth3 = graph_service
         .generate_mermaid(
             GraphScope::CharacterCentered {
-                character_id: alice.id.key().to_string(),
+                character_id: alice.id.key.to_sql(),
                 depth: 3,
             },
             GraphOptions::default(),
@@ -295,8 +295,8 @@ async fn test_mermaid_full_network() {
     // Create relationships
     create_perception(
         &harness.db,
-        &alice.id.key().to_string(),
-        &bob.id.key().to_string(),
+        &alice.id.key.to_sql(),
+        &bob.id.key.to_sql(),
         PerceptionCreate {
             rel_types: vec!["rivalry".to_string()],
             subtype: None,
@@ -311,8 +311,8 @@ async fn test_mermaid_full_network() {
 
     create_perception(
         &harness.db,
-        &charlie.id.key().to_string(),
-        &alice.id.key().to_string(),
+        &charlie.id.key.to_sql(),
+        &alice.id.key.to_sql(),
         PerceptionCreate {
             rel_types: vec!["mentorship".to_string()],
             subtype: None,
@@ -375,8 +375,8 @@ async fn test_mermaid_character_centered() {
     // Center -> Near1, Near2
     create_perception(
         &harness.db,
-        &center.id.key().to_string(),
-        &near1.id.key().to_string(),
+        &center.id.key.to_sql(),
+        &near1.id.key.to_sql(),
         PerceptionCreate {
             rel_types: vec!["friendship".to_string()],
             subtype: None,
@@ -391,8 +391,8 @@ async fn test_mermaid_character_centered() {
 
     create_perception(
         &harness.db,
-        &center.id.key().to_string(),
-        &near2.id.key().to_string(),
+        &center.id.key.to_sql(),
+        &near2.id.key.to_sql(),
         PerceptionCreate {
             rel_types: vec!["friendship".to_string()],
             subtype: None,
@@ -408,8 +408,8 @@ async fn test_mermaid_character_centered() {
     // Near1 -> Far (depth 2 from Center)
     create_perception(
         &harness.db,
-        &near1.id.key().to_string(),
-        &far.id.key().to_string(),
+        &near1.id.key.to_sql(),
+        &far.id.key.to_sql(),
         PerceptionCreate {
             rel_types: vec!["professional".to_string()],
             subtype: None,
@@ -426,7 +426,7 @@ async fn test_mermaid_character_centered() {
     let diagram_depth1 = graph_service
         .generate_mermaid(
             GraphScope::CharacterCentered {
-                character_id: center.id.key().to_string(),
+                character_id: center.id.key.to_sql(),
                 depth: 1,
             },
             GraphOptions::default(),
@@ -456,7 +456,7 @@ async fn test_mermaid_character_centered() {
     let diagram_depth2 = graph_service
         .generate_mermaid(
             GraphScope::CharacterCentered {
-                character_id: center.id.key().to_string(),
+                character_id: center.id.key.to_sql(),
                 depth: 2,
             },
             GraphOptions::default(),

@@ -8,7 +8,6 @@
 //! - VGRF-03: Character-centered graphs with depth limiting
 
 mod common;
-use narra::db::compat::RecordIdExt;
 
 use common::harness::TestHarness;
 use narra::embedding::NoopEmbeddingService;
@@ -26,6 +25,7 @@ use narra::services::{
     SearchService, SurrealSearchService,
 };
 use std::sync::Arc;
+use surrealdb::types::ToSql;
 
 // ============================================================================
 // NOTE-01 Tests: Note CRUD and Attachments
@@ -54,7 +54,7 @@ async fn test_note_crud_operations() {
     assert_eq!(note.title, "Research: Magic System");
     assert!(note.body.contains("elemental forces"));
 
-    let note_id = note.id.key().to_string();
+    let note_id = note.id.key.to_sql();
 
     // Read the note
     let fetched = get_note(db, &note_id)
@@ -117,7 +117,7 @@ async fn test_note_attachment_to_entity() {
         .await
         .expect("Should create character");
 
-    let character_id = format!("character:{}", character.id.key());
+    let character_id = character.id.to_sql();
 
     // Create a note
     let note = create_note(
@@ -130,15 +130,15 @@ async fn test_note_attachment_to_entity() {
     .await
     .expect("Should create note");
 
-    let note_id = note.id.key().to_string();
+    let note_id = note.id.key.to_sql();
 
     // Attach note to character
     let attachment = attach_note(db, &note_id, &character_id)
         .await
         .expect("Should attach note");
 
-    assert_eq!(attachment.note.key().to_string(), note_id);
-    assert_eq!(attachment.entity.to_string(), character_id);
+    assert_eq!(attachment.note.key.to_sql(), note_id);
+    assert_eq!(attachment.entity.to_sql(), character_id);
 
     // Verify attachment via get_note_attachments
     let attachments = get_note_attachments(db, &note_id)
@@ -146,7 +146,7 @@ async fn test_note_attachment_to_entity() {
         .expect("Should get attachments");
 
     assert_eq!(attachments.len(), 1);
-    assert_eq!(attachments[0].entity.to_string(), character_id);
+    assert_eq!(attachments[0].entity.to_sql(), character_id);
 
     // Verify attachment via get_entity_notes
     let entity_notes = get_entity_notes(db, &character_id)
@@ -206,10 +206,10 @@ async fn test_note_standalone_no_attachments() {
     assert_eq!(notes.len(), 2);
 
     // Verify no attachments for either note
-    let attachments1 = get_note_attachments(db, &note1.id.key().to_string())
+    let attachments1 = get_note_attachments(db, &note1.id.key.to_sql())
         .await
         .expect("Should get attachments");
-    let attachments2 = get_note_attachments(db, &note2.id.key().to_string())
+    let attachments2 = get_note_attachments(db, &note2.id.key.to_sql())
         .await
         .expect("Should get attachments");
 
@@ -378,8 +378,8 @@ async fn test_full_network_graph_generation() {
         .await
         .expect("Should create Bob");
 
-    let alice_id = alice.id.key().to_string();
-    let bob_id = bob.id.key().to_string();
+    let alice_id = alice.id.key.to_sql();
+    let bob_id = bob.id.key.to_sql();
 
     // Create perception (relationship)
     create_perception_pair(
@@ -467,9 +467,9 @@ async fn test_graph_edge_styling_by_type() {
         .await
         .expect("Should create Marcus");
 
-    let parent_id = parent.id.key().to_string();
-    let child_id = child.id.key().to_string();
-    let friend_id = friend.id.key().to_string();
+    let parent_id = parent.id.key.to_sql();
+    let child_id = child.id.key.to_sql();
+    let friend_id = friend.id.key.to_sql();
 
     // Create family relationship
     create_perception_pair(
@@ -605,10 +605,10 @@ async fn test_character_centered_graph() {
         .await
         .expect("Should create Delta");
 
-    let a_id = char_a.id.key().to_string();
-    let b_id = char_b.id.key().to_string();
-    let c_id = char_c.id.key().to_string();
-    let d_id = char_d.id.key().to_string();
+    let a_id = char_a.id.key.to_sql();
+    let b_id = char_b.id.key.to_sql();
+    let c_id = char_c.id.key.to_sql();
+    let d_id = char_d.id.key.to_sql();
 
     // Create chain: A->B, B->C, C->D
     create_perception_pair(
@@ -783,9 +783,9 @@ async fn test_phase7_full_workflow() {
         .await
         .expect("Should create mentor");
 
-    let protagonist_id = protagonist.id.key().to_string();
-    let antagonist_id = antagonist.id.key().to_string();
-    let mentor_id = mentor.id.key().to_string();
+    let protagonist_id = protagonist.id.key.to_sql();
+    let antagonist_id = antagonist.id.key.to_sql();
+    let mentor_id = mentor.id.key.to_sql();
 
     // 2. Create relationships
     create_perception_pair(
@@ -866,13 +866,13 @@ async fn test_phase7_full_workflow() {
     let protagonist_full_id = format!("character:{}", protagonist_id);
     attach_note(
         db,
-        &backstory_note.id.key().to_string(),
+        &backstory_note.id.key.to_sql(),
         &protagonist_full_id,
     )
     .await
     .expect("Should attach backstory to protagonist");
 
-    attach_note(db, &plot_note.id.key().to_string(), &protagonist_full_id)
+    attach_note(db, &plot_note.id.key.to_sql(), &protagonist_full_id)
         .await
         .expect("Should attach plot note to protagonist");
 

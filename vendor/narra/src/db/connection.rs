@@ -106,8 +106,9 @@ pub fn load_db_config(data_path: &Path) -> DbConfig {
 /// Supports both embedded RocksDB (single-process) and remote WebSocket
 /// (concurrent access) modes, driven by `DbConfig`.
 ///
-/// v3 still uses `engine::any::connect((endpoint, Config))` for embedded
-/// rocksdb. `Surreal::init()` is the static-client path; we don't need it.
+/// v3 客户端：`Surreal::<Any>::init()` 再建连。嵌入式仍走 any 引擎的 `rocksdb:`
+/// 方案（远程/嵌入共用 `NarraDb = Surreal<Any>`）。关掉引擎靠最后一个 Drop，
+/// 没有单独的 shutdown API。
 ///
 /// # Arguments
 ///
@@ -124,9 +125,9 @@ pub async fn init_db(config: &DbConfig, data_path: &Path) -> Result<NarraDb, Nar
                 .capabilities(Capabilities::all().with_all_experimental_features_allowed());
             // TODO-SURREAL3: endpoint is still `rocksdb:{path}`; hermes confirm kv-rocksdb
             // still accepts this scheme (docs.rs 3.2.4 embedding examples use RocksDb::new).
-            let db =
-                surrealdb::engine::any::connect((format!("rocksdb:{db_path}"), surreal_config))
-                    .await?;
+            let db = Surreal::<Any>::init();
+            db.connect((format!("rocksdb:{db_path}"), surreal_config))
+                .await?;
             db.use_ns("narra").use_db("world").await?;
             Ok(db)
         }
@@ -137,7 +138,8 @@ pub async fn init_db(config: &DbConfig, data_path: &Path) -> Result<NarraDb, Nar
             namespace,
             database,
         } => {
-            let db = surrealdb::engine::any::connect(endpoint).await?;
+            let db = Surreal::<Any>::init();
+            db.connect(endpoint.as_str()).await?;
             // Resolve credentials: config field > env var > default
             let user = username
                 .clone()

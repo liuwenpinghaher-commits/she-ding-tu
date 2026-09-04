@@ -36,7 +36,7 @@ DEFINE FIELD contradictions.*.is_primary ON character TYPE bool DEFAULT false;
 -- Each direction requires its own edge (RELATE A->perceives->B AND B->perceives->A)
 -- ==============================================================================
 
-DEFINE TABLE perceives TYPE RELATION IN character OUT character SCHEMAFULL;
+DEFINE TABLE perceives SCHEMAFULL TYPE RELATION IN character OUT character ENFORCED;
 DEFINE FIELD rel_types ON perceives TYPE set<string>;
 DEFINE FIELD subtype ON perceives TYPE option<string>;
 DEFINE FIELD feelings ON perceives TYPE option<string>;
@@ -53,7 +53,7 @@ DEFINE INDEX idx_perceives_types ON perceives FIELDS rel_types;
 -- References timeline event for "when" and location for "where"
 -- ==============================================================================
 
-DEFINE TABLE scene SCHEMAFULL;
+DEFINE TABLE scene SCHEMAFULL TYPE NORMAL;
 DEFINE FIELD title ON scene TYPE string;
 DEFINE FIELD summary ON scene TYPE option<string>;
 DEFINE FIELD event ON scene TYPE record<event>;
@@ -70,7 +70,7 @@ DEFINE INDEX idx_scene_location ON scene FIELDS primary_location;
 -- Roles: pov, protagonist, antagonist, supporting, witness, mentioned (or custom)
 -- ==============================================================================
 
-DEFINE TABLE participates_in TYPE RELATION IN character OUT scene SCHEMAFULL;
+DEFINE TABLE participates_in SCHEMAFULL TYPE RELATION IN character OUT scene ENFORCED;
 DEFINE FIELD role ON participates_in TYPE string;
 DEFINE FIELD notes ON participates_in TYPE option<string>;
 DEFINE FIELD created_at ON participates_in TYPE datetime VALUE time::now() READONLY;
@@ -82,7 +82,7 @@ DEFINE INDEX idx_participant_role ON participates_in FIELDS role;
 -- Tracks who participated in events and how they were affected
 -- ==============================================================================
 
-DEFINE TABLE involved_in TYPE RELATION IN character OUT event SCHEMAFULL;
+DEFINE TABLE involved_in SCHEMAFULL TYPE RELATION IN character OUT event ENFORCED;
 DEFINE FIELD role ON involved_in TYPE option<string>;
 DEFINE FIELD impact ON involved_in TYPE option<string>;
 DEFINE FIELD created_at ON involved_in TYPE datetime VALUE time::now() READONLY;

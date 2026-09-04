@@ -4,11 +4,11 @@
 //! added in Session 3 (arc/what-if CLI commands).
 
 use narra::mcp::QueryRequest;
-use narra::db::compat::RecordIdExt;
 use narra::repository::{
     EntityRepository, KnowledgeRepository, SurrealEntityRepository, SurrealKnowledgeRepository,
 };
 use rmcp::handler::server::wrapper::Parameters;
+use surrealdb::types::ToSql;
 
 use crate::common::{
     builders::{CharacterBuilder, KnowledgeBuilder},
@@ -34,7 +34,7 @@ async fn test_arc_history_no_snapshots() {
     let server = crate::common::create_test_server(&harness).await;
 
     let request = QueryRequest::ArcHistory {
-        entity_id: format!("character:{}", alice.id.key()),
+        entity_id: alice.id.to_sql(),
         facet: None,
         limit: Some(50),
     };
@@ -97,8 +97,8 @@ async fn test_arc_comparison_no_snapshots() {
     let server = crate::common::create_test_server(&harness).await;
 
     let request = QueryRequest::ArcComparison {
-        entity_id_a: format!("character:{}", alice.id.key()),
-        entity_id_b: format!("character:{}", bob.id.key()),
+        entity_id_a: alice.id.to_sql(),
+        entity_id_b: bob.id.to_sql(),
         window: None,
     };
 
@@ -139,7 +139,7 @@ async fn test_arc_moment_no_snapshots() {
     let server = crate::common::create_test_server(&harness).await;
 
     let request = QueryRequest::ArcMoment {
-        entity_id: format!("character:{}", alice.id.key()),
+        entity_id: alice.id.to_sql(),
         event_id: None,
     };
 
@@ -181,8 +181,8 @@ async fn test_what_if_no_embedding() {
     let server = crate::common::create_test_server(&harness).await;
 
     let request = QueryRequest::WhatIf {
-        character_id: format!("character:{}", alice.id.key()),
-        fact_id: knowledge.id.to_string(),
+        character_id: alice.id.to_sql(),
+        fact_id: knowledge.id.to_sql(),
         certainty: Some("knows".to_string()),
         source_character: None,
     };

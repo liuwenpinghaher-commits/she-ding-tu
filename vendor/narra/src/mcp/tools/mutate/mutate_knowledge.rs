@@ -1,7 +1,6 @@
 use crate::mcp::types::KnowledgeSpec;
 use crate::mcp::{EntityResult, MutationResponse, NarraServer};
 use crate::models::{CertaintyLevel, KnowledgeStateCreate, LearningMethod};
-use crate::db::compat::RecordIdExt;
 
 impl NarraServer {
     #[allow(clippy::too_many_arguments)]
@@ -16,7 +15,7 @@ impl NarraServer {
         event_id: Option<String>,
     ) -> Result<MutationResponse, String> {
         use crate::models::knowledge::{create_knowledge, create_knowledge_state, KnowledgeCreate};
-        use surrealdb::types::RecordId;
+        use surrealdb::types::{RecordId, ToSql};
 
         // Build creation data for consistency check
         let creation_data = serde_json::json!({
@@ -108,14 +107,14 @@ impl NarraServer {
 
         // Extract character key (function expects just key, not table:key)
         let char_key = character_id.split(':').nth(1).unwrap_or(&character_id);
-        let knowledge_target = format!("knowledge:{}", knowledge_entity.id.key());
+        let knowledge_target = knowledge_entity.id.to_sql();
 
         let knowledge_state = create_knowledge_state(&self.db, char_key, &knowledge_target, create)
             .await
             .map_err(|e| format!("Failed to create knowledge state: {}", e))?;
 
         // Trigger async embedding generation for the knowledge entity
-        let knowledge_entity_id = knowledge_entity.id.to_string();
+        let knowledge_entity_id = knowledge_entity.id.to_sql();
         self.staleness_manager.spawn_regeneration(
             knowledge_entity_id,
             "knowledge".to_string(),
@@ -135,7 +134,7 @@ impl NarraServer {
             );
         }
 
-        let entity_id = knowledge_state.id.to_string();
+        let entity_id = knowledge_state.id.to_sql();
 
         let result = EntityResult {
             id: entity_id,

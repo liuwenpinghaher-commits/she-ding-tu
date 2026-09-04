@@ -1,5 +1,5 @@
 use crate::mcp::{EntityResult, MutationResponse, NarraServer};
-use crate::db::compat::RecordIdExt;
+use surrealdb::types::ToSql;
 
 impl NarraServer {
     pub(crate) async fn handle_create_note(
@@ -19,7 +19,7 @@ impl NarraServer {
             .await
             .map_err(|e| format!("Failed to create note: {}", e))?;
 
-        let note_key = note.id.key().to_string();
+        let note_key = note.id.key.to_sql();
 
         // Attach to entities if specified
         let mut attached_count = 0;
@@ -32,7 +32,7 @@ impl NarraServer {
             }
         }
 
-        let entity_id = note.id.to_string();
+        let entity_id = note.id.to_sql();
 
         // Trigger embedding generation for the new note
         if let Err(e) = self.staleness_manager.mark_stale(&entity_id).await {

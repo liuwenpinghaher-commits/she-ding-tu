@@ -7,7 +7,7 @@ use narra::mcp::QueryRequest;
 use narra::models::relationship::{create_relationship, RelationshipCreate};
 use narra::repository::{EntityRepository, SurrealEntityRepository};
 use rmcp::handler::server::wrapper::Parameters;
-use narra::db::compat::RecordIdExt;
+use surrealdb::types::ToSql;
 
 use crate::common::{
     builders::{CharacterBuilder, EventBuilder, LocationBuilder, SceneBuilder},
@@ -37,8 +37,8 @@ async fn test_connection_path_direct() {
     create_relationship(
         &harness.db,
         RelationshipCreate {
-            from_character_id: alice.id.key().to_string(),
-            to_character_id: bob.id.key().to_string(),
+            from_character_id: alice.id.key.to_sql(),
+            to_character_id: bob.id.key.to_sql(),
             rel_type: "friendship".to_string(),
             subtype: None,
             label: Some("old friends".to_string()),
@@ -50,8 +50,8 @@ async fn test_connection_path_direct() {
     let server = crate::common::create_test_server(&harness).await;
 
     let request = QueryRequest::ConnectionPath {
-        from_id: format!("character:{}", alice.id.key()),
-        to_id: format!("character:{}", bob.id.key()),
+        from_id: alice.id.to_sql(),
+        to_id: bob.id.to_sql(),
         max_hops: Some(3),
         include_events: Some(false),
     };
@@ -90,8 +90,8 @@ async fn test_connection_path_no_connection() {
     let server = crate::common::create_test_server(&harness).await;
 
     let request = QueryRequest::ConnectionPath {
-        from_id: format!("character:{}", alice.id.key()),
-        to_id: format!("character:{}", bob.id.key()),
+        from_id: alice.id.to_sql(),
+        to_id: bob.id.to_sql(),
         max_hops: Some(3),
         include_events: Some(false),
     };
@@ -135,8 +135,8 @@ async fn test_connection_path_indirect() {
     create_relationship(
         &harness.db,
         RelationshipCreate {
-            from_character_id: alice.id.key().to_string(),
-            to_character_id: bob.id.key().to_string(),
+            from_character_id: alice.id.key.to_sql(),
+            to_character_id: bob.id.key.to_sql(),
             rel_type: "friendship".to_string(),
             subtype: None,
             label: None,
@@ -148,8 +148,8 @@ async fn test_connection_path_indirect() {
     create_relationship(
         &harness.db,
         RelationshipCreate {
-            from_character_id: bob.id.key().to_string(),
-            to_character_id: charlie.id.key().to_string(),
+            from_character_id: bob.id.key.to_sql(),
+            to_character_id: charlie.id.key.to_sql(),
             rel_type: "mentorship".to_string(),
             subtype: None,
             label: None,
@@ -161,8 +161,8 @@ async fn test_connection_path_indirect() {
     let server = crate::common::create_test_server(&harness).await;
 
     let request = QueryRequest::ConnectionPath {
-        from_id: format!("character:{}", alice.id.key()),
-        to_id: format!("character:{}", charlie.id.key()),
+        from_id: alice.id.to_sql(),
+        to_id: charlie.id.to_sql(),
         max_hops: Some(3),
         include_events: Some(false),
     };
@@ -204,8 +204,8 @@ async fn test_reverse_query_character_scenes() {
         .create_scene(
             SceneBuilder::new(
                 "Alice's Arrival",
-                event.id.key().to_string(),
-                location.id.key().to_string(),
+                event.id.key.to_sql(),
+                location.id.key.to_sql(),
             )
             .summary("Alice arrives at the castle")
             .build(),
@@ -214,7 +214,7 @@ async fn test_reverse_query_character_scenes() {
         .expect("Scene");
 
     // Add Alice to scene participants
-    let alice_id = alice.id.to_string();
+    let alice_id = alice.id.to_sql();
     let _ = harness
         .db
         .query(format!(
@@ -226,7 +226,7 @@ async fn test_reverse_query_character_scenes() {
     let server = crate::common::create_test_server(&harness).await;
 
     let request = QueryRequest::ReverseQuery {
-        entity_id: format!("character:{}", alice.id.key()),
+        entity_id: alice.id.to_sql(),
         referencing_types: None,
         limit: Some(20),
     };
@@ -255,7 +255,7 @@ async fn test_reverse_query_no_references() {
     let server = crate::common::create_test_server(&harness).await;
 
     let request = QueryRequest::ReverseQuery {
-        entity_id: format!("character:{}", alice.id.key()),
+        entity_id: alice.id.to_sql(),
         referencing_types: None,
         limit: Some(20),
     };

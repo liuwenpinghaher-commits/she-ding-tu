@@ -12,8 +12,7 @@ use async_trait::async_trait;
 use serde::Serialize;
 use std::collections::HashMap;
 use std::sync::Arc;
-use surrealdb::types::SurrealValue;
-use crate::db::compat::RecordIdExt;
+use surrealdb::types::{SurrealValue, ToSql};
 
 use crate::db::connection::NarraDb;
 use crate::NarraError;
@@ -375,8 +374,8 @@ impl RoleInferenceDataProvider for SurrealRoleInferenceDataProvider {
         let mut connections: HashMap<String, std::collections::HashSet<String>> =
             HashMap::with_capacity(n);
         for p in &percs {
-            let from = p.from.to_string();
-            let to = p.to.to_string();
+            let from = p.from.to_sql();
+            let to = p.to.to_sql();
             connections
                 .entry(from.clone())
                 .or_default()
@@ -386,7 +385,7 @@ impl RoleInferenceDataProvider for SurrealRoleInferenceDataProvider {
         for r in &rels {
             // relates_to in SurrealDB: in = from, we don't have out here
             // We only fetched 'in' and 'rel_type', so we can count from-side rels
-            let from = r.from.to_string();
+            let from = r.from.to_sql();
             connections.entry(from).or_default();
         }
 
@@ -398,7 +397,7 @@ impl RoleInferenceDataProvider for SurrealRoleInferenceDataProvider {
 
         for k in &knows {
             let knower = k.knower.to_string();
-            let target = k.target.to_string();
+            let target = k.target.to_sql();
             *knowledge_count.entry(knower.clone()).or_default() += 1;
 
             // Target must be a character for "known about" to count
@@ -419,7 +418,7 @@ impl RoleInferenceDataProvider for SurrealRoleInferenceDataProvider {
         let mut ally_count: HashMap<String, usize> = HashMap::with_capacity(n);
 
         for r in &rels {
-            let from = r.from.to_string();
+            let from = r.from.to_sql();
             let rel_lower = r.rel_type.to_lowercase();
             if rel_lower.contains("mentor")
                 || rel_lower.contains("teacher")
@@ -445,7 +444,7 @@ impl RoleInferenceDataProvider for SurrealRoleInferenceDataProvider {
         let features: Vec<CharacterFeatures> = chars
             .into_iter()
             .map(|c| {
-                let id = c.id.to_string();
+                let id = c.id.to_sql();
                 let degree = connections
                     .get(&id)
                     .map(|s| s.len() as f64 / max_degree)

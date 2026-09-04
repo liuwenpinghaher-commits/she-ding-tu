@@ -9,7 +9,6 @@ use crate::NarraError;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use surrealdb::types::{Datetime, RecordId, SurrealValue};
-use crate::db::compat::RecordIdExt;
 
 /// A persisted narrative phase.
 #[derive(Debug, Clone, Serialize, Deserialize, SurrealValue)]

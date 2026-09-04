@@ -1,7 +1,7 @@
 -- Phase 11: Universe Facts for world rules and constraints
 -- Facts are first-class entities that define world rules with flexible enforcement
 
-DEFINE TABLE universe_fact SCHEMAFULL;
+DEFINE TABLE universe_fact SCHEMAFULL TYPE NORMAL;
 DEFINE FIELD title ON universe_fact TYPE string;
 DEFINE FIELD description ON universe_fact TYPE string;
 DEFINE FIELD categories ON universe_fact TYPE array;
@@ -19,7 +19,7 @@ DEFINE INDEX idx_fact_search_description ON universe_fact FIELDS description FUL
 
 -- Fact application edge (fact -> any entity)
 -- Uses union type to allow linking to all entity types
-DEFINE TABLE applies_to TYPE RELATION IN universe_fact OUT character|location|event|scene|knowledge SCHEMAFULL;
+DEFINE TABLE applies_to SCHEMAFULL TYPE RELATION IN universe_fact OUT character|location|event|scene|knowledge ENFORCED;
 DEFINE FIELD link_type ON applies_to TYPE string;
 DEFINE FIELD confidence ON applies_to TYPE option<float>;
 DEFINE FIELD created_at ON applies_to TYPE datetime VALUE time::now() READONLY;

@@ -2,8 +2,7 @@
 
 use anyhow::Result;
 use serde::Serialize;
-use surrealdb::types::SurrealValue;
-use crate::db::compat::RecordIdExt;
+use surrealdb::types::{SurrealValue, ToSql};
 
 use crate::cli::output::{output_json, print_header, print_kv, print_table, OutputMode};
 use crate::cli::resolve::resolve_single;
@@ -330,7 +329,7 @@ pub async fn handle_what_if(
     for k in &existing_knowledge {
         let sim = cosine_similarity(&fact_embedding, &k.embedding);
         if sim > 0.7 {
-            conflicts.push((k.id.to_string(), k.fact.clone(), sim));
+            conflicts.push((k.id.to_sql(), k.fact.clone(), sim));
         }
     }
 

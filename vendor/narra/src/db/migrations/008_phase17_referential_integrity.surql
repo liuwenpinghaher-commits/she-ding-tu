@@ -10,9 +10,8 @@
 DEFINE FIELD character ON knowledge TYPE record<character>
     REFERENCE ON DELETE CASCADE ;
 
--- NOTE: RELATION table in/out fields don't support REFERENCE clauses in SurrealDB 2.6.0
--- The TYPE RELATION IN/OUT syntax already provides type constraints
--- CASCADE deletion of edges happens automatically when referenced entities are deleted
+-- Relation endpoints are constrained by TYPE RELATION … ENFORCED, not REFERENCE
+-- on in/out. Edge rows cascade when the referenced records are deleted.
 
 -- Scene owned by event: Delete scene when event deleted
 DEFINE FIELD event ON scene TYPE record<event>
@@ -41,8 +40,7 @@ DEFINE FIELD secondary_locations ON scene TYPE array<record<location>>
     REFERENCE ON DELETE UNSET ;
 
 -- ==============================================================================
--- CONCURRENT INDEXES FOR REVERSE QUERY PERFORMANCE
--- New indexes to support efficient reverse queries using <~ operator
+-- Reverse-query indexes (built in the schema script; not CONCURRENTLY)
 -- ==============================================================================
 
 -- Enable reverse queries: "What knowledge belongs to this character?"

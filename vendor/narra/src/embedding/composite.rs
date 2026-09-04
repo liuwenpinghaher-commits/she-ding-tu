@@ -4,7 +4,6 @@
 //! Composite text should be semantically rich but concise (50-200 words).
 
 use crate::models::{Character, Event, Location, Note, Scene, UniverseFact};
-use crate::db::compat::RecordIdExt;
 
 /// Generate composite text for a character.
 ///

@@ -12,7 +12,7 @@ use narra::models::perception::{create_perception, PerceptionCreate};
 use narra::models::relationship::{create_relationship, RelationshipCreate};
 use narra::repository::{EntityRepository, SurrealEntityRepository};
 use rmcp::handler::server::wrapper::Parameters;
-use narra::db::compat::RecordIdExt;
+use surrealdb::types::ToSql;
 
 use crate::common::harness::TestHarness;
 use crate::common::{builders::CharacterBuilder, to_query_input};
@@ -41,8 +41,8 @@ async fn test_graph_traversal_success() {
     create_relationship(
         &harness.db,
         RelationshipCreate {
-            from_character_id: alice.id.key().to_string(),
-            to_character_id: bob.id.key().to_string(),
+            from_character_id: alice.id.key.to_sql(),
+            to_character_id: bob.id.key.to_sql(),
             rel_type: "friendship".to_string(),
             subtype: None,
             label: Some("best friends".to_string()),
@@ -55,7 +55,7 @@ async fn test_graph_traversal_success() {
 
     // Traverse graph from Alice
     let request = QueryRequest::GraphTraversal {
-        entity_id: format!("character:{}", alice.id.key()),
+        entity_id: alice.id.to_sql(),
         depth: 2,
         format: None,
     };
@@ -76,7 +76,7 @@ async fn test_graph_traversal_success() {
     let has_bob = response
         .results
         .iter()
-        .any(|r| r.id.contains(&bob.id.key().to_string()));
+        .any(|r| r.id.contains(&bob.id.key.to_sql()));
     assert!(has_bob, "Should find Bob connected to Alice");
 }
 
@@ -104,8 +104,8 @@ async fn test_graph_traversal_depth_1() {
     create_relationship(
         &harness.db,
         RelationshipCreate {
-            from_character_id: alice.id.key().to_string(),
-            to_character_id: bob.id.key().to_string(),
+            from_character_id: alice.id.key.to_sql(),
+            to_character_id: bob.id.key.to_sql(),
             rel_type: "friendship".to_string(),
             subtype: None,
             label: None,
@@ -118,8 +118,8 @@ async fn test_graph_traversal_depth_1() {
     create_relationship(
         &harness.db,
         RelationshipCreate {
-            from_character_id: bob.id.key().to_string(),
-            to_character_id: charlie.id.key().to_string(),
+            from_character_id: bob.id.key.to_sql(),
+            to_character_id: charlie.id.key.to_sql(),
             rel_type: "mentorship".to_string(),
             subtype: None,
             label: None,
@@ -132,7 +132,7 @@ async fn test_graph_traversal_depth_1() {
 
     // Traverse from Alice with depth=1
     let request = QueryRequest::GraphTraversal {
-        entity_id: format!("character:{}", alice.id.key()),
+        entity_id: alice.id.to_sql(),
         depth: 1,
         format: None,
     };
@@ -146,11 +146,11 @@ async fn test_graph_traversal_depth_1() {
     let has_bob = response
         .results
         .iter()
-        .any(|r| r.id.contains(&bob.id.key().to_string()));
+        .any(|r| r.id.contains(&bob.id.key.to_sql()));
     let has_charlie = response
         .results
         .iter()
-        .any(|r| r.id.contains(&charlie.id.key().to_string()));
+        .any(|r| r.id.contains(&charlie.id.key.to_sql()));
 
     assert!(has_bob, "Should find Bob at depth 1");
     assert!(!has_charlie, "Should NOT find Charlie at depth 1");
@@ -184,8 +184,8 @@ async fn test_graph_traversal_depth_2() {
     create_relationship(
         &harness.db,
         RelationshipCreate {
-            from_character_id: alice.id.key().to_string(),
-            to_character_id: bob.id.key().to_string(),
+            from_character_id: alice.id.key.to_sql(),
+            to_character_id: bob.id.key.to_sql(),
             rel_type: "friendship".to_string(),
             subtype: None,
             label: None,
@@ -197,8 +197,8 @@ async fn test_graph_traversal_depth_2() {
     create_relationship(
         &harness.db,
         RelationshipCreate {
-            from_character_id: bob.id.key().to_string(),
-            to_character_id: charlie.id.key().to_string(),
+            from_character_id: bob.id.key.to_sql(),
+            to_character_id: charlie.id.key.to_sql(),
             rel_type: "friendship".to_string(),
             subtype: None,
             label: None,
@@ -210,8 +210,8 @@ async fn test_graph_traversal_depth_2() {
     create_relationship(
         &harness.db,
         RelationshipCreate {
-            from_character_id: charlie.id.key().to_string(),
-            to_character_id: david.id.key().to_string(),
+            from_character_id: charlie.id.key.to_sql(),
+            to_character_id: david.id.key.to_sql(),
             rel_type: "friendship".to_string(),
             subtype: None,
             label: None,
@@ -224,7 +224,7 @@ async fn test_graph_traversal_depth_2() {
 
     // Traverse from Alice with depth=2
     let request = QueryRequest::GraphTraversal {
-        entity_id: format!("character:{}", alice.id.key()),
+        entity_id: alice.id.to_sql(),
         depth: 2,
         format: None,
     };
@@ -238,15 +238,15 @@ async fn test_graph_traversal_depth_2() {
     let has_bob = response
         .results
         .iter()
-        .any(|r| r.id.contains(&bob.id.key().to_string()));
+        .any(|r| r.id.contains(&bob.id.key.to_sql()));
     let has_charlie = response
         .results
         .iter()
-        .any(|r| r.id.contains(&charlie.id.key().to_string()));
+        .any(|r| r.id.contains(&charlie.id.key.to_sql()));
     let has_david = response
         .results
         .iter()
-        .any(|r| r.id.contains(&david.id.key().to_string()));
+        .any(|r| r.id.contains(&david.id.key.to_sql()));
 
     assert!(has_bob, "Should find Bob at depth 1");
     assert!(has_charlie, "Should find Charlie at depth 2");
@@ -272,7 +272,7 @@ async fn test_graph_traversal_no_connections() {
 
     // Traverse from isolated character
     let request = QueryRequest::GraphTraversal {
-        entity_id: format!("character:{}", lonely.id.key()),
+        entity_id: lonely.id.to_sql(),
         depth: 2,
         format: None,
     };
@@ -346,8 +346,8 @@ async fn test_generate_graph_full_network() {
     // Create perception edge (used by MermaidGraphService)
     create_perception(
         &harness.db,
-        &alice.id.key().to_string(),
-        &bob.id.key().to_string(),
+        &alice.id.key.to_sql(),
+        &bob.id.key.to_sql(),
         PerceptionCreate {
             rel_types: vec!["rivalry".to_string()],
             subtype: None,
@@ -426,8 +426,8 @@ async fn test_generate_graph_character_centered() {
     // Center -> Near
     create_perception(
         &harness.db,
-        &center.id.key().to_string(),
-        &near.id.key().to_string(),
+        &center.id.key.to_sql(),
+        &near.id.key.to_sql(),
         PerceptionCreate {
             rel_types: vec!["friendship".to_string()],
             subtype: None,
@@ -443,8 +443,8 @@ async fn test_generate_graph_character_centered() {
     // Near -> Far (depth 2 from center)
     create_perception(
         &harness.db,
-        &near.id.key().to_string(),
-        &far.id.key().to_string(),
+        &near.id.key.to_sql(),
+        &far.id.key.to_sql(),
         PerceptionCreate {
             rel_types: vec!["professional".to_string()],
             subtype: None,
@@ -461,7 +461,7 @@ async fn test_generate_graph_character_centered() {
 
     // Generate character-centered graph with depth=1
     let request = GraphRequest {
-        scope: format!("character:{}", center.id.key()),
+        scope: center.id.to_sql(),
         depth: Some(1),
         include_roles: None,
         filename: Some("test_centered_graph.md".to_string()),
@@ -644,8 +644,8 @@ async fn test_generate_graph_response_fields() {
 
     create_perception(
         &harness.db,
-        &alice.id.key().to_string(),
-        &bob.id.key().to_string(),
+        &alice.id.key.to_sql(),
+        &bob.id.key.to_sql(),
         PerceptionCreate {
             rel_types: vec!["friendship".to_string()],
             subtype: None,
@@ -713,8 +713,8 @@ async fn test_graph_traversal_response_structure() {
     create_relationship(
         &harness.db,
         RelationshipCreate {
-            from_character_id: alice.id.key().to_string(),
-            to_character_id: bob.id.key().to_string(),
+            from_character_id: alice.id.key.to_sql(),
+            to_character_id: bob.id.key.to_sql(),
             rel_type: "friendship".to_string(),
             subtype: None,
             label: None,
@@ -726,7 +726,7 @@ async fn test_graph_traversal_response_structure() {
     let server = crate::common::create_test_server(&harness).await;
 
     let request = QueryRequest::GraphTraversal {
-        entity_id: format!("character:{}", alice.id.key()),
+        entity_id: alice.id.to_sql(),
         depth: 2,
         format: None,
     };

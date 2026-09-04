@@ -8,7 +8,6 @@
 //! - Composite text generation produces natural language
 
 mod common;
-use narra::db::compat::RecordIdExt;
 
 use common::harness::TestHarness;
 use narra::embedding::backfill::BackfillService;
@@ -24,7 +23,7 @@ use narra::models::perception::{create_perception, PerceptionCreate};
 use narra::models::scene::{create_scene, SceneCreate};
 use std::collections::HashMap;
 use std::sync::Arc;
-use surrealdb::types::Datetime;
+use surrealdb::types::{Datetime, ToSql};
 
 /// Test backfill generates embeddings for all entity types.
 ///
@@ -99,10 +98,10 @@ async fn test_backfill_generates_embeddings_for_all_types() {
     .await
     .expect("Should create scene");
 
-    let char_id = character.id.key().to_string();
-    let loc_id = location.id.key().to_string();
-    let event_id = event.id.key().to_string();
-    let scene_id = scene.id.key().to_string();
+    let char_id = character.id.key.to_sql();
+    let loc_id = location.id.key.to_sql();
+    let event_id = event.id.key.to_sql();
+    let scene_id = scene.id.key.to_sql();
 
     println!("Created entities: character, location, event, scene");
 
@@ -251,7 +250,7 @@ async fn test_backfill_is_idempotent() {
     .await
     .expect("Should create character");
 
-    let char_id = character.id.key().to_string();
+    let char_id = character.id.key.to_sql();
 
     // Run backfill first time
     let stats1 = backfill_service
@@ -342,7 +341,7 @@ async fn test_staleness_marking_on_update() {
     .await
     .expect("Should create character");
 
-    let char_id = character.id.key().to_string();
+    let char_id = character.id.key.to_sql();
 
     // Run backfill (embedding generated)
     let stats1 = backfill_service
@@ -504,9 +503,9 @@ async fn test_backfill_single_type() {
     .await
     .expect("Should create event");
 
-    let char_id = character.id.key().to_string();
-    let loc_id = location.id.key().to_string();
-    let event_id = event.id.key().to_string();
+    let char_id = character.id.key.to_sql();
+    let loc_id = location.id.key.to_sql();
+    let event_id = event.id.key.to_sql();
 
     // Run backfill_type("character") only
     let stats = backfill_service
@@ -583,7 +582,7 @@ async fn test_composite_text_generation() {
     .await
     .expect("Should create character");
 
-    let char_id = character.id.key().to_string();
+    let char_id = character.id.key.to_sql();
 
     // Create a relationship for relationship info
     let marcus = create_character(
@@ -598,7 +597,7 @@ async fn test_composite_text_generation() {
     .await
     .expect("Should create Marcus");
 
-    let marcus_id = marcus.id.key().to_string();
+    let marcus_id = marcus.id.key.to_sql();
 
     // Create perception (Elena sees Marcus)
     create_perception(

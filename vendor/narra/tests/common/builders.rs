@@ -3,8 +3,7 @@
 //! Provides fluent API for creating test entities with sensible defaults.
 
 use narra::models::{CharacterCreate, EventCreate, KnowledgeCreate, LocationCreate, SceneCreate};
-use surrealdb::types::RecordId;
-use narra::db::compat::RecordIdExt;
+use surrealdb::types::{RecordId, ToSql};
 
 /// Builder for creating test characters.
 pub struct CharacterBuilder {
@@ -279,7 +278,7 @@ mod tests {
         assert_eq!(data.title, "Opening Scene");
         assert_eq!(data.summary, Some("The story begins".to_string()));
         // RecordId will be "event:event1" and "location:location1"
-        assert!(data.event.to_string().contains("event1"));
-        assert!(data.primary_location.to_string().contains("location1"));
+        assert!(data.event.to_sql().contains("event1"));
+        assert!(data.primary_location.to_sql().contains("location1"));
     }
 }

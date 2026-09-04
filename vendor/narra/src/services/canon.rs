@@ -10,11 +10,10 @@ use crate::services::world::{
     KnowledgeWrite, Presence, Promise, PromiseOp, World, KIND_RULE, STATUS_COMMITTED,
     STATUS_SUPERSEDED,
 };
-use crate::db::compat::RecordIdExt;
 use crate::NarraError;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use surrealdb::types::{RecordId, SurrealValue};
+use surrealdb::types::{RecordId, SurrealValue, ToSql};
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize, Deserialize, SurrealValue)]
@@ -189,7 +188,7 @@ fn beat_as_draft(b: &Beat) -> BeatDraft {
 }
 
 fn rec_key(id: &RecordId) -> String {
-    id.key()
+    id.key.to_sql()
         .to_string()
         .trim_matches(|c| c == '"' || c == '`')
         .to_string()

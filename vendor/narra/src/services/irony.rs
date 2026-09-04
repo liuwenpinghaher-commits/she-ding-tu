@@ -7,8 +7,7 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
-use surrealdb::types::{RecordId, SurrealValue};
-use crate::db::compat::RecordIdExt;
+use surrealdb::types::{RecordId, SurrealValue, ToSql};
 
 use crate::db::connection::NarraDb;
 
@@ -253,7 +252,7 @@ impl IronyDataProvider for SurrealIronyDataProvider {
 
     async fn get_fact_text(&self, target: &RecordId) -> Result<String, NarraError> {
         let target_str = target.to_string();
-        let key = target.key().to_string();
+        let key = target.key.to_sql();
         let table = target_str.split(':').next().unwrap_or("unknown");
 
         match table {
@@ -326,7 +325,7 @@ impl IronyDataProvider for SurrealIronyDataProvider {
 
         let facts: Vec<KnowledgeFact> = result.take(0)?;
         for f in facts {
-            map.insert(f.id.to_string(), f.fact);
+            map.insert(f.id.to_sql(), f.fact);
         }
 
         // Fetch all character names (for "knows about <name>" display)
@@ -340,7 +339,7 @@ impl IronyDataProvider for SurrealIronyDataProvider {
 
         let chars: Vec<CharName> = result.take(0)?;
         for c in chars {
-            map.insert(c.id.to_string(), format!("knows about {}", c.name));
+            map.insert(c.id.to_sql(), format!("knows about {}", c.name));
         }
 
         Ok(map)
@@ -381,8 +380,8 @@ impl IronyDataProvider for SurrealIronyDataProvider {
         let rows: Vec<PerceptionRow> = result.take(0)?;
         let mut map = HashMap::new();
         for row in rows {
-            let from_key = row.from.key().to_string();
-            let to_key = row.to.key().to_string();
+            let from_key = row.from.key.to_sql();
+            let to_key = row.to.key.to_sql();
             map.insert(
                 (from_key, to_key),
                 PairContext {
@@ -418,7 +417,7 @@ impl IronyDataProvider for SurrealIronyDataProvider {
         let mut map = HashMap::new();
         for row in rows {
             if let Some(level) = row.enforcement_level {
-                map.insert(row.target.to_string(), level);
+                map.insert(row.target.to_sql(), level);
             }
         }
         Ok(map)
@@ -455,7 +454,7 @@ impl IronyService {
 
         let char_names: HashMap<String, String> = characters
             .iter()
-            .map(|c| (c.id.key().to_string(), c.name.clone()))
+            .map(|c| (c.id.key.to_sql(), c.name.clone()))
             .collect();
 
         // Bulk pre-fetch: all fact texts, scene timestamps, tensions, enforcement (eliminates N+1)
@@ -467,7 +466,7 @@ impl IronyService {
         // Build knowledge map
         let mut character_knowledge: HashMap<String, Vec<KnowledgeState>> = HashMap::new();
         for character in &characters {
-            let char_id = character.id.key().to_string();
+            let char_id = character.id.key.to_sql();
             let knowledge = self.data.get_character_knowledge(&char_id).await?;
             character_knowledge.insert(char_id, knowledge);
         }
@@ -476,7 +475,7 @@ impl IronyService {
 
         let chars_to_compare: Vec<String> = match character_id {
             Some(cid) => vec![cid.to_string()],
-            None => characters.iter().map(|c| c.id.key().to_string()).collect(),
+            None => characters.iter().map(|c| c.id.key.to_sql()).collect(),
         };
 
         let empty_vec = Vec::new();
@@ -484,7 +483,7 @@ impl IronyService {
         for char_a in &chars_to_compare {
             let a_knowledge = character_knowledge.get(char_a).unwrap_or(&empty_vec);
 
-            for char_b in characters.iter().map(|c| c.id.key().to_string()) {
+            for char_b in characters.iter().map(|c| c.id.key.to_sql()) {
                 if char_a == &char_b {
                     continue;
                 }
@@ -492,10 +491,10 @@ impl IronyService {
                 let b_knowledge = character_knowledge.get(&char_b).unwrap_or(&empty_vec);
 
                 let b_targets: HashSet<String> =
-                    b_knowledge.iter().map(|k| k.target.to_string()).collect();
+                    b_knowledge.iter().map(|k| k.target.to_sql()).collect();
 
                 for a_knows in a_knowledge {
-                    let target_str = a_knows.target.to_string();
+                    let target_str = a_knows.target.to_sql();
 
                     if b_targets.contains(&target_str) {
                         continue;
@@ -605,10 +604,10 @@ impl IronyService {
         let mut asymmetries = Vec::new();
 
         // A knows, B doesn't
-        let b_targets: HashSet<String> = b_knowledge.iter().map(|k| k.target.to_string()).collect();
+        let b_targets: HashSet<String> = b_knowledge.iter().map(|k| k.target.to_sql()).collect();
 
         for a_knows in &a_knowledge {
-            let target_str = a_knows.target.to_string();
+            let target_str = a_knows.target.to_sql();
             if b_targets.contains(&target_str) {
                 continue;
             }
@@ -646,10 +645,10 @@ impl IronyService {
         }
 
         // B knows, A doesn't
-        let a_targets: HashSet<String> = a_knowledge.iter().map(|k| k.target.to_string()).collect();
+        let a_targets: HashSet<String> = a_knowledge.iter().map(|k| k.target.to_sql()).collect();
 
         for b_knows in &b_knowledge {
-            let target_str = b_knows.target.to_string();
+            let target_str = b_knows.target.to_sql();
             if a_targets.contains(&target_str) {
                 continue;
             }
@@ -829,7 +828,7 @@ mod tests {
             Ok(self
                 .characters
                 .iter()
-                .find(|c| c.id.key().to_string() == id)
+                .find(|c| c.id.key.to_sql() == id)
                 .cloned())
         }
 
@@ -861,7 +860,7 @@ mod tests {
             let mut map = HashMap::new();
             for states in self.knowledge.values() {
                 for k in states {
-                    map.insert(k.target.to_string(), format!("fact about {}", k.target));
+                    map.insert(k.target.to_sql(), format!("fact about {}", k.target.to_sql()));
                 }
             }
             Ok(map)
@@ -1110,7 +1109,7 @@ mod tests {
             Ok(self
                 .characters
                 .iter()
-                .find(|c| c.id.key().to_string() == id)
+                .find(|c| c.id.key.to_sql() == id)
                 .cloned())
         }
 
@@ -1140,7 +1139,7 @@ mod tests {
             let mut map = HashMap::new();
             for states in self.knowledge.values() {
                 for k in states {
-                    map.insert(k.target.to_string(), format!("fact about {}", k.target));
+                    map.insert(k.target.to_sql(), format!("fact about {}", k.target.to_sql()));
                 }
             }
             Ok(map)

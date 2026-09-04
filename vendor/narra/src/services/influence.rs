@@ -9,8 +9,7 @@ use async_trait::async_trait;
 use serde::Serialize;
 use std::collections::{HashSet, VecDeque};
 use std::sync::Arc;
-use surrealdb::types::SurrealValue;
-use crate::db::compat::RecordIdExt;
+use surrealdb::types::{SurrealValue, ToSql};
 
 use crate::NarraError;
 
@@ -167,7 +166,7 @@ impl InfluenceDataProvider for SurrealInfluenceDataProvider {
         Ok(edges
             .into_iter()
             .map(|e| PerceptionEdgeInfo {
-                target_id: e.target.to_string(),
+                target_id: e.target.to_sql(),
                 rel_types: e.rel_types,
                 tension_level: e.tension_level,
                 subtype: e.subtype,
@@ -194,7 +193,7 @@ impl InfluenceDataProvider for SurrealInfluenceDataProvider {
     async fn get_all_character_ids(&self) -> Result<Vec<String>, NarraError> {
         let mut result = self.db.query("SELECT VALUE id FROM character").await?;
         let ids: Vec<surrealdb::types::RecordId> = result.take(0)?;
-        Ok(ids.into_iter().map(|id| id.to_string()).collect())
+        Ok(ids.into_iter().map(|id| id.to_sql()).collect())
     }
 }
 

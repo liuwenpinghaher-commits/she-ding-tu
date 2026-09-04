@@ -1,8 +1,7 @@
 use crate::mcp::NarraServer;
 use crate::mcp::{EntityResult, QueryResponse};
 use crate::services::perception::PerceptionService;
-use surrealdb::types::SurrealValue;
-use crate::db::compat::RecordIdExt;
+use surrealdb::types::{SurrealValue, ToSql};
 
 impl NarraServer {
     pub(crate) async fn handle_perspective_search(
@@ -97,7 +96,7 @@ impl NarraServer {
                 };
 
                 EntityResult {
-                    id: r.id.to_string(),
+                    id: r.id.to_sql(),
                     entity_type: "perspective".to_string(),
                     name: format!("{} → {}", obs, tgt),
                     content,

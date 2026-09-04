@@ -1,5 +1,5 @@
 -- Phase table: persisted narrative phase detection results
-DEFINE TABLE IF NOT EXISTS phase SCHEMAFULL;
+DEFINE TABLE phase SCHEMAFULL TYPE NORMAL;
 DEFINE FIELD IF NOT EXISTS name ON phase TYPE string;
 DEFINE FIELD IF NOT EXISTS label ON phase TYPE string;
 DEFINE FIELD IF NOT EXISTS phase_order ON phase TYPE int;
@@ -15,7 +15,7 @@ DEFINE FIELD IF NOT EXISTS updated_at ON phase TYPE datetime DEFAULT time::now()
 DEFINE INDEX IF NOT EXISTS idx_phase_order ON phase FIELDS phase_order;
 
 -- Membership edge: entity belongs to a phase (denormalized for fast loading)
-DEFINE TABLE IF NOT EXISTS belongs_to_phase TYPE RELATION SCHEMAFULL;
+DEFINE TABLE belongs_to_phase SCHEMAFULL TYPE RELATION ENFORCED;
 DEFINE FIELD IF NOT EXISTS in ON belongs_to_phase TYPE record;
 DEFINE FIELD IF NOT EXISTS out ON belongs_to_phase TYPE record<phase>;
 DEFINE FIELD IF NOT EXISTS entity_type ON belongs_to_phase TYPE string DEFAULT "";

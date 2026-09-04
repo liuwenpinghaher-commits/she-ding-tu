@@ -1,9 +1,9 @@
 //! Integration tests for annotation CRUD, staleness propagation, emotion, theme, and NER queries.
 
 mod common;
-use narra::db::compat::RecordIdExt;
 
 use std::sync::Arc;
+use surrealdb::types::ToSql;
 
 use async_trait::async_trait;
 use common::harness::TestHarness;
@@ -1380,19 +1380,19 @@ async fn test_narrative_tensions_via_mcp_with_conflicting_loyalties() {
         .create_character(common::builders::CharacterBuilder::new("Alice").build())
         .await
         .unwrap();
-    let alice_key = alice.id.key().to_string();
+    let alice_key = alice.id.key.to_sql();
 
     let bob = repo
         .create_character(common::builders::CharacterBuilder::new("Bob").build())
         .await
         .unwrap();
-    let bob_key = bob.id.key().to_string();
+    let bob_key = bob.id.key.to_sql();
 
     let charlie = repo
         .create_character(common::builders::CharacterBuilder::new("Charlie").build())
         .await
         .unwrap();
-    let charlie_key = charlie.id.key().to_string();
+    let charlie_key = charlie.id.key.to_sql();
 
     // Alice <-> Bob: allies
     create_relationship(
@@ -1516,7 +1516,7 @@ async fn test_infer_roles_via_mcp_with_social_hub() {
         .create_character(common::builders::CharacterBuilder::new("Hub").build())
         .await
         .unwrap();
-    let hub_key = hub.id.key().to_string();
+    let hub_key = hub.id.key.to_sql();
 
     for i in 0..5 {
         let spoke = repo
@@ -1525,7 +1525,7 @@ async fn test_infer_roles_via_mcp_with_social_hub() {
             )
             .await
             .unwrap();
-        let spoke_key = spoke.id.key().to_string();
+        let spoke_key = spoke.id.key.to_sql();
 
         create_relationship(
             &harness.db,

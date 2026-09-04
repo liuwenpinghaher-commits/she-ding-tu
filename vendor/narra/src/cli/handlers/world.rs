@@ -1,8 +1,7 @@
 //! World management command handlers: status, health, backfill, export, import, validate, graph.
 
 use std::path::Path;
-use surrealdb::types::SurrealValue;
-use crate::db::compat::RecordIdExt;
+use surrealdb::types::{SurrealValue, ToSql};
 
 use anyhow::Result;
 use colored::Colorize;
@@ -554,7 +553,7 @@ pub async fn handle_validate(
             let mut checked = 0;
 
             for c in &characters {
-                let char_id = c.id.to_string();
+                let char_id = c.id.to_sql();
                 let result = ctx
                     .consistency_service
                     .check_entity_mutation(&char_id, &serde_json::json!({}))
@@ -764,7 +763,7 @@ pub async fn handle_baseline_arcs(
         let entities: Vec<EntityWithEmbedding> = response.take(0).unwrap_or_default();
 
         for entity in &entities {
-            let entity_id = entity.id.to_string();
+            let entity_id = entity.id.to_sql();
 
             // Check if snapshot already exists
             let mut count_response = ctx
@@ -965,7 +964,7 @@ pub async fn handle_benchmark(
             .iter()
             .take(10)
             .map(|e| {
-                let key = e.id.key().to_string();
+                let key = e.id.key.to_sql();
                 key.replace(['⟨', '⟩'], "").replace(['_', '-'], " ")
             })
             .collect()
@@ -1061,11 +1060,11 @@ pub async fn handle_benchmark(
             query: q.clone(),
             current_top_ids: curr_top
                 .iter()
-                .map(|(i, _)| entities[*i].id.to_string())
+                .map(|(i, _)| entities[*i].id.to_sql())
                 .collect(),
             comparison_top_ids: comp_top
                 .iter()
-                .map(|(i, _)| entities[*i].id.to_string())
+                .map(|(i, _)| entities[*i].id.to_sql())
                 .collect(),
             current_avg_score: curr_avg,
             comparison_avg_score: comp_avg,

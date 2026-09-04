@@ -1,5 +1,4 @@
 use crate::db::connection::NarraDb;
-use crate::db::compat::RecordIdExt;
 use crate::models::{
     Involvement, InvolvementCreate, Perception, PerceptionCreate, Relationship, RelationshipCreate,
     SceneParticipant, SceneParticipantCreate,
@@ -8,6 +7,7 @@ use crate::NarraError;
 use async_trait::async_trait;
 use std::collections::HashSet;
 use std::sync::Arc;
+use surrealdb::types::ToSql;
 
 /// Repository trait for graph edge operations.
 ///
@@ -212,7 +212,7 @@ impl RelationshipRepository for SurrealRelationshipRepository {
             for i in 0..4 {
                 let neighbors: Vec<surrealdb::types::RecordId> = response.take(i).unwrap_or_default();
                 for neighbor in neighbors {
-                    let id_str = neighbor.to_string();
+                    let id_str = neighbor.to_sql();
                     if visited.insert(id_str.clone()) {
                         results.push(id_str.clone());
                         next_frontier.push(id_str);

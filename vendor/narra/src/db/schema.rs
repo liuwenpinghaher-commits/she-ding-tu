@@ -94,8 +94,9 @@ const SCHEMA_023: &str = include_str!("migrations/023_story_threads.surql");
 /// - 018: Phases (persisted narrative phase detection results + membership edges)
 /// - 019: Annotations (generic ML model outputs cached per entity)
 ///
-/// It's safe to call multiple times - SurrealDB will update existing definitions
-/// rather than fail.
+/// Applied as one SurrealQL script so DEFINE TABLE/FIELD/INDEX run together
+/// (v3 schema + index batch). Safe to call again: Surreal updates existing
+/// definitions instead of failing.
 ///
 /// # Arguments
 ///
@@ -118,28 +119,13 @@ const SCHEMA_023: &str = include_str!("migrations/023_story_threads.surql");
 /// # }
 /// ```
 pub async fn apply_schema(db: &NarraDb) -> Result<(), NarraError> {
-    db.query(SCHEMA_001).await?;
-    db.query(SCHEMA_002).await?;
-    db.query(SCHEMA_003).await?;
-    db.query(SCHEMA_004).await?;
-    db.query(SCHEMA_005).await?;
-    db.query(SCHEMA_006).await?;
-    db.query(SCHEMA_007).await?;
-    db.query(SCHEMA_008).await?;
-    db.query(SCHEMA_009).await?;
-    db.query(SCHEMA_010).await?;
-    db.query(SCHEMA_011).await?;
-    db.query(SCHEMA_012).await?;
-    db.query(SCHEMA_013).await?;
-    db.query(SCHEMA_014).await?;
-    db.query(SCHEMA_015).await?;
-    db.query(SCHEMA_016).await?;
-    db.query(SCHEMA_017).await?;
-    db.query(SCHEMA_018).await?;
-    db.query(SCHEMA_019).await?;
-    db.query(SCHEMA_020).await?;
-    db.query(SCHEMA_021).await?;
-    db.query(SCHEMA_022).await?;
-    db.query(SCHEMA_023).await?;
+    let script = [
+        SCHEMA_001, SCHEMA_002, SCHEMA_003, SCHEMA_004, SCHEMA_005, SCHEMA_006,
+        SCHEMA_007, SCHEMA_008, SCHEMA_009, SCHEMA_010, SCHEMA_011, SCHEMA_012,
+        SCHEMA_013, SCHEMA_014, SCHEMA_015, SCHEMA_016, SCHEMA_017, SCHEMA_018,
+        SCHEMA_019, SCHEMA_020, SCHEMA_021, SCHEMA_022, SCHEMA_023,
+    ]
+    .join("\n");
+    db.query(script.as_str()).await?;
     Ok(())
 }

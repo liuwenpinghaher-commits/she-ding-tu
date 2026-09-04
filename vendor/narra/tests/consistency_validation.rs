@@ -3,13 +3,13 @@
 //! Tests on-demand validation and investigation queries.
 
 mod common;
-use narra::db::compat::RecordIdExt;
 
 use common::harness::TestHarness;
 use narra::models::character::create_character;
 use narra::models::perception::{create_perception, PerceptionCreate};
 use narra::models::CharacterCreate;
 use narra::services::{ConsistencyChecker, ConsistencySeverity};
+use surrealdb::types::ToSql;
 
 /// Test relationship impossible state detection.
 ///
@@ -44,8 +44,8 @@ async fn test_circular_parent_detection() {
     .await
     .expect("Failed to create Bob");
 
-    let alice_key = alice.id.key().to_string();
-    let bob_key = bob.id.key().to_string();
+    let alice_key = alice.id.key.to_sql();
+    let bob_key = bob.id.key.to_sql();
 
     // Alice perceives Bob as her child (Alice is parent)
     create_perception(
@@ -138,8 +138,8 @@ async fn test_family_asymmetry_warning() {
     .await
     .expect("Failed to create Bob");
 
-    let alice_key = alice.id.key().to_string();
-    let bob_key = bob.id.key().to_string();
+    let alice_key = alice.id.key.to_sql();
+    let bob_key = bob.id.key.to_sql();
 
     // Alice loves Bob (family sibling)
     create_perception(
@@ -222,8 +222,8 @@ async fn test_romantic_asymmetry_info() {
     .await
     .expect("Failed to create Bob");
 
-    let alice_key = alice.id.key().to_string();
-    let bob_key = bob.id.key().to_string();
+    let alice_key = alice.id.key.to_sql();
+    let bob_key = bob.id.key.to_sql();
 
     // Alice loves Bob romantically
     create_perception(
@@ -305,8 +305,8 @@ async fn test_one_way_relationship_valid() {
     .await
     .expect("Failed to create Bob");
 
-    let alice_key = alice.id.key().to_string();
-    let bob_key = bob.id.key().to_string();
+    let alice_key = alice.id.key.to_sql();
+    let bob_key = bob.id.key.to_sql();
 
     // Alice perceives Bob (one-way, Bob doesn't know Alice exists)
     create_perception(
@@ -366,7 +366,7 @@ async fn test_validate_character_no_relationships() {
     .await
     .expect("Failed to create Alice");
 
-    let alice_key = alice.id.key().to_string();
+    let alice_key = alice.id.key.to_sql();
 
     let checker = ConsistencyChecker::new(db.clone());
 

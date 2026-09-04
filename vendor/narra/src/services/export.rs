@@ -1,8 +1,7 @@
 use std::sync::Arc;
-use crate::db::compat::RecordIdExt;
 
 use serde::Deserialize;
-use surrealdb::types::{RecordId, SurrealValue};
+use surrealdb::types::{RecordId, SurrealValue, ToSql};
 
 use crate::db::connection::NarraDb;
 
@@ -76,7 +75,7 @@ impl ExportService {
                     Some(c.profile)
                 };
                 CharacterSpec {
-                    id: Some(c.id.key().to_string()),
+                    id: Some(c.id.key.to_sql()),
                     name: c.name,
                     role: c.roles.into_iter().next(),
                     aliases: if c.aliases.is_empty() {
@@ -97,10 +96,10 @@ impl ExportService {
         Ok(locations
             .into_iter()
             .map(|l| LocationSpec {
-                id: Some(l.id.key().to_string()),
+                id: Some(l.id.key.to_sql()),
                 name: l.name,
                 description: l.description,
-                parent_id: l.parent.map(|p| p.to_string()),
+                parent_id: l.parent.map(|p| p.to_sql()),
                 loc_type: Some(l.loc_type),
             })
             .collect())
@@ -116,7 +115,7 @@ impl ExportService {
         Ok(events
             .into_iter()
             .map(|e| EventSpec {
-                id: Some(e.id.key().to_string()),
+                id: Some(e.id.key.to_sql()),
                 title: e.title,
                 description: e.description,
                 sequence: Some(e.sequence as i32),
@@ -131,19 +130,19 @@ impl ExportService {
 
         let mut specs = Vec::with_capacity(scenes.len());
         for scene in scenes {
-            let scene_key = scene.id.key().to_string();
+            let scene_key = scene.id.key.to_sql();
             let participants = self.get_scene_participants(&scene_key).await?;
 
             specs.push(SceneSpec {
                 id: Some(scene_key),
                 title: scene.title,
-                event_id: scene.event.to_string(),
-                location_id: scene.primary_location.to_string(),
+                event_id: scene.event.to_sql(),
+                location_id: scene.primary_location.to_sql(),
                 summary: scene.summary,
                 secondary_locations: scene
                     .secondary_locations
                     .into_iter()
-                    .map(|r| r.to_string())
+                    .map(|r| r.to_sql())
                     .collect(),
                 participants,
             });
@@ -162,7 +161,7 @@ impl ExportService {
         Ok(participants
             .into_iter()
             .map(|p| ParticipantSpec {
-                character_id: p.character.to_string(),
+                character_id: p.character.to_sql(),
                 role: p.role,
                 notes: p.notes,
             })
@@ -176,8 +175,8 @@ impl ExportService {
         Ok(relationships
             .into_iter()
             .map(|r| RelationshipSpec {
-                from_character_id: r.from_character.to_string(),
-                to_character_id: r.to_character.to_string(),
+                from_character_id: r.from_character.to_sql(),
+                to_character_id: r.to_character.to_sql(),
                 rel_type: r.rel_type,
                 subtype: r.subtype,
                 label: r.label,
@@ -195,12 +194,12 @@ impl ExportService {
         Ok(rows
             .into_iter()
             .map(|row| {
-                let source_character_id = row.source_character.map(|r| r.to_string());
-                let event_id = row.event.map(|r| r.to_string());
+                let source_character_id = row.source_character.map(|r| r.to_sql());
+                let event_id = row.event.map(|r| r.to_sql());
 
                 KnowledgeSpec {
-                    character_id: row.character.to_string(),
-                    target_id: row.target.to_string(),
+                    character_id: row.character.to_sql(),
+                    target_id: row.target.to_sql(),
                     fact: row.fact_text.unwrap_or_default(),
                     certainty: row.certainty,
                     method: Some(row.learning_method),
@@ -220,13 +219,13 @@ impl ExportService {
 
         let mut specs = Vec::with_capacity(notes.len());
         for note in notes {
-            let note_key = note.id.key().to_string();
+            let note_key = note.id.key.to_sql();
             let attachments: Vec<NoteAttachment> =
                 crate::models::note::get_note_attachments(&self.db, &note_key).await?;
 
             let attach_to: Vec<String> = attachments
                 .into_iter()
-                .map(|a| a.entity.to_string())
+                .map(|a| a.entity.to_sql())
                 .collect();
 
             specs.push(NoteSpec {
@@ -249,14 +248,14 @@ impl ExportService {
 
         let mut specs = Vec::with_capacity(facts.len());
         for fact in facts {
-            let fact_key = fact.id.key().to_string();
+            let fact_key = fact.id.key.to_sql();
             let applications: Vec<FactApplication> =
                 crate::models::fact::get_fact_applications(&self.db, &fact_key).await?;
 
             let applies_to: Vec<FactLinkSpec> = applications
                 .into_iter()
                 .map(|a| FactLinkSpec {
-                    entity_id: a.entity.to_string(),
+                    entity_id: a.entity.to_sql(),
                     link_type: a.link_type,
                     confidence: a.confidence,
                 })

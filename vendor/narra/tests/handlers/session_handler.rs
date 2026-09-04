@@ -7,7 +7,7 @@
 
 use crate::common::builders::CharacterBuilder;
 use crate::common::harness::TestHarness;
-use narra::db::compat::RecordIdExt;
+use surrealdb::types::ToSql;
 
 #[allow(unused_imports)]
 use super::*;
@@ -125,7 +125,7 @@ async fn test_session_context_tracks_hot_entities() {
         .create_character(CharacterBuilder::new("Alice").role("protagonist").build())
         .await
         .expect("Create Alice");
-    let alice_id = format!("character:{}", alice.id.key());
+    let alice_id = alice.id.to_sql();
 
     // Pre-populate session state with recorded access before creating server
     let session_path = harness.temp_path().join("session.json");
@@ -166,7 +166,7 @@ async fn test_session_context_hot_entity_fields() {
         )
         .await
         .expect("Create Alice");
-    let alice_id = format!("character:{}", alice.id.key());
+    let alice_id = alice.id.to_sql();
 
     // Pre-populate session state with recorded access before creating server
     let session_path = harness.temp_path().join("session.json");

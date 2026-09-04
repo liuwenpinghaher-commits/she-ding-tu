@@ -1,7 +1,7 @@
 -- Phase 7: Notes for freeform worldbuilding content
 -- Notes can be standalone or attached to any entity
 
-DEFINE TABLE note SCHEMAFULL;
+DEFINE TABLE note SCHEMAFULL TYPE NORMAL;
 DEFINE FIELD title ON note TYPE string;
 DEFINE FIELD body ON note TYPE string;
 DEFINE FIELD created_at ON note TYPE datetime VALUE time::now() READONLY;
@@ -16,5 +16,5 @@ DEFINE INDEX idx_note_search_body ON note FIELDS body FULLTEXT ANALYZER note_ana
 
 -- Note attachment edge (note -> any entity)
 -- Uses union type to allow attachment to all entity types
-DEFINE TABLE note_attachment TYPE RELATION IN note OUT character|location|event|scene|knowledge SCHEMAFULL;
+DEFINE TABLE note_attachment SCHEMAFULL TYPE RELATION IN note OUT character|location|event|scene|knowledge ENFORCED;
 DEFINE FIELD attached_at ON note_attachment TYPE datetime VALUE time::now() READONLY;

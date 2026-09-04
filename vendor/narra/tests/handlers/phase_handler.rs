@@ -16,7 +16,7 @@ use narra::models::event::create_event;
 use narra::models::location::create_location;
 use narra::models::scene::create_scene;
 use rmcp::handler::server::wrapper::Parameters;
-use narra::db::compat::RecordIdExt;
+use surrealdb::types::ToSql;
 
 use crate::common::{
     builders::{CharacterBuilder, EventBuilder, LocationBuilder, SceneBuilder},
@@ -96,8 +96,8 @@ async fn create_phase_world(harness: &TestHarness) -> PhaseWorld {
         &harness.db,
         SceneBuilder::new(
             "First Meeting",
-            event_early.id.key().to_string(),
-            location.id.key().to_string(),
+            event_early.id.key.to_sql(),
+            location.id.key.to_sql(),
         )
         .summary("Alice and Bob meet")
         .build(),
@@ -109,8 +109,8 @@ async fn create_phase_world(harness: &TestHarness) -> PhaseWorld {
         &harness.db,
         SceneBuilder::new(
             "Final Battle",
-            event_late.id.key().to_string(),
-            location.id.key().to_string(),
+            event_late.id.key.to_sql(),
+            location.id.key.to_sql(),
         )
         .summary("Alice confronts the villain")
         .build(),
@@ -120,14 +120,14 @@ async fn create_phase_world(harness: &TestHarness) -> PhaseWorld {
 
     // Set embeddings (early cluster: 0.5, late cluster: -0.5)
     for (id, val) in [
-        (event_early.id.to_string(), 0.5_f32),
-        (location.id.to_string(), 0.0),
-        (alice.id.to_string(), 0.3),
-        (bob.id.to_string(), 0.5),
-        (scene_early.id.to_string(), 0.5),
-        (event_late.id.to_string(), -0.5),
-        (villain.id.to_string(), -0.5),
-        (scene_late.id.to_string(), -0.5),
+        (event_early.id.to_sql(), 0.5_f32),
+        (location.id.to_sql(), 0.0),
+        (alice.id.to_sql(), 0.3),
+        (bob.id.to_sql(), 0.5),
+        (scene_early.id.to_sql(), 0.5),
+        (event_late.id.to_sql(), -0.5),
+        (villain.id.to_sql(), -0.5),
+        (scene_late.id.to_sql(), -0.5),
     ] {
         let embedding = vec![val; 384];
         harness
@@ -159,9 +159,9 @@ async fn create_phase_world(harness: &TestHarness) -> PhaseWorld {
     }
 
     PhaseWorld {
-        alice_id: alice.id.to_string(),
-        bob_id: bob.id.to_string(),
-        villain_id: villain.id.to_string(),
+        alice_id: alice.id.to_sql(),
+        bob_id: bob.id.to_sql(),
+        villain_id: villain.id.to_sql(),
     }
 }
 

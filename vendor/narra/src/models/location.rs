@@ -1,7 +1,6 @@
 use crate::db::connection::NarraDb;
 use serde::{Deserialize, Serialize};
 use surrealdb::types::{Datetime, RecordId, SurrealValue};
-use crate::db::compat::RecordIdExt;
 
 use crate::NarraError;
 

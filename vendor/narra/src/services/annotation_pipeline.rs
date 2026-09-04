@@ -5,8 +5,7 @@
 //! stream construction. Designed for throughput when annotating many entities.
 
 use std::sync::Arc;
-use surrealdb::types::SurrealValue;
-use crate::db::compat::RecordIdExt;
+use surrealdb::types::{SurrealValue, ToSql};
 
 use futures::StreamExt;
 use serde::Serialize;
@@ -351,10 +350,10 @@ impl AnnotationPipeline {
                         .name
                         .or(row.title)
                         .or(row.description)
-                        .unwrap_or_else(|| row.id.to_string());
+                        .unwrap_or_else(|| row.id.to_sql());
 
                     all_entities.push(EntityText {
-                        entity_id: row.id.to_string(),
+                        entity_id: row.id.to_sql(),
                         entity_name: display,
                         text,
                     });

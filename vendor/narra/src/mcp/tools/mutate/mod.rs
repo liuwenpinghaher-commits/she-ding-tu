@@ -6,7 +6,6 @@ mod mutate_knowledge;
 mod mutate_notes;
 mod mutate_ops;
 mod mutate_phases;
-use crate::db::compat::RecordIdExt;
 
 use crate::mcp::{ImpactSummary, MutationInput, MutationRequest, MutationResponse, NarraServer};
 use crate::services::{ConsistencySeverity, ImpactAnalysis, ValidationResult};

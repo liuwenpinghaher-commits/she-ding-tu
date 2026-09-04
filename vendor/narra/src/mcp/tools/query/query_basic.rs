@@ -2,6 +2,7 @@ use crate::mcp::NarraServer;
 use crate::mcp::{DetailLevel, EntityResult, QueryResponse};
 use crate::repository::{EntityRepository, KnowledgeRepository};
 use crate::services::{EntityType, SearchFilter};
+use surrealdb::types::ToSql;
 
 use super::{create_cursor, parse_cursor, parse_entity_types};
 
@@ -122,7 +123,7 @@ impl NarraServer {
         let attachment_list = if attachments.is_empty() {
             "No attachments".to_string()
         } else {
-            let ids: Vec<String> = attachments.iter().map(|a| a.entity.to_string()).collect();
+            let ids: Vec<String> = attachments.iter().map(|a| a.entity.to_sql()).collect();
             format!("Attached to: {}", ids.join(", "))
         };
 
@@ -291,9 +292,9 @@ impl NarraServer {
         let results: Vec<EntityResult> = knowledge_states
             .iter()
             .map(|k| EntityResult {
-                id: k.id.to_string(),
+                id: k.id.to_sql(),
                 entity_type: "knowledge".to_string(),
-                name: k.target.to_string(), // Use target knowledge ID as name for now
+                name: k.target.to_sql(), // Use target knowledge ID as name for now
                 content: format!(
                     "Certainty: {:?}, Method: {:?}",
                     k.certainty, k.learning_method
@@ -338,7 +339,7 @@ impl NarraServer {
                 chars
                     .into_iter()
                     .map(|c| EntityResult {
-                        id: c.id.to_string(),
+                        id: c.id.to_sql(),
                         entity_type: "character".to_string(),
                         name: c.name.clone(),
                         content: format!("Roles: {}", c.roles.join(", ")),
@@ -355,7 +356,7 @@ impl NarraServer {
                     .map_err(|e| format!("Overview failed: {}", e))?;
                 locs.into_iter()
                     .map(|l| EntityResult {
-                        id: l.id.to_string(),
+                        id: l.id.to_sql(),
                         entity_type: "location".to_string(),
                         name: l.name.clone(),
                         content: l.description.clone().unwrap_or_default(),
@@ -373,7 +374,7 @@ impl NarraServer {
                 events
                     .into_iter()
                     .map(|e| EntityResult {
-                        id: e.id.to_string(),
+                        id: e.id.to_sql(),
                         entity_type: "event".to_string(),
                         name: e.title.clone(),
                         content: e.description.clone().unwrap_or_default(),
@@ -391,7 +392,7 @@ impl NarraServer {
                 scenes
                     .into_iter()
                     .map(|s| EntityResult {
-                        id: s.id.to_string(),
+                        id: s.id.to_sql(),
                         entity_type: "scene".to_string(),
                         name: s.title.clone(),
                         content: s.summary.clone().unwrap_or_default(),
@@ -452,7 +453,7 @@ impl NarraServer {
             .into_iter()
             .take(limit)
             .map(|n| EntityResult {
-                id: n.id.to_string(),
+                id: n.id.to_sql(),
                 entity_type: "note".to_string(),
                 name: n.title.clone(),
                 content: n.body.clone(),
@@ -528,7 +529,7 @@ impl NarraServer {
         let token_estimate = content.len() / 4 + 30;
 
         let result = EntityResult {
-            id: fact.id.to_string(),
+            id: fact.id.to_sql(),
             entity_type: "universe_fact".to_string(),
             name: fact.title.clone(),
             content,
@@ -675,7 +676,7 @@ impl NarraServer {
                 };
 
                 EntityResult {
-                    id: f.id.to_string(),
+                    id: f.id.to_sql(),
                     entity_type: "universe_fact".to_string(),
                     name: f.title.clone(),
                     content: format!(

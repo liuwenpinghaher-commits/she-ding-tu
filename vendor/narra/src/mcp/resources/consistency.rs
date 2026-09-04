@@ -6,8 +6,7 @@
 use crate::db::connection::NarraDb;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use surrealdb::types::SurrealValue;
-use crate::db::compat::RecordIdExt;
+use surrealdb::types::{SurrealValue, ToSql};
 
 use crate::services::consistency::{
     generate_suggested_fix, ConsistencyService, ConsistencySeverity, Violation,
@@ -84,7 +83,7 @@ pub async fn get_consistency_issues_resource(
 
     // Check each character for violations
     for char_thing in characters {
-        let char_id = char_thing.to_string();
+        let char_id = char_thing.to_sql();
 
         // Timeline violations
         if let Ok(timeline_v) = consistency_service

@@ -1,6 +1,5 @@
 use crate::mcp::{EntityResult, MutationResponse, NarraServer};
 use crate::models::{CharacterCreate, EventCreate, LocationCreate, SceneCreate};
-use crate::db::compat::RecordIdExt;
 
 impl NarraServer {
     pub(crate) async fn handle_create_character(
@@ -48,7 +47,7 @@ impl NarraServer {
         }
         .map_err(|e| format!("Failed to create character: {}", e))?;
 
-        let entity_id = character.id.to_string();
+        let entity_id = character.id.to_sql();
 
         // Trigger async embedding generation for new entity
         self.staleness_manager
@@ -87,7 +86,7 @@ impl NarraServer {
         parent_id: Option<String>,
     ) -> Result<MutationResponse, String> {
         use crate::models::location::{create_location, create_location_with_id};
-        use surrealdb::types::RecordId;
+        use surrealdb::types::{RecordId, ToSql};
 
         // Build creation data for consistency check
         let creation_data = serde_json::json!({
@@ -128,7 +127,7 @@ impl NarraServer {
         }
         .map_err(|e| format!("Failed to create location: {}", e))?;
 
-        let entity_id = location.id.to_string();
+        let entity_id = location.id.to_sql();
 
         // Trigger async embedding generation for new entity
         self.staleness_manager
@@ -214,7 +213,7 @@ impl NarraServer {
         }
         .map_err(|e| format!("Failed to create event: {}", e))?;
 
-        let entity_id = event.id.to_string();
+        let entity_id = event.id.to_sql();
 
         // Trigger async embedding generation for new entity
         self.staleness_manager
@@ -292,7 +291,7 @@ impl NarraServer {
             .await
             .map_err(|e| format!("Failed to create scene: {}", e))?;
 
-        let entity_id = scene.id.to_string();
+        let entity_id = scene.id.to_sql();
 
         // Trigger async embedding generation for new entity
         self.staleness_manager

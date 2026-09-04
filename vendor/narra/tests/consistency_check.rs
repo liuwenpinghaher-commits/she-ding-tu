@@ -1,13 +1,13 @@
 //! Integration tests for consistency checking during mutations.
 
 mod common;
-use narra::db::compat::RecordIdExt;
 
 use common::harness::TestHarness;
 use narra::models::character::create_character;
 use narra::models::fact::{create_fact, link_fact_to_entity, EnforcementLevel, FactCreate};
 use narra::models::CharacterCreate;
 use narra::services::{ConsistencyChecker, ConsistencyService};
+use surrealdb::types::ToSql;
 
 #[tokio::test]
 async fn test_strict_fact_creates_critical_violation() {
@@ -44,8 +44,8 @@ async fn test_strict_fact_creates_critical_violation() {
     .expect("Failed to create character");
 
     // Link fact to character
-    let entity_id = character.id.to_string();
-    let fact_key = fact.id.key().to_string();
+    let entity_id = character.id.to_sql();
+    let fact_key = fact.id.key.to_sql();
     link_fact_to_entity(db, &fact_key, &entity_id, "manual", None)
         .await
         .expect("Failed to link fact");

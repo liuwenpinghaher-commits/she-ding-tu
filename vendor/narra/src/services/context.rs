@@ -3,7 +3,7 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
-use surrealdb::types::SurrealValue;
+use surrealdb::types::{SurrealValue, ToSql};
 
 use crate::repository::{RelationshipRepository, SurrealRelationshipRepository};
 use crate::services::summary::{CachedSummaryService, DetailLevel, SummaryService};
@@ -241,7 +241,7 @@ impl ContextService for CachedContextService {
                 let note_score_multiplier = 0.8;
 
                 for note in notes {
-                    let note_id = note.id.to_string();
+                    let note_id = note.id.to_sql();
                     if seen_note_ids.contains(&note_id) {
                         continue;
                     }

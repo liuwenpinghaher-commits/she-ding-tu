@@ -1,3 +1,4 @@
+use crate::db::string_set::StringSet;
 use crate::mcp::NarraServer;
 use crate::mcp::{EntityResult, QueryResponse};
 use crate::services::perception::PerceptionService;
@@ -505,7 +506,7 @@ impl NarraServer {
                 perception: Option<String>,
                 feelings: Option<String>,
                 tension_level: Option<i32>,
-                rel_types: Option<Vec<String>>,
+                rel_types: Option<StringSet>,
                 // relates_to fields
                 rel_type: Option<String>,
                 subtype: Option<String>,

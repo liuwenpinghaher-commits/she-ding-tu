@@ -6,6 +6,7 @@
 //! where what A knows about B differs from what B knows about A.
 
 use crate::db::connection::NarraDb;
+use crate::db::string_set::{string_set, StringSet};
 use serde::{Deserialize, Serialize};
 use surrealdb::types::{Datetime, RecordId, SurrealValue};
 
@@ -36,7 +37,7 @@ pub struct Perception {
     #[serde(rename = "out")]
     pub to_character: RecordId,
     /// Multiple relationship types (e.g., ["family", "professional"]).
-    pub rel_types: Vec<String>,
+    pub rel_types: StringSet,
     /// Subtype for more specific classification (e.g., "sibling" for family).
     pub subtype: Option<String>,
     /// How this character feels about the other.
@@ -71,7 +72,7 @@ pub struct PerceptionCreate {
 #[derive(Debug, Clone, Serialize, SurrealValue)]
 pub struct PerceptionUpdate {
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub rel_types: Option<Vec<String>>,
+    pub rel_types: Option<StringSet>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub subtype: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -118,7 +119,7 @@ pub async fn create_perception(
 
     let mut result = db
         .query(&query)
-        .bind(("rel_types", data.rel_types))
+        .bind(("rel_types", string_set(data.rel_types)))
         .bind(("subtype", data.subtype))
         .bind(("feelings", data.feelings))
         .bind(("perception", data.perception))

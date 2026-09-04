@@ -1,6 +1,7 @@
 //! 把设定图正史双写进官方 Narra 表。load_canon 场骨架以带 setting_beat 的 scene 为准。
 
 use crate::db::connection::NarraDb;
+use crate::db::string_set::string_set;
 use crate::services::world::{
     Beat, Canon, Column, Delta, Entity, ROLE_PRESENT, STATUS_COMMITTED,
 };
@@ -57,7 +58,7 @@ pub async fn mirror_entity(db: &NarraDb, e: &Entity) -> Result<(), NarraError> {
                 )
                 .bind(("rid", rec("character", e.id.as_str())))
                 .bind(("name", e.name.clone()))
-                .bind(("aliases", aliases))
+                .bind(("aliases", string_set(aliases)))
                 .await
                 .map_err(|err| NarraError::Database(err.to_string()))?;
             check_ctx(resp, &format!("mirror character {}", e.id.to_sql()))?;
@@ -96,7 +97,7 @@ pub async fn mirror_entity(db: &NarraDb, e: &Entity) -> Result<(), NarraError> {
             };
             let resp = db
                 .query(
-                    "UPSERT $rid SET title = $title, description = $desc, categories = ['physical'], enforcement_level = $enf, updated_at = time::now()",
+                    "UPSERT $rid SET title = $title, description = $desc, categories = ['physical'], enforcement_level = $enf, scope = {}, updated_at = time::now()",
                 )
                 .bind(("rid", rec("universe_fact", e.id.as_str())))
                 .bind(("title", e.name.clone()))

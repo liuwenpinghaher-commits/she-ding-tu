@@ -9,6 +9,7 @@ use std::sync::Arc;
 use surrealdb::types::{SurrealValue, ToSql};
 
 use crate::db::connection::NarraDb;
+use crate::db::string_set::StringSet;
 use serde::Serialize;
 use tracing::info;
 
@@ -454,7 +455,7 @@ impl BackfillService {
         #[derive(serde::Deserialize, SurrealValue)]
         struct PerceivesForBackfill {
             id: surrealdb::types::RecordId,
-            rel_types: Vec<String>,
+            rel_types: StringSet,
             subtype: Option<String>,
             feelings: Option<String>,
             perception: Option<String>,
@@ -879,9 +880,9 @@ impl BackfillService {
             subtype: Option<String>,
             label: Option<String>,
             from_name: Option<String>,
-            from_roles: Option<Vec<String>>,
+            from_roles: Option<StringSet>,
             to_name: Option<String>,
-            to_roles: Option<Vec<String>>,
+            to_roles: Option<StringSet>,
         }
 
         let edges: Vec<RelatesToForBackfill> = response.take(0)?;

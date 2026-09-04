@@ -432,11 +432,14 @@ impl SurrealTemporalDataProvider {
 
         #[derive(serde::Deserialize, SurrealValue)]
         struct MaxSeq {
-            max_seq: Option<i64>,
+            max_seq: Option<surrealdb::types::Value>,
         }
 
         let rows: Vec<MaxSeq> = resp.take(0).unwrap_or_default();
-        Ok(rows.first().and_then(|r| r.max_seq))
+        Ok(rows
+            .first()
+            .and_then(|r| r.max_seq.clone())
+            .and_then(crate::db::string_set::value_as_i64))
     }
 
     async fn get_sequence_positions(

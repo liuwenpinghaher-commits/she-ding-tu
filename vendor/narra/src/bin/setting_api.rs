@@ -4654,11 +4654,11 @@ async fn official_bridge(
     #[derive(Debug, serde::Deserialize, serde::Serialize, SurrealValue)]
     struct CharRow {
         name: Option<String>,
-        aliases: Option<Vec<String>>,
+        aliases: Option<narra::db::string_set::StringSet>,
     }
     #[derive(Debug, serde::Deserialize, SurrealValue)]
     struct CountRow {
-        n: Option<i64>,
+        n: Option<surrealdb::types::Value>,
     }
     let scenes: Vec<SceneRow> = q.take(0).unwrap_or_default();
     let characters: Vec<CharRow> = q.take(1).unwrap_or_default();
@@ -4669,8 +4669,16 @@ async fn official_bridge(
         "world_at_source": "scene+knows+setting_window",
         "scenes": scenes,
         "characters": characters,
-        "knows": knows.first().and_then(|r| r.n).unwrap_or(0),
-        "setting_window": windows.first().and_then(|r| r.n).unwrap_or(0),
+        "knows": knows
+            .first()
+            .and_then(|r| r.n.clone())
+            .and_then(narra::db::string_set::value_as_i64)
+            .unwrap_or(0),
+        "setting_window": windows
+            .first()
+            .and_then(|r| r.n.clone())
+            .and_then(narra::db::string_set::value_as_i64)
+            .unwrap_or(0),
     })))
 }
 

@@ -1,4 +1,5 @@
 use crate::db::connection::NarraDb;
+use crate::db::string_set::StringSet;
 use serde::{Deserialize, Serialize};
 use serde_with::skip_serializing_none;
 use std::collections::HashMap;
@@ -11,8 +12,8 @@ use crate::NarraError;
 pub struct Character {
     pub id: RecordId,
     pub name: String,
-    pub aliases: Vec<String>,
-    pub roles: Vec<String>,
+    pub aliases: StringSet,
+    pub roles: StringSet,
     /// Flexible character profile — keys are fiction-framework categories
     /// (e.g. "wound", "desire_conscious", "contradiction", "secret"),
     /// values are lists of entries for that category.
@@ -26,8 +27,8 @@ pub struct Character {
 #[derive(Debug, Default, Serialize, SurrealValue)]
 pub struct CharacterCreate {
     pub name: String,
-    pub aliases: Vec<String>,
-    pub roles: Vec<String>,
+    pub aliases: StringSet,
+    pub roles: StringSet,
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub profile: HashMap<String, Vec<String>>,
 }
@@ -37,8 +38,8 @@ pub struct CharacterCreate {
 #[derive(Debug, Default, Serialize, SurrealValue)]
 pub struct CharacterUpdate {
     pub name: Option<String>,
-    pub aliases: Option<Vec<String>>,
-    pub roles: Option<Vec<String>>,
+    pub aliases: Option<StringSet>,
+    pub roles: Option<StringSet>,
     pub profile: Option<HashMap<String, Vec<String>>>,
     pub updated_at: Datetime,
 }

@@ -9,6 +9,7 @@ use std::sync::{Arc, Mutex};
 use surrealdb::types::{SurrealValue, ToSql};
 
 use crate::db::connection::NarraDb;
+use crate::db::string_set::StringSet;
 use tokio::time::Instant;
 use tracing::{error, info, warn};
 
@@ -886,9 +887,9 @@ async fn regenerate_embedding_internal(
                 subtype: Option<String>,
                 label: Option<String>,
                 from_name: Option<String>,
-                from_roles: Option<Vec<String>>,
+                from_roles: Option<StringSet>,
                 to_name: Option<String>,
-                to_roles: Option<Vec<String>>,
+                to_roles: Option<StringSet>,
             }
 
             let mut result = db
@@ -923,7 +924,7 @@ async fn regenerate_embedding_internal(
             // Fetch perceives edge data + observer/target names
             #[derive(serde::Deserialize, SurrealValue)]
             struct PerceivesData {
-                rel_types: Vec<String>,
+                rel_types: StringSet,
                 subtype: Option<String>,
                 feelings: Option<String>,
                 perception: Option<String>,

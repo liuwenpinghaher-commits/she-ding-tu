@@ -338,8 +338,8 @@ pub async fn create_character(
 
     let data = CharacterCreate {
         name: name.to_string(),
-        aliases: aliases.to_vec(),
-        roles,
+        aliases: aliases.to_vec().into(),
+        roles: roles.into(),
         profile,
     };
 

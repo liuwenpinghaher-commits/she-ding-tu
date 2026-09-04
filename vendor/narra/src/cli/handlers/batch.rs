@@ -54,8 +54,8 @@ async fn batch_characters(ctx: &AppContext, yaml: &str, mode: OutputMode) -> Res
     for spec in specs {
         let data = CharacterCreate {
             name: spec.name.clone(),
-            aliases: spec.aliases.unwrap_or_default(),
-            roles: spec.role.map(|r| vec![r]).unwrap_or_default(),
+            aliases: spec.aliases.unwrap_or_default().into(),
+            roles: spec.role.map(|r| vec![r]).unwrap_or_default().into(),
             profile: spec.profile.unwrap_or_default(),
         };
 

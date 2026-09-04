@@ -226,7 +226,7 @@ struct PerceptionRow {
 #[derive(serde::Deserialize, SurrealValue)]
 struct CharacterRow {
     name: String,
-    roles: Vec<String>,
+    roles: crate::db::string_set::StringSet,
 }
 
 #[derive(serde::Deserialize, SurrealValue)]
@@ -702,7 +702,7 @@ impl CompositeIntelligenceService {
 
         let row: Option<CharacterRow> = result.take(0).unwrap_or(None);
         match row {
-            Some(r) => Ok((r.name, r.roles)),
+            Some(r) => Ok((r.name, r.roles.into())),
             None => Err(NarraError::NotFound {
                 entity_type: "character".to_string(),
                 id: full_id.to_string(),

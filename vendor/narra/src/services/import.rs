@@ -103,12 +103,13 @@ impl ImportService {
         for spec in specs {
             let create_data = CharacterCreate {
                 name: spec.name.clone(),
-                aliases: spec.aliases.clone().unwrap_or_default(),
+                aliases: spec.aliases.clone().unwrap_or_default().into(),
                 roles: spec
                     .role
                     .as_ref()
                     .map(|r| vec![r.clone()])
-                    .unwrap_or_default(),
+                    .unwrap_or_default()
+                    .into(),
                 profile: spec.profile.clone().unwrap_or_default(),
             };
 
@@ -129,8 +130,8 @@ impl ImportService {
                         ConflictMode::Update => {
                             let update = CharacterUpdate {
                                 name: Some(spec.name.clone()),
-                                aliases: spec.aliases.clone(),
-                                roles: spec.role.as_ref().map(|r| vec![r.clone()]),
+                                aliases: spec.aliases.clone().map(Into::into),
+                                roles: spec.role.as_ref().map(|r| vec![r.clone()].into()),
                                 profile: spec.profile.clone(),
                                 updated_at: existing.updated_at,
                             };

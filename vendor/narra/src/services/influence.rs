@@ -5,6 +5,7 @@
 //! Bob trusts Alice. Only follows OUTGOING perceives edges for propagation.
 
 use crate::db::connection::NarraDb;
+use crate::db::string_set::StringSet;
 use async_trait::async_trait;
 use serde::Serialize;
 use std::collections::{HashSet, VecDeque};
@@ -139,7 +140,7 @@ impl SurrealInfluenceDataProvider {
 #[derive(Debug, serde::Deserialize, SurrealValue)]
 struct PerceptionEdge {
     target: surrealdb::types::RecordId,
-    rel_types: Vec<String>,
+    rel_types: StringSet,
     tension_level: Option<i32>,
     subtype: Option<String>,
 }
@@ -167,7 +168,7 @@ impl InfluenceDataProvider for SurrealInfluenceDataProvider {
             .into_iter()
             .map(|e| PerceptionEdgeInfo {
                 target_id: e.target.to_sql(),
-                rel_types: e.rel_types,
+                rel_types: e.rel_types.into(),
                 tension_level: e.tension_level,
                 subtype: e.subtype,
             })

@@ -10,6 +10,7 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::Arc;
 use surrealdb::types::{SurrealValue, ToSql};
 
+use crate::db::string_set::StringSet;
 use crate::models::character::get_character;
 use crate::models::perception::{get_perceptions_from, get_perceptions_of};
 use crate::models::{Character, Perception};
@@ -18,7 +19,7 @@ use crate::NarraError;
 #[derive(Debug, Deserialize, SurrealValue)]
 struct PerceptionEdge {
     target: surrealdb::types::RecordId,
-    rel_types: Vec<String>,
+    rel_types: StringSet,
 }
 
 /// Scope of the graph to generate.

@@ -36,8 +36,8 @@ impl NarraServer {
 
         let create = CharacterCreate {
             name: name.clone(),
-            aliases: aliases.unwrap_or_default(),
-            roles: role.map(|r| vec![r]).unwrap_or_default(),
+            aliases: aliases.unwrap_or_default().into(),
+            roles: role.map(|r| vec![r]).unwrap_or_default().into(),
             profile: profile.unwrap_or_default(),
         };
 
@@ -356,12 +356,16 @@ impl NarraServer {
                         .get("name")
                         .and_then(|v| v.as_str())
                         .map(String::from),
-                    aliases: fields
-                        .get("aliases")
-                        .and_then(|v| serde_json::from_value(v.clone()).ok()),
-                    roles: fields
-                        .get("roles")
-                        .and_then(|v| serde_json::from_value(v.clone()).ok()),
+                    aliases: fields.get("aliases").and_then(|v| {
+                        serde_json::from_value::<Vec<String>>(v.clone())
+                            .ok()
+                            .map(Into::into)
+                    }),
+                    roles: fields.get("roles").and_then(|v| {
+                        serde_json::from_value::<Vec<String>>(v.clone())
+                            .ok()
+                            .map(Into::into)
+                    }),
                     profile: fields
                         .get("profile")
                         .and_then(|v| serde_json::from_value(v.clone()).ok()),

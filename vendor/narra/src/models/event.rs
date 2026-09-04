@@ -172,7 +172,7 @@ pub async fn delete_event(db: &NarraDb, id: &str) -> Result<Option<Event>, Narra
 /// Response type for max sequence query.
 #[derive(Debug, Deserialize, SurrealValue)]
 struct MaxSeqResult {
-    max_seq: Option<i64>,
+    max_seq: Option<surrealdb::types::Value>,
 }
 
 /// Get the next available sequence number.
@@ -193,7 +193,11 @@ pub async fn get_next_sequence(db: &NarraDb) -> Result<i64, NarraError> {
         .await?;
     let row: Option<MaxSeqResult> = result.take(0)?;
     match row {
-        Some(r) => Ok(r.max_seq.unwrap_or(0) + 1),
+        Some(r) => Ok(r
+            .max_seq
+            .and_then(crate::db::string_set::value_as_i64)
+            .unwrap_or(0)
+            + 1),
         None => Ok(1),
     }
 }

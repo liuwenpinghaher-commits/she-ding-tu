@@ -1150,7 +1150,7 @@ impl NarraServer {
         #[derive(Deserialize, SurrealValue)]
         struct CharacterRow {
             name: String,
-            roles: Option<Vec<String>>,
+            roles: Option<crate::db::string_set::StringSet>,
             description: Option<String>,
             profile: Option<std::collections::HashMap<String, Vec<String>>>,
         }

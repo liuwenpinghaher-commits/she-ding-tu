@@ -81,7 +81,7 @@ impl ExportService {
                     aliases: if c.aliases.is_empty() {
                         None
                     } else {
-                        Some(c.aliases)
+                        Some(c.aliases.into())
                     },
                     description: None, // Not stored on Character model
                     profile,

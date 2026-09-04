@@ -4,8 +4,8 @@
 -- Characters
 DEFINE TABLE character SCHEMAFULL TYPE NORMAL;
 DEFINE FIELD name ON character TYPE string;
-DEFINE FIELD aliases ON character TYPE set<string> DEFAULT [];
-DEFINE FIELD roles ON character TYPE set<string> DEFAULT [];
+DEFINE FIELD aliases ON character TYPE set<string> DEFAULT <set>[];
+DEFINE FIELD roles ON character TYPE set<string> DEFAULT <set>[];
 DEFINE FIELD created_at ON character TYPE datetime VALUE time::now() READONLY;
 DEFINE FIELD updated_at ON character TYPE datetime VALUE time::now();
 DEFINE INDEX idx_character_name ON character FIELDS name;

@@ -71,8 +71,9 @@ struct WindowRow {
 #[derive(Debug, Clone, Serialize, Deserialize, SurrealValue)]
 struct KnowsEdgeRow {
     #[serde(rename = "in")]
-    inn: RecordId,
-    out: RecordId,
+    #[surreal(rename = "in")]
+    inn: Option<RecordId>,
+    out: Option<RecordId>,
     certainty: Option<String>,
     truth_value: Option<String>,
     learning_method: Option<String>,
@@ -90,9 +91,11 @@ struct KnowledgeRow {
 #[derive(Debug, Clone, Serialize, Deserialize, SurrealValue)]
 struct RelRow {
     #[serde(rename = "in")]
-    inn: RecordId,
+    #[surreal(rename = "in")]
+    inn: Option<RecordId>,
     #[serde(rename = "out")]
-    out: RecordId,
+    #[surreal(rename = "out")]
+    out: Option<RecordId>,
     role: String,
 }
 
@@ -323,7 +326,7 @@ impl SettingBook {
     pub async fn load_canon(&self) -> Result<Canon, NarraError> {
         let mut q = self
             .db
-            .query("SELECT * FROM setting_entity; SELECT * FROM setting_column; SELECT * FROM setting_beat; SELECT * FROM setting_present_in; SELECT * FROM setting_promise; SELECT entity, attr, value, clock_from, clock_to, commit_seq, source_beat FROM setting_window; SELECT * FROM knows; SELECT id, fact FROM knowledge; SELECT id, status, commit_seq, kind, intent, value_shift, do_text, say_text, think_text, telling_ord, visible_to, event, primary_location, setting_beat, clock_from, clock_to, cause_beat FROM scene; SELECT id, title, description, enforcement_level FROM universe_fact;")
+            .query("SELECT * FROM setting_entity; SELECT * FROM setting_column; SELECT * FROM setting_beat; SELECT in, out, role FROM setting_present_in; SELECT * FROM setting_promise; SELECT entity, attr, value, clock_from, clock_to, commit_seq, source_beat FROM setting_window; SELECT in, out, certainty, truth_value, learning_method, scene, clock_from, commit_seq FROM knows; SELECT id, fact FROM knowledge; SELECT id, status, commit_seq, kind, intent, value_shift, do_text, say_text, think_text, telling_ord, visible_to, event, primary_location, setting_beat, clock_from, clock_to, cause_beat FROM scene; SELECT id, title, description, enforcement_level FROM universe_fact;")
             .await?;
         let entities: Vec<EntityRow> = q.take(0)?;
         let columns: Vec<ColumnRow> = q.take(1)?;
@@ -406,16 +409,18 @@ impl SettingBook {
         let mut know_map: std::collections::HashMap<String, Vec<KnowledgeWrite>> =
             std::collections::HashMap::new();
         for e in know_edges {
-            let Some(scene) = e.scene.as_ref() else { continue };
+            let (Some(inn), Some(out), Some(scene)) = (e.inn.as_ref(), e.out.as_ref(), e.scene.as_ref()) else {
+                continue;
+            };
             let fact = fact_by_kid
-                .get(&rec_key(&e.out))
+                .get(&rec_key(out))
                 .cloned()
                 .unwrap_or_default();
             if fact.is_empty() {
                 continue;
             }
             know_map.entry(rec_key(scene)).or_default().push(KnowledgeWrite {
-                person_id: rec_key(&e.inn),
+                person_id: rec_key(inn),
                 fact,
                 certainty: e.certainty.unwrap_or_default(),
                 truth_value: e.truth_value,
@@ -500,9 +505,12 @@ impl SettingBook {
             }
         }
         for rel in rels {
-            let beat_id = rec_key(&rel.out);
+            let (Some(inn), Some(out)) = (rel.inn.as_ref(), rel.out.as_ref()) else {
+                continue;
+            };
+            let beat_id = rec_key(out);
             let p = Presence {
-                entity_id: rec_key(&rel.inn),
+                entity_id: rec_key(inn),
                 beat_id: beat_id.clone(),
                 role: rel.role,
             };
@@ -613,10 +621,15 @@ impl SettingBook {
             .await?;
         #[derive(Deserialize, SurrealValue)]
         struct M {
-            m: Option<i64>,
+            m: Option<surrealdb::types::Value>,
         }
         let rows: Vec<M> = q.take(0)?;
-        Ok(rows.first().and_then(|r| r.m).unwrap_or(0) + 1)
+        let n = rows
+            .first()
+            .and_then(|r| r.m.clone())
+            .and_then(crate::db::string_set::value_as_i64)
+            .unwrap_or(0);
+        Ok(n + 1)
     }
 
     /// 写入正史。草稿不进库。挡写入则不分配 seq。
@@ -715,7 +728,11 @@ impl SettingBook {
                 ))
                 .bind((format!("r{i}"), p.role.clone()));
         }
-        q.await.map_err(|e| NarraError::Transaction(e.to_string()))?;
+        let resp = q
+            .await
+            .map_err(|e| NarraError::Transaction(e.to_string()))?;
+        resp.check()
+            .map_err(|e| NarraError::Transaction(e.to_string()))?;
         if draft.fail_relate {
             return Err(NarraError::Transaction("RELATE 失败，整笔回滚".into()));
         }

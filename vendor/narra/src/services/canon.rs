@@ -615,21 +615,23 @@ impl SettingBook {
     }
 
     async fn next_seq(&self) -> Result<i64, NarraError> {
+        // 不用 math::max：v3 空表会给出 -inf，经 f64→i64 变成 i64::MIN，再 +1 仍是大负数。
         let mut q = self
             .db
-            .query("SELECT math::max(commit_seq) AS m FROM setting_beat GROUP ALL")
+            .query("SELECT commit_seq FROM setting_beat WHERE status = 'committed'")
             .await?;
         #[derive(Deserialize, SurrealValue)]
-        struct M {
-            m: Option<surrealdb::types::Value>,
+        struct R {
+            commit_seq: Option<surrealdb::types::Value>,
         }
-        let rows: Vec<M> = q.take(0)?;
-        let n = rows
-            .first()
-            .and_then(|r| r.m.clone())
-            .and_then(crate::db::string_set::value_as_i64)
+        let rows: Vec<R> = q.take(0).unwrap_or_default();
+        let max = rows
+            .into_iter()
+            .filter_map(|r| r.commit_seq)
+            .filter_map(crate::db::string_set::value_as_i64)
+            .max()
             .unwrap_or(0);
-        Ok(n + 1)
+        Ok(max.saturating_add(1).max(1))
     }
 
     /// 写入正史。草稿不进库。挡写入则不分配 seq。

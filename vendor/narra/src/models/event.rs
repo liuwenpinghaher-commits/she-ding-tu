@@ -197,7 +197,8 @@ pub async fn get_next_sequence(db: &NarraDb) -> Result<i64, NarraError> {
             .max_seq
             .and_then(crate::db::string_set::value_as_i64)
             .unwrap_or(0)
-            + 1),
+            .saturating_add(1)
+            .max(1)),
         None => Ok(1),
     }
 }

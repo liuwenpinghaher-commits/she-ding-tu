@@ -4,10 +4,15 @@ use serde::{Deserialize, Serialize};
 use std::ops::{Deref, DerefMut};
 use surrealdb::types::{Error, Kind, Set, SurrealValue, Value};
 
-/// v3 `math::max` 常返回 `Number::Float`，不能直接进 `i64`（`none | int`）。
+/// 正史序号：拒绝 v3 空表 `math::max` 的 `-inf`/`NaN`、以及 constrain 的 `i64::MAX` 哨兵。
 pub fn value_as_i64(value: Value) -> Option<i64> {
     match value {
-        Value::Number(n) => n.to_int(),
+        Value::Number(n) => {
+            if n.to_f64().is_some_and(|f| !f.is_finite()) {
+                return None;
+            }
+            n.to_int().filter(|&i| (0..i64::MAX).contains(&i))
+        }
         Value::None | Value::Null => None,
         _ => None,
     }

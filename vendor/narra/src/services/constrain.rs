@@ -57,6 +57,7 @@ fn draft_as_beat(d: &BeatDraft, id: &str) -> Beat {
         },
         column_id: d.column_id.clone(),
         status: "draft".into(),
+        // 只在内存里垫底排序，禁止写入正史 / 进 math::max。
         commit_seq: i64::MAX,
         intent: d.intent.clone(),
         value_shift: d.value_shift.clone(),

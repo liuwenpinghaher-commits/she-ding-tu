@@ -36,6 +36,7 @@ use tower_http::services::{ServeDir, ServeFile};
 #[derive(Clone)]
 struct App {
     inner: Arc<Mutex<Inner>>,
+    switch: Arc<Mutex<()>>,
     data_root: PathBuf,
 }
 
@@ -403,10 +404,12 @@ fn persist_and_take_all(root: &std::path::Path, g: &mut Inner) -> Vec<BookSess> 
 /// v3 没有公开 `Surreal::shutdown`。3.1.0 修了 #7304 之后，官方关闭路径就是
 /// 最后一个客户端 Drop（嵌入式 RocksDB 的 fd/线程随 Drop 释放）。
 /// `invalidate()` 只清登录态，不能拿来关引擎。
+///
+/// Drop 嵌式 RocksDB 会同步堵线程。必须放进 `spawn_blocking`，否则 tokio
+/// 工作线程卡住，下一本 `open_book_dir` / `/api/state` 一起饿死，e2e 的
+/// `book-label` 5s 就空。
 async fn release_book_engine(sess: BookSess) {
-    drop(sess);
-    // Drop 的清理跑在当前任务之后；让出一次，避免紧接着 open 下一本时撞上旧引擎。
-    tokio::task::yield_now().await;
+    let _ = tokio::task::spawn_blocking(move || drop(sess)).await;
 }
 
 async fn release_book_engines(sessions: Vec<BookSess>) {
@@ -800,6 +803,7 @@ async fn main() {
             books: HashMap::new(),
             current: None,
         })),
+        switch: Arc::new(Mutex::new(())),
         data_root,
     };
     let api = Router::new()
@@ -1364,9 +1368,12 @@ async fn create_book(
     if name.is_empty() {
         return Err((StatusCode::BAD_REQUEST, "书名空".into()));
     }
+    let gate = app.switch.lock().await;
     if book_db_path(&app.data_root, &name).exists() {
         return Err((StatusCode::CONFLICT, "书已存在，请打开书".into()));
     }
+    // 先关旧引擎再开新库。v3 嵌式 RocksDB 两份叠着 init 会把 tokio
+    // 工作线程堵死，POST /api/books 超过 e2e 的 book-label 等待。
     let stale = {
         let mut g = app.inner.lock().await;
         persist_and_take_all(&app.data_root, &mut g)
@@ -1404,12 +1411,11 @@ async fn create_book(
     let mut sess = empty_sess(book);
     sess.craft = craft;
     let mut g = app.inner.lock().await;
-    let extra = persist_and_take_all(&app.data_root, &mut g);
     g.books.insert(name.clone(), sess);
     g.current = Some(name);
     let payload = book_list_payload(&app.data_root, &g);
     drop(g);
-    release_book_engines(extra).await;
+    drop(gate);
     Ok(Json(payload))
 }
 
@@ -1421,6 +1427,7 @@ async fn open_book(
     if name.is_empty() {
         return Err((StatusCode::BAD_REQUEST, "书名空".into()));
     }
+    let gate = app.switch.lock().await;
     let already = {
         let g = app.inner.lock().await;
         g.books.contains_key(&name)
@@ -1448,26 +1455,21 @@ async fn open_book(
         sess.n = n;
         sess.craft = load_craft(&app.data_root, &name);
         sess.threads = load_threads(&app.data_root, &name);
+        let cols = canon.columns.len();
+        let committed = canon
+            .beats
+            .iter()
+            .filter(|b| b.status == STATUS_COMMITTED)
+            .count();
+        update_meta_counts(&app.data_root, &name, cols, committed);
         let mut g = app.inner.lock().await;
-        let extra = persist_and_take_all(&app.data_root, &mut g);
         g.books.insert(name.clone(), sess);
         g.current = Some(name.clone());
         drop(g);
-        release_book_engines(extra).await;
     }
+    drop(gate);
     let mut g = app.inner.lock().await;
     g.current = Some(name.clone());
-    if let Some(sess) = g.books.get(&name) {
-        let cols = sess.book.load_canon().await.ok().map(|c| c.columns.len()).unwrap_or(0);
-        let committed = sess
-            .book
-            .load_canon()
-            .await
-            .ok()
-            .map(|c| c.beats.iter().filter(|b| b.status == STATUS_COMMITTED).count())
-            .unwrap_or(0);
-        update_meta_counts(&app.data_root, &name, cols, committed);
-    }
     Ok(Json(book_list_payload(&app.data_root, &g)))
 }
 
@@ -1564,6 +1566,7 @@ async fn delete_book(
         ));
     }
     let sess = {
+        let _gate = app.switch.lock().await;
         let mut g = app.inner.lock().await;
         let sess = g.books.remove(&name);
         if g.current.as_deref() == Some(name.as_str()) {
@@ -1576,7 +1579,10 @@ async fn delete_book(
     }
     let dir = app.data_root.join(&name);
     if dir.exists() {
-        std::fs::remove_dir_all(&dir)
+        let d = dir.clone();
+        tokio::task::spawn_blocking(move || std::fs::remove_dir_all(&d))
+            .await
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
             .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     }
     let g = app.inner.lock().await;
@@ -1592,7 +1598,7 @@ async fn get_scene(
         .current
         .clone()
         .ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
-    let sess = g.books.get(&name).unwrap();
+    let sess = g.books.get(&name).ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
     let canon = sess
         .book
         .load_canon()
@@ -1689,7 +1695,7 @@ async fn add_setup_rel(
         .current
         .clone()
         .ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
-    let sess = g.books.get(&name).unwrap();
+    let sess = g.books.get(&name).ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
     let canon = sess
         .book
         .load_canon()
@@ -1828,7 +1834,7 @@ async fn state(State(app): State<App>) -> Result<Json<UiState>, (StatusCode, Str
         .current
         .clone()
         .ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
-    let sess = g.books.get(&name).unwrap();
+    let sess = g.books.get(&name).ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
     let st = snapshot(sess, &name, &app.data_root)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
@@ -1841,7 +1847,7 @@ async fn add_entity(
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let mut g = app.inner.lock().await;
     let name = g.current.clone().ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
-    let sess = g.books.get_mut(&name).unwrap();
+    let sess = g.books.get_mut(&name).ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
     let mut profile = body.profile.unwrap_or_default();
     if let Some(a) = body.aliases {
         if !a.trim().is_empty() {
@@ -1876,7 +1882,7 @@ async fn delete_entity(
     }
     let mut g = app.inner.lock().await;
     let name = g.current.clone().ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
-    let sess = g.books.get_mut(&name).unwrap();
+    let sess = g.books.get_mut(&name).ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
     let (hung, resolved) = sess
         .book
         .entity_hung_on_canon(id)
@@ -1912,7 +1918,7 @@ async fn set_window(
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let mut g = app.inner.lock().await;
     let name = g.current.clone().ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
-    let sess = g.books.get_mut(&name).unwrap();
+    let sess = g.books.get_mut(&name).ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
     if let Some(d) = body.density.as_deref() {
         sess.n = match d {
             "sparse" => 2,
@@ -1942,7 +1948,7 @@ async fn patch_draft(
 ) -> Result<Json<BeatDraft>, (StatusCode, String)> {
     let mut g = app.inner.lock().await;
     let name = g.current.clone().ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
-    let sess = g.books.get_mut(&name).unwrap();
+    let sess = g.books.get_mut(&name).ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
     let d = sess
         .drafts
         .iter_mut()
@@ -2047,7 +2053,7 @@ async fn set_clocks(
         .current
         .clone()
         .ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
-    let sess = g.books.get_mut(&name).unwrap();
+    let sess = g.books.get_mut(&name).ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
     if body.draft {
         let old_to = {
             let d = sess
@@ -2123,7 +2129,7 @@ async fn set_presence(
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let mut g = app.inner.lock().await;
     let name = g.current.clone().ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
-    let sess = g.books.get_mut(&name).unwrap();
+    let sess = g.books.get_mut(&name).ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
     let canon = sess
         .book
         .load_canon()
@@ -2222,7 +2228,7 @@ async fn do_commit(
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let mut g = app.inner.lock().await;
     let name = g.current.clone().ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
-    let sess = g.books.get_mut(&name).unwrap();
+    let sess = g.books.get_mut(&name).ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
     let pos = sess
         .drafts
         .iter()
@@ -2283,7 +2289,7 @@ async fn do_constrain(
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let g = app.inner.lock().await;
     let name = g.current.clone().ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
-    let sess = g.books.get(&name).unwrap();
+    let sess = g.books.get(&name).ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
     let ui = sess
         .drafts
         .iter()
@@ -2306,7 +2312,7 @@ async fn get_world(
 ) -> Result<Json<World>, (StatusCode, String)> {
     let g = app.inner.lock().await;
     let name = g.current.clone().ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
-    let sess = g.books.get(&name).unwrap();
+    let sess = g.books.get(&name).ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
     let t = if let Some(t) = q.t {
         t
     } else {
@@ -2342,7 +2348,7 @@ async fn write_next(
     }
     let mut g = app.inner.lock().await;
     let name = g.current.clone().ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
-    let sess = g.books.get_mut(&name).unwrap();
+    let sess = g.books.get_mut(&name).ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
     let canon = sess
         .book
         .load_canon()
@@ -2438,7 +2444,7 @@ async fn write_parallel(
         .map(|s| s.to_string());
     let mut g = app.inner.lock().await;
     let name = g.current.clone().ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
-    let sess = g.books.get_mut(&name).unwrap();
+    let sess = g.books.get_mut(&name).ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
     let canon = sess
         .book
         .load_canon()
@@ -2493,7 +2499,7 @@ async fn select_item(
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let mut g = app.inner.lock().await;
     let name = g.current.clone().ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
-    let sess = g.books.get_mut(&name).unwrap();
+    let sess = g.books.get_mut(&name).ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
     if let Some(col) = body.get("column_id").and_then(|v| v.as_str()) {
         sess.selected_col = if col.is_empty() {
             None
@@ -2525,7 +2531,7 @@ async fn get_coverage(
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let g = app.inner.lock().await;
     let name = g.current.clone().ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
-    let sess = g.books.get(&name).unwrap();
+    let sess = g.books.get(&name).ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
     let canon = sess
         .book
         .load_canon()
@@ -2554,7 +2560,7 @@ async fn set_lens(
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let mut g = app.inner.lock().await;
     let name = g.current.clone().ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
-    let sess = g.books.get_mut(&name).unwrap();
+    let sess = g.books.get_mut(&name).ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
     let person = body
         .get("person")
         .and_then(|v| v.as_str())
@@ -2582,7 +2588,7 @@ async fn relations_get(
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let g = app.inner.lock().await;
     let name = g.current.clone().ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
-    let sess = g.books.get(&name).unwrap();
+    let sess = g.books.get(&name).ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
     let person = q
         .person
         .as_deref()
@@ -2974,7 +2980,7 @@ async fn export_md(
 ) -> Result<String, (StatusCode, String)> {
     let g = app.inner.lock().await;
     let name = g.current.clone().ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
-    let sess = g.books.get(&name).unwrap();
+    let sess = g.books.get(&name).ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
     let canon = sess
         .book
         .load_canon()
@@ -3128,7 +3134,7 @@ async fn fill_fake(
     let id = body.get("id").and_then(|v| v.as_str()).unwrap_or("");
     let mut g = app.inner.lock().await;
     let name = g.current.clone().ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
-    let sess = g.books.get_mut(&name).unwrap();
+    let sess = g.books.get_mut(&name).ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
     let draft0 = sess
         .drafts
         .iter()
@@ -3202,7 +3208,7 @@ async fn plant_promise(
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let mut g = app.inner.lock().await;
     let name = g.current.clone().ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
-    let sess = g.books.get_mut(&name).unwrap();
+    let sess = g.books.get_mut(&name).ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
     let p = Promise {
         id: body
             .get("id")
@@ -3258,7 +3264,7 @@ async fn structure_preview(
 ) -> Result<Json<Pending>, (StatusCode, String)> {
     let mut g = app.inner.lock().await;
     let name = g.current.clone().ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
-    let sess = g.books.get_mut(&name).unwrap();
+    let sess = g.books.get_mut(&name).ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
     let canon = sess
         .book
         .load_canon()
@@ -3435,7 +3441,7 @@ async fn structure_confirm(
     }
     let mut g = app.inner.lock().await;
     let name = g.current.clone().ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
-    let sess = g.books.get_mut(&name).unwrap();
+    let sess = g.books.get_mut(&name).ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
     let pending = sess
         .pending
         .clone()
@@ -4021,7 +4027,7 @@ async fn structure_cancel(
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let mut g = app.inner.lock().await;
     let name = g.current.clone().ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
-    let sess = g.books.get_mut(&name).unwrap();
+    let sess = g.books.get_mut(&name).ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
     sess.pending = None;
     Ok(Json(serde_json::json!({"ok": true, "cancelled": true})))
 }
@@ -4036,7 +4042,7 @@ async fn paste_draft(
     }
     let mut g = app.inner.lock().await;
     let name = g.current.clone().ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
-    let sess = g.books.get_mut(&name).unwrap();
+    let sess = g.books.get_mut(&name).ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
     let chunks: Vec<&str> = text
         .split(|c| c == '\n' || c == '。')
         .map(str::trim)
@@ -4086,7 +4092,7 @@ async fn paste_apply(
     let sid = body.get("id").and_then(|v| v.as_str()).unwrap_or("");
     let mut g = app.inner.lock().await;
     let name = g.current.clone().ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
-    let sess = g.books.get_mut(&name).unwrap();
+    let sess = g.books.get_mut(&name).ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
     let skip = body.get("skip").and_then(|v| v.as_bool()).unwrap_or(false);
     let sug = sess
         .paste_suggestions
@@ -4148,7 +4154,7 @@ async fn make_ellipsis(
     let id = body.get("id").and_then(|v| v.as_str()).unwrap_or("");
     let mut g = app.inner.lock().await;
     let name = g.current.clone().ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
-    let sess = g.books.get_mut(&name).unwrap();
+    let sess = g.books.get_mut(&name).ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
     let d = sess
         .drafts
         .iter_mut()
@@ -4172,7 +4178,7 @@ async fn delete_draft(
     let confirm = body.get("confirm").and_then(|v| v.as_bool()).unwrap_or(false);
     let mut g = app.inner.lock().await;
     let name = g.current.clone().ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
-    let sess = g.books.get_mut(&name).unwrap();
+    let sess = g.books.get_mut(&name).ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
     let canon = sess
         .book
         .load_canon()
@@ -4252,7 +4258,7 @@ async fn revise_beat(
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let mut g = app.inner.lock().await;
     let name = g.current.clone().ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
-    let sess = g.books.get_mut(&name).unwrap();
+    let sess = g.books.get_mut(&name).ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
     let (beat, warnings) = sess
         .book
         .revise(&id, patch)
@@ -4277,7 +4283,7 @@ async fn get_dossier(
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let g = app.inner.lock().await;
     let name = g.current.clone().ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
-    let sess = g.books.get(&name).unwrap();
+    let sess = g.books.get(&name).ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
     let canon = sess
         .book
         .load_canon()
@@ -4453,7 +4459,7 @@ async fn save_dossier(
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let mut g = app.inner.lock().await;
     let name = g.current.clone().ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
-    let sess = g.books.get_mut(&name).unwrap();
+    let sess = g.books.get_mut(&name).ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
     let canon = sess
         .book
         .load_canon()
@@ -4482,7 +4488,7 @@ async fn save_dossier(
 async fn occupancy(State(app): State<App>) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let g = app.inner.lock().await;
     let name = g.current.clone().ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
-    let sess = g.books.get(&name).unwrap();
+    let sess = g.books.get(&name).ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
     let canon = sess
         .book
         .load_canon()
@@ -4535,7 +4541,7 @@ async fn circumstances(
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let g = app.inner.lock().await;
     let name = g.current.clone().ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
-    let sess = g.books.get(&name).unwrap();
+    let sess = g.books.get(&name).ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
     let lens = sess.lens_person.clone();
     let canon = sess
         .book
@@ -4634,7 +4640,7 @@ async fn official_bridge(
         .current
         .clone()
         .ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
-    let sess = g.books.get(&name).unwrap();
+    let sess = g.books.get(&name).ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
     let mut q = sess
         .book
         .db()
@@ -4688,7 +4694,7 @@ async fn search_entities(
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let g = app.inner.lock().await;
     let name = g.current.clone().ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
-    let sess = g.books.get(&name).unwrap();
+    let sess = g.books.get(&name).ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
     let needle = q.q.unwrap_or_default();
     let hits = sess
         .book
@@ -4781,7 +4787,7 @@ async fn knows_list(
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let g = app.inner.lock().await;
     let name = g.current.clone().ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
-    let sess = g.books.get(&name).unwrap();
+    let sess = g.books.get(&name).ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
     let person = q.person.unwrap_or_default();
     let t = if let Some(t) = q.t {
         t
@@ -4832,7 +4838,7 @@ async fn set_telling(
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let g = app.inner.lock().await;
     let name = g.current.clone().ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
-    let sess = g.books.get(&name).unwrap();
+    let sess = g.books.get(&name).ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
     sess.book
         .set_telling_ord(&body.beat_id, body.telling_ord)
         .await
@@ -4847,7 +4853,7 @@ async fn fill_live(
     let id = body.get("id").and_then(|v| v.as_str()).unwrap_or("");
     let mut g = app.inner.lock().await;
     let name = g.current.clone().ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
-    let sess = g.books.get_mut(&name).unwrap();
+    let sess = g.books.get_mut(&name).ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
     let draft0 = sess
         .drafts
         .iter()
@@ -4882,7 +4888,7 @@ async fn fill_live(
     }
     let mut g = app.inner.lock().await;
     let name = g.current.clone().ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
-    let sess = g.books.get_mut(&name).unwrap();
+    let sess = g.books.get_mut(&name).ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
     let mut suggested = sess
         .drafts
         .iter()
@@ -4930,7 +4936,7 @@ async fn get_talk(
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let g = app.inner.lock().await;
     let name = g.current.clone().ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
-    let sess = g.books.get(&name).unwrap();
+    let sess = g.books.get(&name).ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
     let id = q
         .id
         .filter(|s| !s.is_empty())
@@ -4958,7 +4964,7 @@ async fn do_talk(
     let text = body.get("text").and_then(|v| v.as_str()).unwrap_or("");
     let g = app.inner.lock().await;
     let name = g.current.clone().ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
-    let sess = g.books.get(&name).unwrap();
+    let sess = g.books.get(&name).ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
     let ui = sess
         .drafts
         .iter()
@@ -5012,7 +5018,7 @@ async fn plan_suggest(
     let goal_id = body.get("goal_id").and_then(|v| v.as_str()).unwrap_or("");
     let g = app.inner.lock().await;
     let name = g.current.clone().ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
-    let sess = g.books.get(&name).unwrap();
+    let sess = g.books.get(&name).ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
     let canon = sess
         .book
         .load_canon()
@@ -5108,7 +5114,7 @@ async fn plan_apply(
     }
     let mut g = app.inner.lock().await;
     let name = g.current.clone().ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
-    let sess = g.books.get_mut(&name).unwrap();
+    let sess = g.books.get_mut(&name).ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
     let canon = sess
         .book
         .load_canon()

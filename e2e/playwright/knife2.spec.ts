@@ -1,5 +1,5 @@
 import { expect } from "@playwright/test";
-import { test, openStripboard } from "./helpers";
+import { test, openStripboard, waitBookLabel } from "./helpers";
 
 test.describe.configure({ timeout: 120000 });
 
@@ -8,7 +8,7 @@ test("K2 写下一场后出现 toast", async ({ page }) => {
   await page.goto("/");
   await page.getByTestId("book-name").fill(book);
   await page.getByTestId("create-book").click();
-  await expect(page.getByTestId("book-label")).toHaveText(book);
+  await waitBookLabel(page, book);
   await page.getByTestId("intent").fill("把信交出去");
   await page.getByTestId("write-next").click();
   await expect(page.locator(".card.draft").first()).toBeVisible();
@@ -21,7 +21,7 @@ test("K2 模型填场到达后有未定稿角标", async ({ page }) => {
   await page.goto("/");
   await page.getByTestId("book-name").fill(book);
   await page.getByTestId("create-book").click();
-  await expect(page.getByTestId("book-label")).toHaveText(book);
+  await waitBookLabel(page, book);
   await page.getByTestId("intent").fill("阿福发现刀");
   await page.getByTestId("write-next").click();
   await expect(page.locator(".card.draft").first()).toBeVisible();
@@ -44,7 +44,7 @@ test("K2 右栏空态用人话占位", async ({ page }) => {
   await page.goto("/");
   await page.getByTestId("book-name").fill(book);
   await page.getByTestId("create-book").click();
-  await expect(page.getByTestId("book-label")).toHaveText(book);
+  await waitBookLabel(page, book);
   await expect(page.getByTestId("sit-world")).toContainText("此刻没有开着的账");
   await expect(page.getByTestId("sit-people")).toContainText("此刻没有开着的账");
   await expect(page.getByTestId("sit-reader")).toContainText("此刻没有开着的账");
@@ -65,7 +65,7 @@ test("K2 删已正史确认框列出缺口与影响", async ({ page }) => {
   await page.goto("/");
   await page.getByTestId("book-name").fill(book);
   await page.getByTestId("create-book").click();
-  await expect(page.getByTestId("book-label")).toHaveText(book);
+  await waitBookLabel(page, book);
   await openStripboard(page);
   await page.getByTestId("density-mid").click();
   await expect(page.getByTestId("col-count")).toHaveText("4");
@@ -112,7 +112,7 @@ test("K2 写入正史后可回看第几次写入，失败有原因", async ({ pa
   await page.goto("/");
   await page.getByTestId("book-name").fill(book);
   await page.getByTestId("create-book").click();
-  await expect(page.getByTestId("book-label")).toHaveText(book);
+  await waitBookLabel(page, book);
   await page.getByTestId("intent").fill("阿福发现刀");
   await page.getByTestId("write-next").click();
   await page.locator(".card.draft").first().click();
@@ -140,7 +140,7 @@ test("K2 删书确认框列出缺口与影响", async ({ page }) => {
   await page.goto("/");
   await page.getByTestId("book-name").fill(book);
   await page.getByTestId("create-book").click();
-  await expect(page.getByTestId("book-label")).toHaveText(book);
+  await waitBookLabel(page, book);
   await page.getByTestId("intent").fill("还没定的一场");
   await page.getByTestId("write-next").click();
   await expect(page.locator(".card.draft").first()).toBeVisible();

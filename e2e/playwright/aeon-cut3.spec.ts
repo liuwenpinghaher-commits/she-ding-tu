@@ -1,5 +1,5 @@
 import { expect, type Page } from "@playwright/test";
-import { openTimeline, openWorkspaceTab, test, writeDraftBar } from "./helpers";
+import { openTimeline, openWorkspaceTab, test, writeDraftBar, waitBookLabel } from "./helpers";
 
 test.describe.configure({ timeout: 120000 });
 
@@ -7,7 +7,7 @@ async function boot(page: Page, book: string) {
   await page.goto("/");
   await page.getByTestId("book-name").fill(book);
   await page.getByTestId("create-book").click();
-  await expect(page.getByTestId("book-label")).toHaveText(book);
+  await waitBookLabel(page, book);
   await openTimeline(page);
 }
 
@@ -36,7 +36,7 @@ async function lastDraft(page: Page) {
 
 async function reloadBook(page: Page, book: string) {
   await page.reload();
-  await expect(page.getByTestId("book-label")).toHaveText(book);
+  await waitBookLabel(page, book);
 }
 
 test("总表草稿和正史都能改本场任务", async ({ page }) => {

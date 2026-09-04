@@ -1,5 +1,5 @@
 import { expect, type Page } from "@playwright/test";
-import { test, selectDraftCard, openStripboard } from "./helpers";
+import { test, selectDraftCard, openStripboard, waitBookLabel } from "./helpers";
 
 async function openMore(page: Page) {
   await page.locator("#more-menu").evaluate((el: HTMLDetailsElement) => { el.open = true; });
@@ -13,7 +13,7 @@ test("1 场卡密度、细轨、点列看这一刻", async ({ page }) => {
   await page.goto("/");
   await page.getByTestId("book-name").fill(book);
   await page.getByTestId("create-book").click();
-  await expect(page.getByTestId("book-label")).toHaveText(book);
+  await waitBookLabel(page, book);
   await openStripboard(page);
 
   await page.getByTestId("ent-name").fill("阿福");
@@ -93,7 +93,7 @@ test("2 写戏路径：空任务不准点、讨论不进框、模型待确认", 
   await page.goto("/");
   await page.getByTestId("book-name").fill(book);
   await page.getByTestId("create-book").click();
-  await expect(page.getByTestId("book-label")).toHaveText(book);
+  await waitBookLabel(page, book);
 
   await expect(page.getByTestId("write-next")).toBeDisabled();
   await expect(page.getByTestId("write-next")).toHaveAttribute("title", "没有本场任务不准写下一场");
@@ -144,7 +144,7 @@ test("3 真拖列、空出建议、细条窗口、顶栏+不加列", async ({ pa
   await page.goto("/");
   await page.getByTestId("book-name").fill(book);
   await page.getByTestId("create-book").click();
-  await expect(page.getByTestId("book-label")).toHaveText(book);
+  await waitBookLabel(page, book);
   await openStripboard(page);
   await page.getByTestId("intent").fill("第一场");
   await expect(page.getByTestId("write-next")).toBeEnabled();
@@ -222,7 +222,7 @@ test("4 左栏、飞出层、多书、丢一段草稿", async ({ page }) => {
   await page.goto("/");
   await page.getByTestId("book-name").fill(bookA);
   await page.getByTestId("create-book").click();
-  await expect(page.getByTestId("book-label")).toHaveText(bookA);
+  await waitBookLabel(page, bookA);
   await openStripboard(page);
   await expect(page.getByTestId("book-list")).toHaveValue(bookA);
 
@@ -317,13 +317,13 @@ await page.locator('[data-testid="ent-开船须铜牌"]').dragTo(page.locator(".
 
   await page.getByTestId("book-name").fill(bookB);
   await page.getByTestId("create-book").click();
-  await expect(page.getByTestId("book-label")).toHaveText(bookB);
+  await waitBookLabel(page, bookB);
   await page.getByTestId("ent-search").fill("阿莲");
   await page.getByTestId("do-search").click();
   await expect(page.getByTestId("search-empty")).toBeVisible();
 
   await page.getByTestId("book-list").selectOption(bookA);
-  await expect(page.getByTestId("book-label")).toHaveText(bookA);
+  await waitBookLabel(page, bookA);
   await page.getByTestId("ent-search").fill("阿莲");
   await page.getByTestId("do-search").click();
   await expect(page.getByTestId("hit-阿莲")).toBeVisible();
@@ -357,7 +357,7 @@ test("5 改已正史、删正史补洞、导出", async ({ page }) => {
   await page.goto("/");
   await page.getByTestId("book-name").fill(book);
   await page.getByTestId("create-book").click();
-  await expect(page.getByTestId("book-label")).toHaveText(book);
+  await waitBookLabel(page, book);
   await openStripboard(page);
   await expect(page.getByTestId("delete-canon")).toBeDisabled();
 

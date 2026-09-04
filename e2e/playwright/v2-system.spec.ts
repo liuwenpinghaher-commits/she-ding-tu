@@ -1,5 +1,5 @@
 import { expect } from "@playwright/test";
-import { openStripboard, pressUndo, test } from "./helpers";
+import { openStripboard, pressUndo, test, waitBookLabel } from "./helpers";
 
 test("删书须打书名；草稿撤销；总表；键盘改本页列数", async ({ page }) => {
   test.setTimeout(90000);
@@ -12,7 +12,7 @@ test("删书须打书名；草稿撤销；总表；键盘改本页列数", async
   await page.getByTestId("nb-premise").fill("渡口夜里交信。");
   await page.getByTestId("nb-clock").fill("第一天 20:00");
   await page.getByTestId("nb-create").click();
-  await expect(page.getByTestId("book-label")).toHaveText(book);
+  await waitBookLabel(page, book);
   await openStripboard(page);
 
   await page.getByTestId("intent").fill("把信交出去");

@@ -1,5 +1,5 @@
 import { expect, type Page } from "@playwright/test";
-import { openStripboard, test } from "./helpers";
+import { openStripboard, test, waitBookLabel } from "./helpers";
 
 test.describe.configure({ timeout: 180000 });
 
@@ -7,7 +7,7 @@ async function boot(page: Page, book: string) {
   await page.goto("/");
   await page.getByTestId("book-name").fill(book);
   await page.getByTestId("create-book").click();
-  await expect(page.getByTestId("book-label")).toHaveText(book);
+  await waitBookLabel(page, book);
   await openStripboard(page);
 }
 
@@ -82,7 +82,7 @@ test("1 建书落分场条，能切时间轴", async ({ page }) => {
   await page.getByTestId("nb-name").fill(book);
   await page.getByTestId("nb-clock").fill("第一天 20:00");
   await page.getByTestId("nb-create").click();
-  await expect(page.getByTestId("book-label")).toHaveText(book);
+  await waitBookLabel(page, book);
   await expect(page).toHaveURL(/\/board/);
   await expect(page.getByTestId("stripboard")).toBeVisible();
   await expect(page.getByTestId("timeline")).toHaveCount(0);
@@ -503,7 +503,7 @@ test("20 刷新回原处", async ({ page }) => {
   const hash = `#/b/${encodeURIComponent(book)}/board?s=${encodeURIComponent(b1.id)}&line=${encodeURIComponent("铜牌")}&look=${encodeURIComponent("进度")}&n=4&start=0`;
   await page.evaluate((h) => { location.hash = h; }, hash);
   await page.reload();
-  await expect(page.getByTestId("book-label")).toHaveText(book);
+  await waitBookLabel(page, book);
   await expect(page.getByTestId("col-count")).toHaveText("4");
   await expect(page.getByTestId("look-progress")).toBeVisible();
   await openStripboard(page);

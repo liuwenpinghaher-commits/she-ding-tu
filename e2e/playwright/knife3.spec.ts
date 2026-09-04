@@ -1,5 +1,5 @@
 import { expect } from "@playwright/test";
-import { test } from "./helpers";
+import { test, waitBookLabel } from "./helpers";
 
 test.describe.configure({ timeout: 120000 });
 
@@ -8,7 +8,7 @@ test("K3 账本人话空态", async ({ page }) => {
   await page.goto("/");
   await page.getByTestId("book-name").fill(book);
   await page.getByTestId("create-book").click();
-  await expect(page.getByTestId("book-label")).toHaveText(book);
+  await waitBookLabel(page, book);
   await expect(page.getByTestId("sit-world")).toContainText("此刻还开着的事");
   await expect(page.getByTestId("sit-world")).toContainText("此刻没有开着的账");
   await expect(page.getByTestId("sit-people")).toContainText("谁知道、谁不知道、谁信错");
@@ -26,7 +26,7 @@ test("K3 未名场标题用这场要办成什么", async ({ page }) => {
   await page.goto("/");
   await page.getByTestId("book-name").fill(book);
   await page.getByTestId("create-book").click();
-  await expect(page.getByTestId("book-label")).toHaveText(book);
+  await waitBookLabel(page, book);
   await page.getByTestId("intent").fill("把信交出去");
   await page.getByTestId("write-next").click();
   const card = page.locator(".card.draft").first();
@@ -40,7 +40,7 @@ test("K3 假模型填场按钮文案", async ({ page }) => {
   await page.goto("/");
   await page.getByTestId("book-name").fill(book);
   await page.getByTestId("create-book").click();
-  await expect(page.getByTestId("book-label")).toHaveText(book);
+  await waitBookLabel(page, book);
   await page.getByTestId("intent").fill("阿福发现刀");
   await page.getByTestId("write-next").click();
   await expect(page.locator(".card.draft").first()).toBeVisible();
@@ -54,7 +54,7 @@ test("K3 写入正史解释语", async ({ page }) => {
   await page.goto("/");
   await page.getByTestId("book-name").fill(book);
   await page.getByTestId("create-book").click();
-  await expect(page.getByTestId("book-label")).toHaveText(book);
+  await waitBookLabel(page, book);
   await expect(page.getByTestId("commit")).toHaveText("写入正史");
   await expect(page.getByTestId("commit-explain")).toHaveText("定稿，后面的场会用到");
   await page.getByTestId("intent").fill("阿福发现刀");

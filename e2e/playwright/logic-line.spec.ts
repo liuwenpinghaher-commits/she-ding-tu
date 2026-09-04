@@ -1,5 +1,5 @@
 import { expect } from "@playwright/test";
-import { openStripboard, test } from "./helpers";
+import { openStripboard, test, waitBookLabel } from "./helpers";
 
 test.describe.configure({ timeout: 120000 });
 
@@ -8,7 +8,7 @@ test("逻辑线看法：贴线不改算出这一刻，过滤不藏场，看法�
   await page.goto("/");
   await page.getByTestId("book-name").fill(book);
   await page.getByTestId("create-book").click();
-  await expect(page.getByTestId("book-label")).toHaveText(book);
+  await waitBookLabel(page, book);
   await openStripboard(page);
 
   await page.getByTestId("ent-kind").selectOption("person");

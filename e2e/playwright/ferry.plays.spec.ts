@@ -1,5 +1,5 @@
 import { expect, Page } from "@playwright/test";
-import { test, selectDraftCard, openStripboard } from "./helpers";
+import { test, selectDraftCard, openStripboard, waitBookLabel } from "./helpers";
 
 test("渡口六条戏能在分场条上点出来", async ({ page }) => {
   test.setTimeout(180000);
@@ -7,7 +7,7 @@ test("渡口六条戏能在分场条上点出来", async ({ page }) => {
   await page.goto("/");
   await page.getByTestId("book-name").fill(book);
   await page.getByTestId("create-book").click();
-  await expect(page.getByTestId("book-label")).toHaveText(book);
+  await waitBookLabel(page, book);
   await openStripboard(page);
   await addEntity(page, "person", "阿莲");
   await addEntity(page, "person", "阿禾");
@@ -114,7 +114,7 @@ test("渡口六条戏能在分场条上点出来", async ({ page }) => {
     });
   });
   await page.reload();
-  await expect(page.getByTestId("book-label")).toHaveText(book);
+  await waitBookLabel(page, book);
   await expect(page.locator(".tooth.debt").first()).toBeVisible();
 
   // 3. 删「把刀放进抽屉」，列出阿福发现刀的因果缺口
@@ -126,7 +126,7 @@ test("渡口六条戏能在分场条上点出来", async ({ page }) => {
     });
   }, putId);
   await page.reload();
-  await expect(page.getByTestId("book-label")).toHaveText(book);
+  await waitBookLabel(page, book);
   const st = await page.evaluate(async () => (await (await fetch("/api/state")).json()));
   const putBeat = (st.committed || []).find((b: { id: string }) => b.id === putId);
   expect(putBeat).toBeTruthy();

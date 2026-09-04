@@ -1,5 +1,5 @@
 import { expect } from "@playwright/test";
-import { test } from "./helpers";
+import { test, waitBookLabel } from "./helpers";
 
 test.describe.configure({ timeout: 120000 });
 
@@ -8,7 +8,7 @@ test("K1 新书默认落在分场条", async ({ page }) => {
   await page.goto("/");
   await page.getByTestId("book-name").fill(book);
   await page.getByTestId("create-book").click();
-  await expect(page.getByTestId("book-label")).toHaveText(book);
+  await waitBookLabel(page, book);
   await expect(page.getByTestId("stripboard")).toBeVisible();
   await expect(page.getByTestId("timeline")).toHaveCount(0);
   await expect(page.getByTestId("tab-分场条")).toBeVisible();
@@ -25,7 +25,7 @@ test("K1 点写下一场后任务输入可见可打", async ({ page }) => {
   await page.goto("/");
   await page.getByTestId("book-name").fill(book);
   await page.getByTestId("create-book").click();
-  await expect(page.getByTestId("book-label")).toHaveText(book);
+  await waitBookLabel(page, book);
   await expect(page.getByTestId("scene-compose")).toBeVisible();
   const intentBox = await page.getByTestId("intent").boundingBox();
   expect(intentBox).toBeTruthy();
@@ -50,7 +50,7 @@ test("K1 导出贴草稿伏笔命令常驻可见", async ({ page }) => {
   await page.goto("/");
   await page.getByTestId("book-name").fill(book);
   await page.getByTestId("create-book").click();
-  await expect(page.getByTestId("book-label")).toHaveText(book);
+  await waitBookLabel(page, book);
   for (const id of ["export", "paste", "plant-promise", "open-cmd"] as const) {
     const loc = page.getByTestId(id);
     await expect(loc).toBeVisible();
@@ -77,7 +77,7 @@ test("K1 草稿可删且须确认", async ({ page }) => {
   await page.goto("/");
   await page.getByTestId("book-name").fill(book);
   await page.getByTestId("create-book").click();
-  await expect(page.getByTestId("book-label")).toHaveText(book);
+  await waitBookLabel(page, book);
   await page.getByTestId("intent").fill("还没定的一场");
   await page.getByTestId("write-next").click();
   await expect(page.locator(".card.draft").first()).toBeVisible();
@@ -97,7 +97,7 @@ test("K1 模型填这一场不自动进正史", async ({ page }) => {
   await page.goto("/");
   await page.getByTestId("book-name").fill(book);
   await page.getByTestId("create-book").click();
-  await expect(page.getByTestId("book-label")).toHaveText(book);
+  await waitBookLabel(page, book);
   await page.getByTestId("intent").fill("阿福发现刀");
   await page.getByTestId("write-next").click();
   await expect(page.locator(".card.draft").first()).toBeVisible();

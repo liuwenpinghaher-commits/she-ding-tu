@@ -51,6 +51,11 @@ export async function writeDraftBar(page: Page, intent: string) {
   return bar;
 }
 
+/** v3 建书要过 schema，关旧引擎再开新库常 >5s；默认 expect 5s 会空标。 */
+export async function waitBookLabel(page: Page, name: string) {
+  await expect(page.getByTestId("book-label")).toHaveText(name, { timeout: 30000 });
+}
+
 /** 点开刚写下的草稿卡，右边栏才能填。拖人不代替点选。 */
 export async function selectDraftCard(page: Page) {
   await openStripboard(page);
@@ -165,13 +170,20 @@ export const test = base.extend({
     await use(page);
     await page.keyboard.press("Escape").catch(() => {});
     await dismissPending(page).catch(() => {});
-    if (!page.isClosed() && created.length) {
-      await page.evaluate(async (names: string[]) => {
+    if (!page.isClosed()) {
+      await page.evaluate(async (tracked: string[]) => {
+        const names = new Set(tracked.filter((n) => n && n !== "渡口"));
+        try {
+          const listing = await (await fetch("/api/books", { signal: AbortSignal.timeout(8000) })).json();
+          for (const n of listing.books || []) if (n && n !== "渡口") names.add(n);
+        } catch { /* 没开服务 */ }
         for (const name of names) {
-          if (!name || name === "渡口") continue;
           try {
-            await fetch(`/api/books/${encodeURIComponent(name)}?confirm=${encodeURIComponent(name)}`, { method: "DELETE", signal: AbortSignal.timeout(5000) });
-          } catch { /* 已删或没开服务 */ }
+            await fetch(`/api/books/${encodeURIComponent(name)}?confirm=${encodeURIComponent(name)}`, {
+              method: "DELETE",
+              signal: AbortSignal.timeout(15000),
+            });
+          } catch { /* 已删 */ }
         }
       }, created).catch(() => {});
     }

@@ -1,5 +1,5 @@
 import { expect, type Page } from "@playwright/test";
-import { openTimeline, openWorkspaceTab, test, writeDraftBar } from "./helpers";
+import { openTimeline, openWorkspaceTab, test, writeDraftBar, waitBookLabel } from "./helpers";
 
 test.describe.configure({ timeout: 120000 });
 
@@ -7,7 +7,7 @@ async function boot(page: Page, book: string) {
   await page.goto("/");
   await page.getByTestId("book-name").fill(book);
   await page.getByTestId("create-book").click();
-  await expect(page.getByTestId("book-label")).toHaveText(book);
+  await waitBookLabel(page, book);
   await openTimeline(page);
 }
 
@@ -117,7 +117,7 @@ test("分屏两边过滤互不影响", async ({ page }) => {
   }, d.id);
   await writeDraft(page, "还是草稿");
   await page.reload();
-  await expect(page.getByTestId("book-label")).toHaveText(book);
+  await waitBookLabel(page, book);
   await page.getByTestId("split-view").click();
   await page.getByTestId("split-kind").selectOption("时间轴");
   await page.getByTestId("pane-main-filter-canon").click();

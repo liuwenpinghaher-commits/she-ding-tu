@@ -1,5 +1,5 @@
 import { expect, type Page } from "@playwright/test";
-import { openTimeline, test, writeDraftBar } from "./helpers";
+import { openTimeline, test, writeDraftBar, waitBookLabel } from "./helpers";
 
 test.describe.configure({ timeout: 120000 });
 
@@ -7,7 +7,7 @@ async function boot(page: Page, book: string) {
   await page.goto("/");
   await page.getByTestId("book-name").fill(book);
   await page.getByTestId("create-book").click();
-  await expect(page.getByTestId("book-label")).toHaveText(book);
+  await waitBookLabel(page, book);
   await openTimeline(page);
 }
 

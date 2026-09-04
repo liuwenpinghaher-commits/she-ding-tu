@@ -1,5 +1,5 @@
 import { expect } from "@playwright/test";
-import { openStripboard, test } from "./helpers";
+import { openStripboard, test, waitBookLabel } from "./helpers";
 
 test.describe.configure({ timeout: 120000 });
 
@@ -13,7 +13,7 @@ test("12.2 色带、窗口件、缺页面、看法", async ({ page }) => {
   await page.getByTestId("nb-premise").fill("夜里交信。");
   await page.getByTestId("nb-clock").fill("第一天 20:00");
   await page.getByTestId("nb-create").click();
-  await expect(page.getByTestId("book-label")).toHaveText(book);
+  await waitBookLabel(page, book);
   await openStripboard(page);
   await page.getByTestId("plus").click();
   await expect(page.getByTestId("col-count")).toHaveText("2");

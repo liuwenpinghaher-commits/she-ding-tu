@@ -1,5 +1,5 @@
 import { expect } from "@playwright/test";
-import { openStripboard, test } from "./helpers";
+import { openStripboard, test, waitBookLabel } from "./helpers";
 
 test.describe.configure({ timeout: 120000 });
 
@@ -14,7 +14,7 @@ test("方案第9节九条：建书到删正史", async ({ page }) => {
   await page.getByTestId("nb-premise").fill("渡口夜里要把信交出去。");
   await page.getByTestId("nb-clock").fill("第一天 20:00");
   await page.getByTestId("nb-create").click();
-  await expect(page.getByTestId("book-label")).toHaveText(book);
+  await waitBookLabel(page, book);
   await expect(page.getByTestId("new-book-page")).not.toHaveClass(/show/);
   await openStripboard(page);
 
@@ -164,7 +164,7 @@ test("键盘走完写场、并列、本场变化", async ({ page }) => {
   await page.goto("/");
   await page.getByTestId("book-name").fill(book);
   await page.getByTestId("create-book").click();
-  await expect(page.getByTestId("book-label")).toHaveText(book);
+  await waitBookLabel(page, book);
   await openStripboard(page);
   await page.getByTestId("ent-name").fill("阿禾");
   await page.getByTestId("new-entity").click();

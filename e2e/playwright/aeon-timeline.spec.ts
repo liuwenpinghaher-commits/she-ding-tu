@@ -1,5 +1,5 @@
 import { expect } from "@playwright/test";
-import { openTimeline, openWorkspaceTab, test, writeDraftBar } from "./helpers";
+import { openTimeline, openWorkspaceTab, test, writeDraftBar, waitBookLabel } from "./helpers";
 
 test.describe.configure({ timeout: 120000 });
 
@@ -8,7 +8,7 @@ test("打开书第一眼是时间轴，能缩放、切分场条、双击建草�
   await page.goto("/");
   await page.getByTestId("book-name").fill(book);
   await page.getByTestId("create-book").click();
-  await expect(page.getByTestId("book-label")).toHaveText(book);
+  await waitBookLabel(page, book);
   await expect(page.getByTestId("stripboard")).toBeVisible();
   await openTimeline(page);
   await expect(page.getByTestId("tl-ruler")).toBeVisible();
@@ -76,7 +76,7 @@ test("打开渡口第一眼是按钟的条，按人分组能看见阿禾阿莲",
   await page.goto("/");
   await page.getByTestId("book-name").fill("渡口");
   await page.getByTestId("open-book").click();
-  await expect(page.getByTestId("book-label")).toHaveText("渡口");
+  await waitBookLabel(page, "渡口");
   await openTimeline(page);
   await expect(page.locator(".tl-bar").first()).toBeVisible();
   const chrome = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--chrome").trim());

@@ -2,7 +2,7 @@
 
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
-use surrealdb::types::SurrealValue;
+use surrealdb::types::{SurrealValue, ToSql};
 
 use crate::cli::output::{print_error, print_success, OutputMode};
 use crate::cli::resolve::{bare_key, entity_type_from_id};
@@ -69,7 +69,8 @@ pub async fn handle_update(
                 if mode == OutputMode::Json {
                     println!(
                         r#"{{"status": "ok", "id": "{}", "name": "{}"}}"#,
-                        u.id, display_name
+                        u.id.to_sql(),
+                        display_name
                     );
                 } else {
                     print_success(&format!("Updated {} '{}'", entity_type, display_name));

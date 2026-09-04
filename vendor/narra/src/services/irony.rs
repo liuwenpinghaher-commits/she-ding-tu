@@ -251,7 +251,7 @@ impl IronyDataProvider for SurrealIronyDataProvider {
     }
 
     async fn get_fact_text(&self, target: &RecordId) -> Result<String, NarraError> {
-        let target_str = target.to_string();
+        let target_str = target.to_sql();
         let key = target.key.to_sql();
         let table = target_str.split(':').next().unwrap_or("unknown");
 
@@ -286,7 +286,7 @@ impl IronyDataProvider for SurrealIronyDataProvider {
                     .map(|n| format!("knows about {}", n.name))
                     .unwrap_or_else(|| format!("character:{}", key)))
             }
-            _ => Ok(target.to_string()),
+            _ => Ok(target.to_sql()),
         }
     }
 

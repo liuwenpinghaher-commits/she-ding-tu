@@ -67,7 +67,7 @@ pub struct Violation {
 // ============================================================================
 
 /// Aggregated validation result grouping violations by severity.
-#[derive(Debug, Clone, Serialize, Deserialize, SurrealValue)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ValidationResult {
     /// Whether the validation passed (no Critical violations)
     pub is_valid: bool,

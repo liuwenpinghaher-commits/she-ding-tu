@@ -248,7 +248,7 @@ impl NarraServer {
         let mut entity_results = Vec::new();
 
         for dr in &drift_results {
-            let eid = dr.entity_id.to_string();
+            let eid = dr.entity_id.to_sql();
 
             // Fetch first and last embeddings
             let first_query = format!(
@@ -953,7 +953,7 @@ impl NarraServer {
             let event_info = snap
                 .event_id
                 .as_ref()
-                .map(|eid| format!(" (during: {})", eid))
+                .map(|eid| format!(" (during: {})", eid.to_sql()))
                 .unwrap_or_default();
 
             let content = format!(

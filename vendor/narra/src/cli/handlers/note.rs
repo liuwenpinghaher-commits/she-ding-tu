@@ -71,7 +71,8 @@ pub async fn create_note(
     } else {
         print_success(&format!(
             "Created note '{}' ({})",
-            created.title, created.id
+            created.title,
+            created.id.to_sql()
         ));
     }
     Ok(())

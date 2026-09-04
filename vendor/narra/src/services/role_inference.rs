@@ -396,7 +396,7 @@ impl RoleInferenceDataProvider for SurrealRoleInferenceDataProvider {
         let mut holds_false: HashMap<String, usize> = HashMap::with_capacity(n);
 
         for k in &knows {
-            let knower = k.knower.to_string();
+            let knower = k.knower.to_sql();
             let target = k.target.to_sql();
             *knowledge_count.entry(knower.clone()).or_default() += 1;
 

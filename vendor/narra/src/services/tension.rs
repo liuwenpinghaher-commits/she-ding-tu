@@ -12,6 +12,7 @@ use async_trait::async_trait;
 use serde::Serialize;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
+use surrealdb::types::{SurrealValue, ToSql};
 
 use crate::db::connection::NarraDb;
 use crate::models::{CertaintyLevel, KnowledgeState};

@@ -25,6 +25,7 @@ use narra::services::world::{
     KIND_RULE, KIND_THING, ROLE_PRESENT, STATUS_COMMITTED, World,
 };
 use serde::{Deserialize, Serialize};
+use surrealdb::types::SurrealValue;
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -4643,19 +4644,19 @@ async fn official_bridge(
         .query("SELECT count() AS n FROM setting_window GROUP ALL")
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-    #[derive(Debug, serde::Deserialize, serde::Serialize)]
+    #[derive(Debug, serde::Deserialize, serde::Serialize, SurrealValue)]
     struct SceneRow {
         intent: Option<String>,
         title: Option<String>,
         status: Option<String>,
         commit_seq: Option<i64>,
     }
-    #[derive(Debug, serde::Deserialize, serde::Serialize)]
+    #[derive(Debug, serde::Deserialize, serde::Serialize, SurrealValue)]
     struct CharRow {
         name: Option<String>,
         aliases: Option<Vec<String>>,
     }
-    #[derive(Debug, serde::Deserialize)]
+    #[derive(Debug, serde::Deserialize, SurrealValue)]
     struct CountRow {
         n: Option<i64>,
     }

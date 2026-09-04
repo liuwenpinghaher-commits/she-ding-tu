@@ -7,7 +7,7 @@ DEFINE FIELD description ON universe_fact TYPE string;
 DEFINE FIELD categories ON universe_fact TYPE array;
 DEFINE FIELD categories.* ON universe_fact TYPE string;
 DEFINE FIELD enforcement_level ON universe_fact TYPE string;
-DEFINE FIELD scope ON universe_fact FLEXIBLE;
+DEFINE FIELD scope ON universe_fact TYPE object FLEXIBLE;
 DEFINE FIELD created_at ON universe_fact TYPE datetime VALUE time::now() READONLY;
 DEFINE FIELD updated_at ON universe_fact TYPE datetime VALUE time::now();
 DEFINE INDEX idx_fact_title ON universe_fact FIELDS title;

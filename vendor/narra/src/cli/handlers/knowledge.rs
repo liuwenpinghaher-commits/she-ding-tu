@@ -135,7 +135,10 @@ pub async fn record_knowledge(
             } else {
                 print_success(&format!(
                     "Recorded knowledge: {} {:?} '{}' ({})",
-                    char_key, certainty_level, fact, state.id
+                    char_key,
+                    certainty_level,
+                    fact,
+                    state.id.to_sql()
                 ));
             }
         }
@@ -145,7 +148,8 @@ pub async fn record_knowledge(
             } else {
                 print_error(&format!(
                     "Knowledge created ({}) but state edge failed: {}",
-                    knowledge.id, e
+                    knowledge.id.to_sql(),
+                    e
                 ));
             }
         }

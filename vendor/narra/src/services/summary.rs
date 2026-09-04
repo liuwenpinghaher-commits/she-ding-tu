@@ -6,7 +6,7 @@ use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 use std::time::Duration;
-use surrealdb::types::SurrealValue;
+use surrealdb::types::{SurrealValue, ToSql};
 
 use crate::repository::{EntityRepository, SurrealEntityRepository};
 use crate::NarraError;
@@ -267,8 +267,8 @@ impl CachedSummaryService {
             if let Some(summary) = &s.summary {
                 parts.push(format!("Summary: {}", summary));
             }
-            parts.push(format!("Event: {}", s.event));
-            parts.push(format!("Location: {}", s.primary_location));
+            parts.push(format!("Event: {}", s.event.to_sql()));
+            parts.push(format!("Location: {}", s.primary_location.to_sql()));
 
             (parts.join("\n"), name)
         }))

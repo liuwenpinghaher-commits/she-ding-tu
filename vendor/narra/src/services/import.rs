@@ -204,7 +204,7 @@ impl ImportService {
 
         for spec in specs {
             let parent_record_id = match spec.parent_id.as_ref() {
-                Some(pid) => match pid.parse::<RecordId>() {
+                Some(pid) => match RecordId::parse_simple(pid).map_err(|e| e.to_string()) {
                     Ok(rid) => Some(rid),
                     Err(e) => {
                         result.errors.push(format!(
@@ -416,7 +416,7 @@ impl ImportService {
         };
 
         for spec in specs {
-            let event_rid: RecordId = match spec.event_id.parse() {
+            let event_rid: RecordId = match RecordId::parse_simple(&spec.event_id).map_err(|e| e.to_string()) {
                 Ok(rid) => rid,
                 Err(e) => {
                     result.errors.push(format!(
@@ -427,7 +427,7 @@ impl ImportService {
                 }
             };
 
-            let location_rid: RecordId = match spec.location_id.parse() {
+            let location_rid: RecordId = match RecordId::parse_simple(&spec.location_id).map_err(|e| e.to_string()) {
                 Ok(rid) => rid,
                 Err(e) => {
                     result.errors.push(format!(
@@ -442,7 +442,7 @@ impl ImportService {
                 let mut locs = Vec::new();
                 let mut has_error = false;
                 for sl in &spec.secondary_locations {
-                    match sl.parse::<RecordId>() {
+                    match RecordId::parse_simple(sl).map_err(|e| e.to_string()) {
                         Ok(rid) => locs.push(rid),
                         Err(e) => {
                             result.errors.push(format!(
@@ -626,7 +626,8 @@ impl ImportService {
 
         for spec in specs {
             // Step 1: Create knowledge entity
-            let char_record_id: RecordId = match spec.character_id.parse() {
+            let char_record_id: RecordId = match RecordId::parse_simple(&spec.character_id).map_err(|e| e.to_string())
+            {
                 Ok(rid) => rid,
                 Err(e) => {
                     result.errors.push(format!(

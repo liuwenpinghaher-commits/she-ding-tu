@@ -350,7 +350,8 @@ pub async fn create_character(
     } else {
         print_success(&format!(
             "Created character '{}' ({})",
-            character.name, character.id
+            character.name,
+            character.id.to_sql()
         ));
     }
     Ok(())
@@ -424,7 +425,8 @@ pub async fn create_location(
     } else {
         print_success(&format!(
             "Created location '{}' ({})",
-            location.name, location.id
+            location.name,
+            location.id.to_sql()
         ));
     }
     Ok(())
@@ -512,7 +514,9 @@ pub async fn create_event(
     } else {
         print_success(&format!(
             "Created event '{}' (seq={}, {})",
-            event.title, event.sequence, event.id
+            event.title,
+            event.sequence,
+            event.id.to_sql()
         ));
     }
     Ok(())
@@ -627,7 +631,11 @@ pub async fn create_scene(
     if mode == OutputMode::Json {
         output_json(&scene);
     } else {
-        print_success(&format!("Created scene '{}' ({})", scene.title, scene.id));
+        print_success(&format!(
+            "Created scene '{}' ({})",
+            scene.title,
+            scene.id.to_sql()
+        ));
     }
     Ok(())
 }

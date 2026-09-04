@@ -6,4 +6,4 @@ REMOVE FIELD desires ON character;
 REMOVE FIELD contradictions ON character;
 
 -- Add flexible profile field (allows arbitrary nested structure for fiction frameworks)
-DEFINE FIELD profile ON character FLEXIBLE TYPE object DEFAULT {};
+DEFINE FIELD profile ON character TYPE object FLEXIBLE DEFAULT {};

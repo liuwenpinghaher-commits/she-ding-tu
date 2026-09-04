@@ -1,5 +1,6 @@
 use crate::mcp::{EntityResult, MutationResponse, NarraServer};
 use crate::models::{CharacterCreate, EventCreate, LocationCreate, SceneCreate};
+use surrealdb::types::{RecordId, ToSql};
 
 impl NarraServer {
     pub(crate) async fn handle_create_character(
@@ -86,7 +87,6 @@ impl NarraServer {
         parent_id: Option<String>,
     ) -> Result<MutationResponse, String> {
         use crate::models::location::{create_location, create_location_with_id};
-        use surrealdb::types::{RecordId, ToSql};
 
         // Build creation data for consistency check
         let creation_data = serde_json::json!({
@@ -109,7 +109,7 @@ impl NarraServer {
 
         let parent_record_id = parent_id
             .as_ref()
-            .map(|id| id.parse::<RecordId>())
+            .map(|id| RecordId::parse_simple(id).map_err(|e| e.to_string()))
             .transpose()
             .map_err(|e| format!("Invalid parent_id: {}", e))?;
 
@@ -251,7 +251,6 @@ impl NarraServer {
         location_id: String,
     ) -> Result<MutationResponse, String> {
         use crate::models::scene::create_scene;
-        use surrealdb::types::RecordId;
 
         // Build creation data for consistency check
         let creation_data = serde_json::json!({
@@ -271,12 +270,10 @@ impl NarraServer {
         let consistency_warnings = self
             .process_consistency_result(&consistency_result, &format!("Create scene {}", title))?;
 
-        let event_record_id = event_id
-            .parse::<RecordId>()
+        let event_record_id = RecordId::parse_simple(&event_id)
             .map_err(|e| format!("Invalid event_id: {}", e))?;
 
-        let location_record_id = location_id
-            .parse::<RecordId>()
+        let location_record_id = RecordId::parse_simple(&location_id)
             .map_err(|e| format!("Invalid location_id: {}", e))?;
 
         let create = SceneCreate {
@@ -389,9 +386,10 @@ impl NarraServer {
                     loc_type: fields
                         .get("loc_type")
                         .and_then(|v| v.as_str().map(String::from)),
-                    parent: fields
-                        .get("parent")
-                        .map(|v| v.as_str().and_then(|s| s.parse().ok())),
+                    parent: fields.get("parent").map(|v| {
+                        v.as_str()
+                            .and_then(|s| RecordId::parse_simple(s).ok())
+                    }),
                     updated_at: chrono::Utc::now().into(),
                 };
 
@@ -446,10 +444,11 @@ impl NarraServer {
                     summary: fields.get("summary").map(|v| v.as_str().map(String::from)),
                     event: fields
                         .get("event")
-                        .and_then(|v| v.as_str().and_then(|s| s.parse().ok())),
-                    primary_location: fields
-                        .get("primary_location")
-                        .and_then(|v| v.as_str().and_then(|s| s.parse().ok())),
+                        .and_then(|v| v.as_str().and_then(|s| RecordId::parse_simple(s).ok())),
+                    primary_location: fields.get("primary_location").and_then(|v| {
+                        v.as_str()
+                            .and_then(|s| RecordId::parse_simple(s).ok())
+                    }),
                     secondary_locations: fields
                         .get("secondary_locations")
                         .and_then(|v| serde_json::from_value(v.clone()).ok()),

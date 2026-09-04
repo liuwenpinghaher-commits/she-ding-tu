@@ -1,6 +1,7 @@
 use crate::mcp::types::KnowledgeSpec;
 use crate::mcp::{EntityResult, MutationResponse, NarraServer};
 use crate::models::{CertaintyLevel, KnowledgeStateCreate, LearningMethod};
+use surrealdb::types::{RecordId, ToSql};
 
 impl NarraServer {
     #[allow(clippy::too_many_arguments)]
@@ -15,7 +16,6 @@ impl NarraServer {
         event_id: Option<String>,
     ) -> Result<MutationResponse, String> {
         use crate::models::knowledge::{create_knowledge, create_knowledge_state, KnowledgeCreate};
-        use surrealdb::types::{RecordId, ToSql};
 
         // Build creation data for consistency check
         let creation_data = serde_json::json!({
@@ -50,8 +50,7 @@ impl NarraServer {
         // Step 1: Create knowledge entity with the fact
         // The knowledge entity stores: character (the knower) + fact (the information)
         // The target_id from the API is incorporated into the fact text
-        let char_record_id: RecordId = character_id
-            .parse()
+        let char_record_id = RecordId::parse_simple(&character_id)
             .map_err(|e| format!("Invalid character_id: {}", e))?;
 
         let knowledge_entity = create_knowledge(

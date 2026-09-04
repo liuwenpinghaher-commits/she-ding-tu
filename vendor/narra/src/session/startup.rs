@@ -154,10 +154,11 @@ async fn query_world_overview(db: &NarraDb) -> Result<WorldOverview, NarraError>
 /// Get entity details for hot entities.
 async fn get_hot_entity_details(db: &NarraDb, entity_ids: &[String]) -> Vec<HotEntity> {
     use serde::Deserialize;
+    use surrealdb::types::SurrealValue;
 
     let mut hot_entities = Vec::new();
 
-    #[derive(Deserialize)]
+    #[derive(Deserialize, SurrealValue)]
     struct NameOnly {
         name: String,
     }

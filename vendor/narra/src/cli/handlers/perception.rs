@@ -2,7 +2,7 @@
 
 use anyhow::Result;
 use serde::Serialize;
-use surrealdb::types::SurrealValue;
+use surrealdb::types::{SurrealValue, ToSql};
 
 use crate::cli::output::{
     create_spinner, output_json, print_header, print_hint, print_kv, print_success, print_table,
@@ -306,7 +306,9 @@ pub async fn create_perception(
     } else {
         print_success(&format!(
             "Recorded perception: {} -> {} ({})",
-            observer, target, result.id
+            observer,
+            target,
+            result.id.to_sql()
         ));
     }
 

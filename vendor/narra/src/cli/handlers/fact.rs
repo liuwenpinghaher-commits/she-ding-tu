@@ -123,7 +123,8 @@ pub async fn create_fact(
     } else {
         print_success(&format!(
             "Created fact '{}' ({})",
-            created.title, created.id
+            created.title,
+            created.id.to_sql()
         ));
     }
     Ok(())
@@ -162,7 +163,11 @@ pub async fn update_fact(
             if mode == OutputMode::Json {
                 output_json(&f);
             } else {
-                print_success(&format!("Updated fact '{}' ({})", f.title, f.id));
+                print_success(&format!(
+                    "Updated fact '{}' ({})",
+                    f.title,
+                    f.id.to_sql()
+                ));
             }
         }
         None => print_error(&format!("Fact '{}' not found", id)),
@@ -179,7 +184,11 @@ pub async fn delete_fact(ctx: &AppContext, id: &str, mode: OutputMode) -> Result
             if mode == OutputMode::Json {
                 output_json(&f);
             } else {
-                print_success(&format!("Deleted fact '{}' ({})", f.title, f.id));
+                print_success(&format!(
+                    "Deleted fact '{}' ({})",
+                    f.title,
+                    f.id.to_sql()
+                ));
             }
         }
         None => print_error(&format!("Fact '{}' not found", id)),

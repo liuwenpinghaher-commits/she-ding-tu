@@ -88,7 +88,10 @@ pub async fn create_relationship(
     } else {
         print_success(&format!(
             "Created {} relationship: {} -> {} ({})",
-            rel.rel_type, rel.from_character, rel.to_character, rel.id,
+            rel.rel_type,
+            rel.from_character.to_sql(),
+            rel.to_character.to_sql(),
+            rel.id.to_sql(),
         ));
     }
 

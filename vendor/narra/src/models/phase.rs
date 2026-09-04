@@ -8,10 +8,11 @@ use crate::db::connection::NarraDb;
 use crate::NarraError;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use surrealdb::{Datetime, RecordId};
+use surrealdb::types::{Datetime, RecordId, SurrealValue};
+use crate::db::compat::RecordIdExt;
 
 /// A persisted narrative phase.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, SurrealValue)]
 pub struct Phase {
     pub id: RecordId,
     pub name: String,
@@ -29,7 +30,8 @@ pub struct Phase {
 }
 
 /// Data for creating a new phase.
-#[derive(Debug, Clone, Serialize)]
+// TODO-SURREAL3: HashMap<String, serde_json::Value> may not impl SurrealValue; hermes compile will tell.
+#[derive(Debug, Clone, Serialize, SurrealValue)]
 pub struct PhaseCreate {
     pub name: String,
     pub label: String,
@@ -46,7 +48,7 @@ pub struct PhaseCreate {
 }
 
 /// A membership edge: entity belongs to a phase.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, SurrealValue)]
 pub struct PhaseMembership {
     pub id: RecordId,
     #[serde(rename = "in")]
@@ -93,7 +95,7 @@ pub async fn delete_all_phases(db: &NarraDb) -> Result<usize, NarraError> {
     // Count before deleting
     let mut count_resp = db.query("SELECT count() FROM phase GROUP ALL").await?;
 
-    #[derive(Deserialize)]
+    #[derive(Deserialize, SurrealValue)]
     struct CountResult {
         count: i64,
     }
@@ -121,8 +123,8 @@ pub async fn create_membership(
     let (entity_table, entity_key) = entity_id
         .split_once(':')
         .ok_or_else(|| NarraError::Validation(format!("Invalid entity ID: {}", entity_id)))?;
-    let entity_ref = RecordId::from((entity_table, entity_key));
-    let phase_ref = RecordId::from(("phase", phase_id));
+    let entity_ref = RecordId::new(entity_table, entity_key);
+    let phase_ref = RecordId::new("phase", phase_id);
 
     let mut result = db
         .query(
@@ -149,7 +151,7 @@ pub async fn get_phase_members(
     db: &NarraDb,
     phase_id: &str,
 ) -> Result<Vec<PhaseMembership>, NarraError> {
-    let phase_ref = RecordId::from(("phase", phase_id));
+    let phase_ref = RecordId::new("phase", phase_id);
     let mut result = db
         .query("SELECT * FROM belongs_to_phase WHERE out = $phase_ref ORDER BY centrality DESC")
         .bind(("phase_ref", phase_ref))

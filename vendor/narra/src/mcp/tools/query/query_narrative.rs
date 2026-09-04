@@ -3,6 +3,7 @@ use crate::mcp::{EntityResult, QueryResponse};
 use crate::models::knowledge::find_knowledge_conflicts;
 use crate::services::EntityType;
 use crate::utils::math::cosine_similarity;
+use surrealdb::types::SurrealValue;
 
 use super::parse_entity_types;
 
@@ -413,7 +414,7 @@ impl NarraServer {
             .await
             .map_err(|e| format!("Failed to fetch perceives edges: {}", e))?;
 
-        #[derive(serde::Deserialize)]
+        #[derive(serde::Deserialize, SurrealValue)]
         struct PerceivesEdgeData {
             observer_id: String,
             target_id: String,
@@ -548,7 +549,7 @@ impl NarraServer {
                 .await
                 .map_err(|e| format!("Failed to fetch scene participation: {}", e))?;
 
-            #[derive(serde::Deserialize)]
+            #[derive(serde::Deserialize, SurrealValue)]
             struct ParticipationRecord {
                 char_id: String,
                 scene_id: String,

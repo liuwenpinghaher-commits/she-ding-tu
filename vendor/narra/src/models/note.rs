@@ -6,12 +6,12 @@
 
 use crate::db::connection::NarraDb;
 use serde::{Deserialize, Serialize};
-use surrealdb::{Datetime, RecordId};
+use surrealdb::types::{Datetime, RecordId, SurrealValue};
 
 use crate::NarraError;
 
 /// A freeform note with optional entity attachments.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, SurrealValue)]
 pub struct Note {
     pub id: RecordId,
     pub title: String,
@@ -21,14 +21,14 @@ pub struct Note {
 }
 
 /// Data for creating a new note.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, SurrealValue)]
 pub struct NoteCreate {
     pub title: String,
     pub body: String,
 }
 
 /// Data for updating an existing note.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, SurrealValue)]
 pub struct NoteUpdate {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub title: Option<String>,
@@ -37,7 +37,7 @@ pub struct NoteUpdate {
 }
 
 /// An attachment edge from note to any entity.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, SurrealValue)]
 pub struct NoteAttachment {
     pub id: RecordId,
     #[serde(rename = "in")]
@@ -176,11 +176,11 @@ pub async fn attach_note(
     note_id: &str,
     entity_id: &str,
 ) -> Result<NoteAttachment, NarraError> {
-    let note_ref = RecordId::from(("note", note_id));
+    let note_ref = RecordId::new("note", note_id);
     let (table, key) = entity_id
         .split_once(':')
         .ok_or_else(|| NarraError::Validation(format!("Invalid entity ID: {}", entity_id)))?;
-    let entity_ref = RecordId::from((table, key));
+    let entity_ref = RecordId::new(table, key);
 
     let mut result = db
         .query("RELATE $from->note_attachment->$to")
@@ -203,11 +203,11 @@ pub async fn attach_note(
 ///
 /// Ok(()) if detachment succeeded (or edge didn't exist).
 pub async fn detach_note(db: &NarraDb, note_id: &str, entity_id: &str) -> Result<(), NarraError> {
-    let note_ref = RecordId::from(("note", note_id));
+    let note_ref = RecordId::new("note", note_id);
     let (table, key) = entity_id
         .split_once(':')
         .ok_or_else(|| NarraError::Validation(format!("Invalid entity ID: {}", entity_id)))?;
-    let entity_ref = RecordId::from((table, key));
+    let entity_ref = RecordId::new(table, key);
 
     db.query("DELETE note_attachment WHERE in = $note_ref AND out = $entity_ref")
         .bind(("note_ref", note_ref))
@@ -230,7 +230,7 @@ pub async fn get_note_attachments(
     db: &NarraDb,
     note_id: &str,
 ) -> Result<Vec<NoteAttachment>, NarraError> {
-    let note_ref = RecordId::from(("note", note_id));
+    let note_ref = RecordId::new("note", note_id);
     let mut result = db
         .query("SELECT * FROM note_attachment WHERE in = $note_ref")
         .bind(("note_ref", note_ref))
@@ -253,7 +253,7 @@ pub async fn get_entity_notes(db: &NarraDb, entity_id: &str) -> Result<Vec<Note>
     let (table, key) = entity_id
         .split_once(':')
         .ok_or_else(|| NarraError::Validation(format!("Invalid entity ID: {}", entity_id)))?;
-    let entity_ref = RecordId::from((table, key));
+    let entity_ref = RecordId::new(table, key);
 
     let mut result = db
         .query("SELECT in.* AS note FROM note_attachment WHERE out = $entity_ref")
@@ -261,7 +261,7 @@ pub async fn get_entity_notes(db: &NarraDb, entity_id: &str) -> Result<Vec<Note>
         .await?;
 
     // Result comes back with note field containing the Note
-    #[derive(Deserialize)]
+    #[derive(Deserialize, SurrealValue)]
     struct NoteWrapper {
         note: Note,
     }

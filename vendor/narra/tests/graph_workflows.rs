@@ -3,6 +3,7 @@
 //! Tests perception edges, graph traversal, and Mermaid diagram generation.
 
 mod common;
+use narra::db::compat::RecordIdExt;
 
 use narra::models::perception::{create_perception, get_perceptions_from, PerceptionCreate};
 use narra::repository::{

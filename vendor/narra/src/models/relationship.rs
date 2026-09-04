@@ -1,6 +1,6 @@
 use crate::db::connection::NarraDb;
 use serde::{Deserialize, Serialize};
-use surrealdb::{Datetime, RecordId};
+use surrealdb::types::{Datetime, RecordId, SurrealValue};
 
 use crate::NarraError;
 
@@ -19,7 +19,7 @@ use crate::NarraError;
 /// - alliance
 ///
 /// Types are user-extensible (not enforced by schema).
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, SurrealValue)]
 pub struct Relationship {
     pub id: RecordId,
     #[serde(rename = "in")]

@@ -1,4 +1,5 @@
 mod common;
+use narra::db::compat::RecordIdExt;
 
 use common::harness::TestHarness;
 use narra::mcp::tools::ExportRequest;

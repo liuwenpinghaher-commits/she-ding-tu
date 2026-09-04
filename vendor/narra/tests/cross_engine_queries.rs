@@ -7,6 +7,8 @@
 //! - Error paths when embedding service unavailable
 
 mod common;
+use surrealdb::types::SurrealValue;
+use narra::db::compat::RecordIdExt;
 
 use std::sync::Arc;
 
@@ -713,7 +715,7 @@ async fn test_record_knowledge_generates_embedding() {
     tokio::time::sleep(std::time::Duration::from_secs(3)).await;
 
     // Verify knowledge has embedding
-    #[derive(serde::Deserialize)]
+    #[derive(serde::Deserialize, SurrealValue)]
     struct EmbCheck {
         embedding: Option<Vec<f32>>,
         embedding_stale: Option<bool>,

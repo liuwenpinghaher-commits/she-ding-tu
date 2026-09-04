@@ -3,6 +3,7 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
+use surrealdb::types::SurrealValue;
 
 use crate::repository::{RelationshipRepository, SurrealRelationshipRepository};
 use crate::services::summary::{CachedSummaryService, DetailLevel, SummaryService};
@@ -12,7 +13,7 @@ use crate::NarraError;
 pub use crate::services::summary::EntityFullContent;
 
 /// An entity with its context relevance score.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, SurrealValue)]
 pub struct ScoredEntity {
     /// Entity ID (e.g., "character:alice")
     pub id: String,
@@ -31,7 +32,7 @@ pub struct ScoredEntity {
 }
 
 /// Breakdown of how relevance score was calculated.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, SurrealValue)]
 pub struct ScoreBreakdown {
     /// Score from direct mention in query
     pub mention_score: f32,
@@ -44,7 +45,7 @@ pub struct ScoreBreakdown {
 }
 
 /// Context retrieval response with token estimation.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, SurrealValue)]
 pub struct ContextResponse {
     /// Scored and sorted entities
     pub entities: Vec<ScoredEntity>,

@@ -3,6 +3,8 @@ use crate::mcp::{EntityResult, QueryResponse, SearchMetadataFilter};
 use crate::repository::RelationshipRepository;
 use crate::services::{EntityType, SearchFilter};
 use crate::utils::math::cosine_similarity;
+use surrealdb::types::SurrealValue;
+use crate::db::compat::RecordIdExt;
 
 use super::{parse_entity_types, parse_metadata_filter};
 
@@ -336,9 +338,9 @@ impl NarraServer {
             .map_err(|e| format!("Failed to embed query: {}", e))?;
 
         // Perform cross-table vector search in parallel via try_join_all
-        #[derive(serde::Deserialize)]
+        #[derive(serde::Deserialize, SurrealValue)]
         struct SearchResultInternal {
-            id: surrealdb::sql::Thing,
+            id: surrealdb::types::RecordId,
             entity_type: String,
             name: String,
             score: f32,
@@ -487,9 +489,9 @@ impl NarraServer {
             .await
             .map_err(|e| format!("Semantic knowledge query failed: {}", e))?;
 
-        #[derive(serde::Deserialize)]
+        #[derive(serde::Deserialize, SurrealValue)]
         struct KnowledgeSearchResult {
-            id: surrealdb::sql::Thing,
+            id: surrealdb::types::RecordId,
             entity_type: String,
             name: String,
             score: f32,
@@ -643,9 +645,9 @@ impl NarraServer {
                         .await
                         .map_err(|e| format!("Failed to fetch embeddings: {}", e))?;
 
-                    #[derive(serde::Deserialize)]
+                    #[derive(serde::Deserialize, SurrealValue)]
                     struct EntityWithEmbedding {
-                        id: surrealdb::sql::Thing,
+                        id: surrealdb::types::RecordId,
                         entity_type: String,
                         name: String,
                         embedding: Vec<f32>,

@@ -1,6 +1,7 @@
 //! Note CRUD handlers for CLI.
 
 use anyhow::Result;
+use crate::db::compat::RecordIdExt;
 
 use crate::cli::output::{
     output_json, output_json_list, print_error, print_success, print_table, OutputMode,

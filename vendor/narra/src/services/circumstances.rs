@@ -3,9 +3,10 @@
 use crate::services::world::{
     Beat, BeatDraft, Canon, World, ROLE_PRESENT, STATUS_COMMITTED, BEAT_SCENE, BEAT_ELLIPSIS,
 };
+use surrealdb::types::SurrealValue;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default, SurrealValue)]
 pub struct OpenPromise {
     pub id: String,
     pub name: String,
@@ -16,7 +17,7 @@ pub struct OpenPromise {
     pub related: Vec<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default, SurrealValue)]
 pub struct ScenePacket {
     pub intent: String,
     pub stakes: Vec<String>,
@@ -36,7 +37,7 @@ pub struct ScenePacket {
 }
 
 /// 给人看，不进 ScenePacket。
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, SurrealValue)]
 pub struct PromiseSuggestion {
     pub promise_id: String,
     pub op: String,

@@ -1,6 +1,7 @@
 //! Knowledge command handlers for CLI.
 
 use anyhow::Result;
+use crate::db::compat::RecordIdExt;
 
 use crate::cli::output::{
     output_json, output_json_list, print_error, print_success, print_table, OutputMode,
@@ -85,7 +86,7 @@ pub async fn record_knowledge(
     let knowledge = ctx
         .knowledge_repo
         .create_knowledge(KnowledgeCreate {
-            character: surrealdb::RecordId::from(("character", char_key.as_str())),
+            character: surrealdb::types::RecordId::new("character", char_key.as_str()),
             fact: fact.to_string(),
         })
         .await?;

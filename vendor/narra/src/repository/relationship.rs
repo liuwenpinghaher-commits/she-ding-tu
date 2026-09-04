@@ -1,4 +1,5 @@
 use crate::db::connection::NarraDb;
+use crate::db::compat::RecordIdExt;
 use crate::models::{
     Involvement, InvolvementCreate, Perception, PerceptionCreate, Relationship, RelationshipCreate,
     SceneParticipant, SceneParticipantCreate,
@@ -186,11 +187,11 @@ impl RelationshipRepository for SurrealRelationshipRepository {
             }
 
             // Convert frontier strings to RecordIds for parameterized query
-            let refs: Vec<surrealdb::RecordId> = frontier
+            let refs: Vec<surrealdb::types::RecordId> = frontier
                 .iter()
                 .filter_map(|id| {
                     let (table, key) = id.split_once(':')?;
-                    Some(surrealdb::RecordId::from((table, key)))
+                    Some(surrealdb::types::RecordId::new(table, key))
                 })
                 .collect();
 
@@ -209,7 +210,7 @@ impl RelationshipRepository for SurrealRelationshipRepository {
             // Collect all neighbors from all 4 query results
             let mut next_frontier = Vec::new();
             for i in 0..4 {
-                let neighbors: Vec<surrealdb::sql::Thing> = response.take(i).unwrap_or_default();
+                let neighbors: Vec<surrealdb::types::RecordId> = response.take(i).unwrap_or_default();
                 for neighbor in neighbors {
                     let id_str = neighbor.to_string();
                     if visited.insert(id_str.clone()) {

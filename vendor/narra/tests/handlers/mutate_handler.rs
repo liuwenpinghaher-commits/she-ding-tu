@@ -5,6 +5,7 @@
 //! MutationResponse structures.
 
 use insta::assert_snapshot;
+use narra::db::compat::RecordIdExt;
 use narra::mcp::{
     CharacterSpec, DetailLevel, EventSpec, LocationSpec, MutationRequest, QueryRequest,
     RelationshipSpec,

@@ -8,6 +8,7 @@
 //! Uses raw DB queries to set up test data without embedding dependencies.
 
 mod common;
+use narra::db::compat::RecordIdExt;
 
 use std::sync::Arc;
 

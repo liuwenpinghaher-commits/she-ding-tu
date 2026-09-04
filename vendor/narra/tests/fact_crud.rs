@@ -3,6 +3,7 @@
 //! Tests cover FACT-01 (create), FACT-02 (categorize), FACT-03 (enforcement levels),
 //! FACT-04 (update/delete) at the database level.
 
+use narra::db::compat::RecordIdExt;
 use narra::db::{
     connection::{init_db, DbConfig},
     schema::apply_schema,
@@ -11,7 +12,7 @@ use narra::models::fact::{
     create_fact, delete_fact, get_fact, list_facts, update_fact, EnforcementLevel, FactCategory,
     FactCreate, FactScope, FactUpdate, PovScope, TemporalScope,
 };
-use surrealdb::Datetime;
+use surrealdb::types::Datetime;
 use tempfile::tempdir;
 
 #[tokio::test]

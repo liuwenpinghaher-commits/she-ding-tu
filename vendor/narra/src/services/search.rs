@@ -3,14 +3,17 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
+use surrealdb::types::SurrealValue;
+use crate::db::compat::RecordIdExt;
 
 use crate::embedding::reranker::RerankerService;
 use crate::embedding::EmbeddingService;
 use crate::NarraError;
 
 /// Entity types for search filtering.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, SurrealValue)]
 #[serde(rename_all = "lowercase")]
+#[surreal(rename_all = "lowercase")]
 pub enum EntityType {
     Character,
     Location,
@@ -112,10 +115,10 @@ pub struct SearchFilter {
 }
 
 /// Internal search result from database (with RecordId).
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, SurrealValue)]
 struct SearchResultInternal {
     /// Entity ID as RecordId from SurrealDB
-    id: surrealdb::RecordId,
+    id: surrealdb::types::RecordId,
     /// Entity type
     entity_type: String,
     /// Display name or title
@@ -125,7 +128,7 @@ struct SearchResultInternal {
 }
 
 /// A search result with relevance score.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, SurrealValue)]
 pub struct SearchResult {
     /// Entity ID (e.g., "character:alice")
     pub id: String,
@@ -536,9 +539,9 @@ impl SearchService for SurrealSearchService {
 
                     let mut response = db.query(&query_str).await?;
 
-                    #[derive(Deserialize)]
+                    #[derive(Deserialize, SurrealValue)]
                     struct NameOnly {
-                        id: surrealdb::RecordId,
+                        id: surrealdb::types::RecordId,
                         entity_type: String,
                         name: String,
                     }
@@ -553,9 +556,9 @@ impl SearchService for SurrealSearchService {
                         );
                         let mut body_response = db.query(&body_query).await?;
 
-                        #[derive(Deserialize)]
+                        #[derive(Deserialize, SurrealValue)]
                         struct NoteWithBody {
-                            id: surrealdb::RecordId,
+                            id: surrealdb::types::RecordId,
                             entity_type: String,
                             name: String,
                             body: String,
@@ -901,16 +904,17 @@ impl SearchService for SurrealSearchService {
         // Fetch composite_text for each candidate to pass to the cross-encoder
         let mut texts = Vec::with_capacity(candidates.len());
         for candidate in &candidates {
-            let record_id = surrealdb::RecordId::from(
-                candidate.id.split_once(':').unwrap_or(("_", &candidate.id)),
-            );
+            let record_id = {
+                let (tb, key) = candidate.id.split_once(':').unwrap_or(("_", &candidate.id));
+                surrealdb::types::RecordId::new(tb, key)
+            };
             let mut resp = self
                 .db
                 .query("SELECT composite_text FROM $id LIMIT 1")
                 .bind(("id", record_id))
                 .await?;
 
-            #[derive(Deserialize)]
+            #[derive(Deserialize, SurrealValue)]
             struct CompositeRow {
                 composite_text: Option<String>,
             }
@@ -1085,9 +1089,9 @@ impl SearchService for SurrealSearchService {
 
         let mut response = query_builder.await?;
 
-        #[derive(Deserialize)]
+        #[derive(Deserialize, SurrealValue)]
         struct CharacterFacets {
-            id: surrealdb::RecordId,
+            id: surrealdb::types::RecordId,
             name: String,
             identity_embedding: Option<Vec<f32>>,
             psychology_embedding: Option<Vec<f32>>,
@@ -1164,14 +1168,17 @@ impl SearchService for SurrealSearchService {
         let mut texts = Vec::with_capacity(results.len());
         for result in &results {
             let record_id =
-                surrealdb::RecordId::from(result.id.split_once(':').unwrap_or(("_", &result.id)));
+                {
+                    let (tb, key) = result.id.split_once(':').unwrap_or(("_", &result.id));
+                    surrealdb::types::RecordId::new(tb, key)
+                };
             let mut resp = self
                 .db
                 .query("SELECT composite_text FROM $id LIMIT 1")
                 .bind(("id", record_id))
                 .await?;
 
-            #[derive(Deserialize)]
+            #[derive(Deserialize, SurrealValue)]
             struct CompositeRow {
                 composite_text: Option<String>,
             }

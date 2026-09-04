@@ -7,6 +7,7 @@ use crate::db::connection::NarraDb;
 use async_trait::async_trait;
 use serde::Serialize;
 use std::sync::Arc;
+use surrealdb::types::SurrealValue;
 
 use crate::utils::math::{cosine_similarity, vector_subtract};
 use crate::NarraError;
@@ -137,13 +138,13 @@ pub trait ArcDataProvider: Send + Sync {
     async fn fetch_event_timestamp(
         &self,
         event_id: &str,
-    ) -> Result<Option<surrealdb::Datetime>, NarraError>;
+    ) -> Result<Option<surrealdb::types::Datetime>, NarraError>;
 
     /// Fetch the nearest arc snapshot for an entity before a given time.
     async fn fetch_moment_snapshot(
         &self,
         entity_id: &str,
-        before: Option<&surrealdb::Datetime>,
+        before: Option<&surrealdb::types::Datetime>,
     ) -> Result<Option<ArcSnapshotData>, NarraError>;
 }
 
@@ -175,7 +176,7 @@ impl ArcDataProvider for SurrealArcDataProvider {
         );
         let mut resp = self.db.query(&query).await?;
 
-        #[derive(serde::Deserialize)]
+        #[derive(serde::Deserialize, SurrealValue)]
         struct Row {
             embedding: Vec<f32>,
             delta_magnitude: Option<f32>,
@@ -210,7 +211,7 @@ impl ArcDataProvider for SurrealArcDataProvider {
         );
         let mut resp = self.db.query(&query).await?;
 
-        #[derive(serde::Deserialize)]
+        #[derive(serde::Deserialize, SurrealValue)]
         struct Row {
             embedding: Vec<f32>,
         }
@@ -227,7 +228,7 @@ impl ArcDataProvider for SurrealArcDataProvider {
     async fn fetch_event_timestamp(
         &self,
         event_id: &str,
-    ) -> Result<Option<surrealdb::Datetime>, NarraError> {
+    ) -> Result<Option<surrealdb::types::Datetime>, NarraError> {
         let event_ref = if event_id.starts_with("event:") {
             event_id.to_string()
         } else {
@@ -235,14 +236,14 @@ impl ArcDataProvider for SurrealArcDataProvider {
         };
         let query = format!("SELECT VALUE created_at FROM {}", event_ref);
         let mut resp = self.db.query(&query).await?;
-        let timestamps: Vec<surrealdb::Datetime> = resp.take(0).unwrap_or_default();
+        let timestamps: Vec<surrealdb::types::Datetime> = resp.take(0).unwrap_or_default();
         Ok(timestamps.into_iter().next())
     }
 
     async fn fetch_moment_snapshot(
         &self,
         entity_id: &str,
-        before: Option<&surrealdb::Datetime>,
+        before: Option<&surrealdb::types::Datetime>,
     ) -> Result<Option<ArcSnapshotData>, NarraError> {
         let mut resp = if let Some(event_time) = before {
             let query = format!(
@@ -264,7 +265,7 @@ impl ArcDataProvider for SurrealArcDataProvider {
             self.db.query(&query).await?
         };
 
-        #[derive(serde::Deserialize)]
+        #[derive(serde::Deserialize, SurrealValue)]
         struct Row {
             entity_type: String,
             delta_magnitude: Option<f32>,

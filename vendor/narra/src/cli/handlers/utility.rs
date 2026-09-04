@@ -2,6 +2,7 @@
 
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
+use surrealdb::types::SurrealValue;
 
 use crate::cli::output::{print_error, print_success, OutputMode};
 use crate::cli::resolve::{bare_key, entity_type_from_id};
@@ -43,7 +44,7 @@ pub async fn handle_update(
             serde_json::Value::Object(map)
         };
 
-        let record_ref = surrealdb::RecordId::from((entity_type, key.as_str()));
+        let record_ref = surrealdb::types::RecordId::new(entity_type, key.as_str());
         let mut response = ctx
             .db
             .query("UPDATE ONLY $ref MERGE $fields RETURN AFTER")
@@ -51,9 +52,9 @@ pub async fn handle_update(
             .bind(("fields", fields))
             .await?;
 
-        #[derive(Deserialize, Serialize)]
+        #[derive(Deserialize, Serialize, SurrealValue)]
         struct IdName {
-            id: surrealdb::RecordId,
+            id: surrealdb::types::RecordId,
             #[serde(default)]
             name: Option<String>,
             #[serde(default)]

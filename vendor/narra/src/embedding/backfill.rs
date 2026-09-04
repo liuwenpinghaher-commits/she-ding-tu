@@ -6,6 +6,8 @@
 
 use std::collections::HashMap;
 use std::sync::Arc;
+use surrealdb::types::SurrealValue;
+use crate::db::compat::RecordIdExt;
 
 use crate::db::connection::NarraDb;
 use serde::Serialize;
@@ -348,9 +350,9 @@ impl BackfillService {
                        WHERE embedding IS NONE OR embedding_stale = true"#;
         let mut response = self.db.query(query).await?;
 
-        #[derive(serde::Deserialize)]
+        #[derive(serde::Deserialize, SurrealValue)]
         struct SceneForComposite {
-            id: surrealdb::RecordId,
+            id: surrealdb::types::RecordId,
             title: String,
             summary: Option<String>,
             event_title: Option<String>,
@@ -370,11 +372,11 @@ impl BackfillService {
                     id: scene_ctx.id.clone(),
                     title: scene_ctx.title.clone(),
                     summary: scene_ctx.summary.clone(),
-                    event: surrealdb::RecordId::from(("event", "placeholder")),
-                    primary_location: surrealdb::RecordId::from(("location", "placeholder")),
+                    event: surrealdb::types::RecordId::new("event", "placeholder"),
+                    primary_location: surrealdb::types::RecordId::new("location", "placeholder"),
                     secondary_locations: vec![],
-                    created_at: surrealdb::Datetime::default(),
-                    updated_at: surrealdb::Datetime::default(),
+                    created_at: surrealdb::types::Datetime::default(),
+                    updated_at: surrealdb::types::Datetime::default(),
                 };
                 texts.push(scene_composite(
                     &scene,
@@ -400,9 +402,9 @@ impl BackfillService {
                        WHERE embedding IS NONE OR embedding_stale = true"#;
         let mut response = self.db.query(query).await?;
 
-        #[derive(serde::Deserialize)]
+        #[derive(serde::Deserialize, SurrealValue)]
         struct KnowledgeWithContext {
-            id: surrealdb::RecordId,
+            id: surrealdb::types::RecordId,
             fact: String,
             character_name: Option<String>,
         }
@@ -450,9 +452,9 @@ impl BackfillService {
                        WHERE embedding IS NONE OR embedding_stale = true"#;
         let mut response = self.db.query(query).await?;
 
-        #[derive(serde::Deserialize)]
+        #[derive(serde::Deserialize, SurrealValue)]
         struct PerceivesForBackfill {
-            id: surrealdb::RecordId,
+            id: surrealdb::types::RecordId,
             rel_types: Vec<String>,
             subtype: Option<String>,
             feelings: Option<String>,
@@ -601,7 +603,7 @@ impl BackfillService {
                         ))
                         .await;
 
-                    #[derive(serde::Deserialize)]
+                    #[derive(serde::Deserialize, SurrealValue)]
                     struct FacetCheck {
                         identity_embedding: Option<Vec<f32>>,
                         identity_stale: Option<bool>,
@@ -634,7 +636,7 @@ impl BackfillService {
                         ))
                         .await;
 
-                    #[derive(serde::Deserialize)]
+                    #[derive(serde::Deserialize, SurrealValue)]
                     struct FacetCheck {
                         psychology_embedding: Option<Vec<f32>>,
                         psychology_stale: Option<bool>,
@@ -668,7 +670,7 @@ impl BackfillService {
                         ))
                         .await;
 
-                    #[derive(serde::Deserialize)]
+                    #[derive(serde::Deserialize, SurrealValue)]
                     struct FacetCheck {
                         social_embedding: Option<Vec<f32>>,
                         social_stale: Option<bool>,
@@ -707,7 +709,7 @@ impl BackfillService {
                         ))
                         .await;
 
-                    #[derive(serde::Deserialize)]
+                    #[derive(serde::Deserialize, SurrealValue)]
                     struct FacetCheck {
                         narrative_embedding: Option<Vec<f32>>,
                         narrative_stale: Option<bool>,
@@ -828,10 +830,10 @@ impl BackfillService {
                         )
                         .bind((
                             "eid",
-                            surrealdb::RecordId::from((
+                            surrealdb::types::RecordId::new(
                                 entity_id.split(':').next().unwrap_or("character"),
                                 entity_id.split(':').nth(1).unwrap_or("unknown"),
-                            )),
+                            ),
                         ))
                         .bind(("facet", facet.to_string()))
                         .bind(("snap_embedding", embeddings[i].clone()))
@@ -871,9 +873,9 @@ impl BackfillService {
                        WHERE embedding IS NONE OR embedding_stale = true"#;
         let mut response = self.db.query(query).await?;
 
-        #[derive(serde::Deserialize)]
+        #[derive(serde::Deserialize, SurrealValue)]
         struct RelatesToForBackfill {
-            id: surrealdb::RecordId,
+            id: surrealdb::types::RecordId,
             rel_type: String,
             subtype: Option<String>,
             label: Option<String>,
@@ -952,7 +954,7 @@ impl BackfillService {
         let query = "SELECT type::string(out) AS char_id, rel_type, label FROM relates_to";
         let mut response = self.db.query(query).await?;
 
-        #[derive(serde::Deserialize)]
+        #[derive(serde::Deserialize, SurrealValue)]
         struct RelRecord {
             char_id: Option<String>,
             rel_type: String,
@@ -980,7 +982,7 @@ impl BackfillService {
             "SELECT type::string(in) AS char_id, out.name AS target_name, perception FROM perceives";
         let mut response = self.db.query(query).await?;
 
-        #[derive(serde::Deserialize)]
+        #[derive(serde::Deserialize, SurrealValue)]
         struct PercRecord {
             char_id: Option<String>,
             target_name: Option<String>,
@@ -1009,7 +1011,7 @@ impl BackfillService {
         let query = "SELECT type::string(out) AS knowledge_id, certainty, learning_method, learned_at FROM knows ORDER BY learned_at DESC";
         let mut response = self.db.query(query).await?;
 
-        #[derive(serde::Deserialize)]
+        #[derive(serde::Deserialize, SurrealValue)]
         struct KnowsRecord {
             knowledge_id: Option<String>,
             certainty: Option<String>,
@@ -1056,7 +1058,7 @@ impl BackfillService {
             "SELECT type::string(out) AS char_id, in.name AS observer_name, perception FROM perceives";
         let mut response = self.db.query(query).await?;
 
-        #[derive(serde::Deserialize)]
+        #[derive(serde::Deserialize, SurrealValue)]
         struct PercRecord {
             char_id: Option<String>,
             observer_name: Option<String>,
@@ -1086,7 +1088,7 @@ impl BackfillService {
                               out.summary AS scene_summary FROM participates_in"#;
         let mut response = self.db.query(query).await?;
 
-        #[derive(serde::Deserialize)]
+        #[derive(serde::Deserialize, SurrealValue)]
         struct SceneRecord {
             char_id: Option<String>,
             scene_title: Option<String>,
@@ -1116,7 +1118,7 @@ impl BackfillService {
                        FROM knows WHERE out.fact IS NOT NONE ORDER BY learned_at DESC"#;
         let mut response = self.db.query(query).await?;
 
-        #[derive(serde::Deserialize)]
+        #[derive(serde::Deserialize, SurrealValue)]
         struct KnowledgeRecord {
             char_id: Option<String>,
             fact: Option<String>,

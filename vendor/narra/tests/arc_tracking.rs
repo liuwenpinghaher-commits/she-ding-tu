@@ -9,6 +9,7 @@
 //! - Event ID linking on snapshots
 
 mod common;
+use narra::db::compat::RecordIdExt;
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -25,7 +26,7 @@ use narra::models::character::{
 use narra::models::event::{create_event, EventCreate};
 use narra::session::SessionStateManager;
 use rmcp::handler::server::wrapper::Parameters;
-use surrealdb::Datetime;
+use surrealdb::types::{Datetime, SurrealValue};
 
 /// Helper to create a 384-dimensional test embedding vector.
 /// HNSW indexes on character/knowledge tables require 384-dim vectors.
@@ -172,7 +173,7 @@ async fn test_arc_snapshot_indexes() {
     }
 
     // Use count queries to avoid record deserialization issues
-    #[derive(serde::Deserialize)]
+    #[derive(serde::Deserialize, SurrealValue)]
     struct CountResult {
         cnt: i64,
     }
@@ -265,7 +266,7 @@ async fn test_baseline_arc_snapshots_creates_snapshots() {
         .expect("Should set Bob embedding");
 
     // Verify embeddings are actually set
-    #[derive(serde::Deserialize)]
+    #[derive(serde::Deserialize, SurrealValue)]
     struct EmbCheck {
         embedding: Option<Vec<f32>>,
     }
@@ -295,7 +296,7 @@ async fn test_baseline_arc_snapshots_creates_snapshots() {
     );
 
     // Verify snapshots exist via count
-    #[derive(serde::Deserialize)]
+    #[derive(serde::Deserialize, SurrealValue)]
     struct CountResult {
         cnt: i64,
     }
@@ -367,7 +368,7 @@ async fn test_baseline_arc_snapshots_idempotent() {
     );
 
     // Only 1 snapshot total
-    #[derive(serde::Deserialize)]
+    #[derive(serde::Deserialize, SurrealValue)]
     struct CountResult {
         cnt: i64,
     }
@@ -1095,7 +1096,7 @@ async fn test_regeneration_creates_arc_snapshot() {
         .await
         .expect("Should regenerate embedding");
 
-    #[derive(serde::Deserialize)]
+    #[derive(serde::Deserialize, SurrealValue)]
     struct CountResult {
         cnt: i64,
     }
@@ -1158,7 +1159,7 @@ async fn test_regeneration_creates_arc_snapshot() {
         ))
         .await.expect("Query should succeed");
 
-    #[derive(serde::Deserialize)]
+    #[derive(serde::Deserialize, SurrealValue)]
     struct DeltaResult {
         delta_magnitude: f32,
     }
@@ -1230,9 +1231,9 @@ async fn test_snapshot_captures_event_id() {
         .expect("RecordKnowledge should succeed");
 
     // Find the knowledge entity that was created
-    #[derive(serde::Deserialize)]
+    #[derive(serde::Deserialize, SurrealValue)]
     struct KnowledgeId {
-        id: surrealdb::RecordId,
+        id: surrealdb::types::RecordId,
     }
 
     let mut k_resp = harness
@@ -1252,7 +1253,7 @@ async fn test_snapshot_captures_event_id() {
         .expect("Should regenerate knowledge embedding");
 
     // Verify snapshots were created — use COUNT to avoid deserializing RecordId fields
-    #[derive(serde::Deserialize)]
+    #[derive(serde::Deserialize, SurrealValue)]
     struct CountResult {
         cnt: i64,
     }
@@ -1285,7 +1286,7 @@ async fn test_snapshot_captures_event_id() {
     );
 
     // Verify entity_type is correct (string field, safe to deserialize)
-    #[derive(serde::Deserialize)]
+    #[derive(serde::Deserialize, SurrealValue)]
     struct TypeCheck {
         entity_type: String,
     }
@@ -1303,7 +1304,7 @@ async fn test_snapshot_captures_event_id() {
     assert_eq!(types[0].entity_type, "knowledge");
 
     // Verify the embedding was stored on the knowledge entity
-    #[derive(serde::Deserialize)]
+    #[derive(serde::Deserialize, SurrealValue)]
     struct EmbeddingCheck {
         embedding: Option<Vec<f32>>,
     }

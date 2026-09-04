@@ -9,6 +9,7 @@
 //! - Multi-type entity clustering
 
 mod common;
+use narra::db::compat::RecordIdExt;
 
 use common::builders::{CharacterBuilder, EventBuilder, LocationBuilder, SceneBuilder};
 use common::harness::TestHarness;

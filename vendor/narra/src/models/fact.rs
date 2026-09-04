@@ -8,7 +8,8 @@ use crate::db::connection::NarraDb;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_with::skip_serializing_none;
-use surrealdb::{Datetime, RecordId};
+use surrealdb::types::{Datetime, RecordId, SurrealValue};
+use crate::db::compat::RecordIdExt;
 
 use crate::NarraError;
 
@@ -62,9 +63,43 @@ impl<'de> Deserialize<'de> for FactCategory {
     }
 }
 
+impl SurrealValue for FactCategory {
+    fn kind_of() -> surrealdb::types::Kind {
+        surrealdb::types::Kind::String
+    }
+
+    fn into_value(self) -> surrealdb::types::Value {
+        let s = match self {
+            FactCategory::PhysicsMagic => "physics_magic".to_string(),
+            FactCategory::SocialCultural => "social_cultural".to_string(),
+            FactCategory::Technology => "technology".to_string(),
+            FactCategory::Custom(s) => s,
+        };
+        surrealdb::types::Value::String(s)
+    }
+
+    fn from_value(value: surrealdb::types::Value) -> Result<Self, surrealdb::Error> {
+        let s = match value {
+            surrealdb::types::Value::String(s) => s,
+            other => {
+                return Err(surrealdb::Error::internal(format!(
+                    "FactCategory expected string, got {other:?}"
+                )))
+            }
+        };
+        Ok(match s.as_str() {
+            "physics_magic" => FactCategory::PhysicsMagic,
+            "social_cultural" => FactCategory::SocialCultural,
+            "technology" => FactCategory::Technology,
+            other => FactCategory::Custom(other.to_string()),
+        })
+    }
+}
+
 /// Enforcement level determining how violations are handled.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, Default, SurrealValue)]
 #[serde(rename_all = "snake_case")]
+#[surreal(rename_all = "snake_case")]
 pub enum EnforcementLevel {
     /// Violations logged but not shown to user
     Informational,
@@ -95,7 +130,7 @@ impl EnforcementLevel {
 ///
 /// Event references are stored as strings (e.g., "event:abc123") for JSON compatibility.
 #[skip_serializing_none]
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, SurrealValue)]
 pub struct TemporalScope {
     /// Event ID from which this fact becomes valid (e.g., "event:abc123")
     pub valid_from_event: Option<String>,
@@ -108,8 +143,9 @@ pub struct TemporalScope {
 /// POV scope defining who the fact applies to.
 ///
 /// Character/entity references are stored as strings (e.g., "character:alice") for JSON compatibility.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, SurrealValue)]
 #[serde(rename_all = "snake_case")]
+#[surreal(rename_all = "snake_case")]
 pub enum PovScope {
     /// Applies to a specific character (ID as string, e.g., "character:alice")
     Character(String),
@@ -121,7 +157,7 @@ pub enum PovScope {
 
 /// Combined scope for temporal and POV filtering.
 #[skip_serializing_none]
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, SurrealValue)]
 pub struct FactScope {
     /// Temporal bounds (AND logic with POV)
     pub temporal: Option<TemporalScope>,
@@ -134,7 +170,7 @@ pub struct FactScope {
 // ============================================================================
 
 /// A universe fact defining world rules.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, SurrealValue)]
 pub struct UniverseFact {
     pub id: RecordId,
     pub title: String,
@@ -148,7 +184,7 @@ pub struct UniverseFact {
 
 /// Data for creating a new fact.
 #[skip_serializing_none]
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, SurrealValue)]
 pub struct FactCreate {
     pub title: String,
     pub description: String,
@@ -161,7 +197,7 @@ pub struct FactCreate {
 
 /// Data for updating an existing fact.
 #[skip_serializing_none]
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, SurrealValue)]
 pub struct FactUpdate {
     pub title: Option<String>,
     pub description: Option<String>,
@@ -172,7 +208,7 @@ pub struct FactUpdate {
 }
 
 /// An application edge from fact to any entity.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, SurrealValue)]
 pub struct FactApplication {
     pub id: RecordId,
     #[serde(rename = "in")]
@@ -392,7 +428,7 @@ pub async fn get_entity_facts(
 
     let mut result = db.query(&query).await?;
 
-    #[derive(Deserialize)]
+    #[derive(Deserialize, SurrealValue)]
     struct FactWrapper {
         fact: UniverseFact,
     }
@@ -421,7 +457,7 @@ pub async fn get_fact_count_for_entity(db: &NarraDb, entity_id: &str) -> Result<
 
     let mut result = db.query(&query).await?;
 
-    #[derive(Deserialize)]
+    #[derive(Deserialize, SurrealValue)]
     struct CountResult {
         count: usize,
     }
@@ -448,7 +484,7 @@ pub async fn get_entities_for_fact(db: &NarraDb, fact_id: &str) -> Result<Vec<St
 
     let mut result = db.query(&query).await?;
 
-    #[derive(Deserialize)]
+    #[derive(Deserialize, SurrealValue)]
     struct OutWrapper {
         out: RecordId,
     }

@@ -2,11 +2,12 @@
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use surrealdb::types::SurrealValue;
 
 use crate::services::circumstances::ScenePacket;
 use crate::services::world::{flatten_tracks, PersonTrack};
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq, SurrealValue)]
 pub struct FillFields {
     pub do_text: Option<String>,
     pub say_text: Option<String>,
@@ -112,14 +113,14 @@ pub fn chat_completions_url(base: &str) -> String {
     }
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq, SurrealValue)]
 pub struct TalkConcern {
     pub kind: String,
     pub message: String,
     pub anchor: String,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq, SurrealValue)]
 pub struct TalkOut {
     pub reply: String,
     pub concerns: Vec<TalkConcern>,

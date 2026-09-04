@@ -3,7 +3,8 @@
 //! Provides fluent API for creating test entities with sensible defaults.
 
 use narra::models::{CharacterCreate, EventCreate, KnowledgeCreate, LocationCreate, SceneCreate};
-use surrealdb::RecordId;
+use surrealdb::types::RecordId;
+use narra::db::compat::RecordIdExt;
 
 /// Builder for creating test characters.
 pub struct CharacterBuilder {
@@ -78,7 +79,7 @@ impl LocationBuilder {
 
     /// Set the parent location.
     pub fn parent(mut self, parent_id: impl Into<String>) -> Self {
-        self.parent = Some(RecordId::from(("location", parent_id.into().as_str())));
+        self.parent = Some(RecordId::new("location", parent_id.into().as_str()));
         self
     }
 
@@ -177,7 +178,7 @@ impl SceneBuilder {
     /// Add a secondary location.
     pub fn secondary_location(mut self, location_id: impl Into<String>) -> Self {
         self.secondary_locations
-            .push(RecordId::from(("location", location_id.into().as_str())));
+            .push(RecordId::new("location", location_id.into().as_str()));
         self
     }
 
@@ -186,8 +187,8 @@ impl SceneBuilder {
         SceneCreate {
             title: self.title,
             summary: self.summary,
-            event: RecordId::from(("event", self.event_id.as_str())),
-            primary_location: RecordId::from(("location", self.primary_location_id.as_str())),
+            event: RecordId::new("event", self.event_id.as_str()),
+            primary_location: RecordId::new("location", self.primary_location_id.as_str()),
             secondary_locations: self.secondary_locations,
         }
     }
@@ -220,7 +221,7 @@ impl KnowledgeBuilder {
     /// Build the KnowledgeCreate struct.
     pub fn build(self) -> KnowledgeCreate {
         KnowledgeCreate {
-            character: RecordId::from(("character", self.character_id.as_str())),
+            character: RecordId::new("character", self.character_id.as_str()),
             fact: self.fact,
         }
     }

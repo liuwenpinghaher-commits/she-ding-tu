@@ -1,6 +1,7 @@
 use crate::mcp::types::KnowledgeSpec;
 use crate::mcp::{EntityResult, MutationResponse, NarraServer};
 use crate::models::{CertaintyLevel, KnowledgeStateCreate, LearningMethod};
+use crate::db::compat::RecordIdExt;
 
 impl NarraServer {
     #[allow(clippy::too_many_arguments)]
@@ -15,7 +16,7 @@ impl NarraServer {
         event_id: Option<String>,
     ) -> Result<MutationResponse, String> {
         use crate::models::knowledge::{create_knowledge, create_knowledge_state, KnowledgeCreate};
-        use surrealdb::RecordId;
+        use surrealdb::types::RecordId;
 
         // Build creation data for consistency check
         let creation_data = serde_json::json!({

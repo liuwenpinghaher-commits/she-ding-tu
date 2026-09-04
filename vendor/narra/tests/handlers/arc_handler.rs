@@ -4,6 +4,7 @@
 //! added in Session 3 (arc/what-if CLI commands).
 
 use narra::mcp::QueryRequest;
+use narra::db::compat::RecordIdExt;
 use narra::repository::{
     EntityRepository, KnowledgeRepository, SurrealEntityRepository, SurrealKnowledgeRepository,
 };

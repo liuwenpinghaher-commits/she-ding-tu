@@ -8,15 +8,17 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::Arc;
+use surrealdb::types::SurrealValue;
+use crate::db::compat::RecordIdExt;
 
 use crate::models::character::get_character;
 use crate::models::perception::{get_perceptions_from, get_perceptions_of};
 use crate::models::{Character, Perception};
 use crate::NarraError;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, SurrealValue)]
 struct PerceptionEdge {
-    target: surrealdb::sql::Thing,
+    target: surrealdb::types::RecordId,
     rel_types: Vec<String>,
 }
 
@@ -168,15 +170,15 @@ impl MermaidGraphService {
                 collected_perceptions.extend(incoming);
 
                 // Also traverse relates_to edges (symmetric relationships)
-                let char_ref = surrealdb::RecordId::from(("character", current_id.as_str()));
+                let char_ref = surrealdb::types::RecordId::new("character", current_id.as_str());
                 let mut relates_response = self
                     .db
                     .query("SELECT VALUE out FROM relates_to WHERE in = $ref;\nSELECT VALUE in FROM relates_to WHERE out = $ref")
                     .bind(("ref", char_ref))
                     .await?;
-                let outgoing_rels: Vec<surrealdb::sql::Thing> =
+                let outgoing_rels: Vec<surrealdb::types::RecordId> =
                     relates_response.take(0).unwrap_or_default();
-                let incoming_rels: Vec<surrealdb::sql::Thing> =
+                let incoming_rels: Vec<surrealdb::types::RecordId> =
                     relates_response.take(1).unwrap_or_default();
 
                 for rel_target in outgoing_rels.into_iter().chain(incoming_rels) {
@@ -338,7 +340,7 @@ impl MermaidGraphService {
                         entity_key, limit
                     );
                     let mut result = self.db.query(&query).await?;
-                    let scenes: Vec<surrealdb::sql::Thing> = result.take(0).unwrap_or_default();
+                    let scenes: Vec<surrealdb::types::RecordId> = result.take(0).unwrap_or_default();
 
                     for scene_id in scenes {
                         results.push(ReverseQueryResult {
@@ -357,7 +359,7 @@ impl MermaidGraphService {
                         entity_key, remaining
                     );
                     let mut result = self.db.query(&query).await?;
-                    let events: Vec<surrealdb::sql::Thing> = result.take(0).unwrap_or_default();
+                    let events: Vec<surrealdb::types::RecordId> = result.take(0).unwrap_or_default();
 
                     for event_id in events {
                         results.push(ReverseQueryResult {
@@ -376,7 +378,7 @@ impl MermaidGraphService {
                         entity_key, remaining
                     );
                     let mut result = self.db.query(&query).await?;
-                    let knowledge: Vec<surrealdb::sql::Thing> = result.take(0).unwrap_or_default();
+                    let knowledge: Vec<surrealdb::types::RecordId> = result.take(0).unwrap_or_default();
 
                     for k_id in knowledge {
                         results.push(ReverseQueryResult {
@@ -396,7 +398,7 @@ impl MermaidGraphService {
                         limit / 2
                     );
                     let mut result = self.db.query(&query).await?;
-                    let scenes: Vec<surrealdb::sql::Thing> = result.take(0).unwrap_or_default();
+                    let scenes: Vec<surrealdb::types::RecordId> = result.take(0).unwrap_or_default();
 
                     for scene_id in scenes {
                         results.push(ReverseQueryResult {
@@ -414,7 +416,7 @@ impl MermaidGraphService {
                             entity_key, remaining
                         );
                         let mut result = self.db.query(&query).await?;
-                        let scenes: Vec<surrealdb::sql::Thing> = result.take(0).unwrap_or_default();
+                        let scenes: Vec<surrealdb::types::RecordId> = result.take(0).unwrap_or_default();
 
                         for scene_id in scenes {
                             results.push(ReverseQueryResult {
@@ -434,7 +436,7 @@ impl MermaidGraphService {
                         entity_key, limit
                     );
                     let mut result = self.db.query(&query).await?;
-                    let scenes: Vec<surrealdb::sql::Thing> = result.take(0).unwrap_or_default();
+                    let scenes: Vec<surrealdb::types::RecordId> = result.take(0).unwrap_or_default();
 
                     for scene_id in scenes {
                         results.push(ReverseQueryResult {
@@ -590,7 +592,7 @@ impl MermaidGraphService {
                     current_id
                 );
                 let mut result = self.db.query(&query_events).await?;
-                let events: Vec<surrealdb::sql::Thing> = result.take(0).unwrap_or_default();
+                let events: Vec<surrealdb::types::RecordId> = result.take(0).unwrap_or_default();
 
                 for event_id in events {
                     let event_full = event_id.to_string();
@@ -602,7 +604,7 @@ impl MermaidGraphService {
                         event_key, current_id
                     );
                     let mut result = self.db.query(&query_coparticipants).await?;
-                    let coparticipants: Vec<surrealdb::sql::Thing> =
+                    let coparticipants: Vec<surrealdb::types::RecordId> =
                         result.take(0).unwrap_or_default();
 
                     for char_id in coparticipants {

@@ -12,6 +12,7 @@ use async_trait::async_trait;
 use serde::Serialize;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
+use crate::db::compat::RecordIdExt;
 
 use crate::db::connection::NarraDb;
 use crate::models::{CertaintyLevel, KnowledgeState};
@@ -305,9 +306,9 @@ impl SurrealTensionDataProvider {
 #[async_trait]
 impl TensionDataProvider for SurrealTensionDataProvider {
     async fn get_all_characters(&self) -> Result<Vec<TensionCharacterInfo>, NarraError> {
-        #[derive(serde::Deserialize)]
+        #[derive(serde::Deserialize, SurrealValue)]
         struct CharRow {
-            id: surrealdb::sql::Thing,
+            id: surrealdb::types::RecordId,
             name: String,
             #[serde(default)]
             profile: HashMap<String, Vec<String>>,
@@ -342,12 +343,12 @@ impl TensionDataProvider for SurrealTensionDataProvider {
     }
 
     async fn get_all_relationship_edges(&self) -> Result<Vec<RelationshipEdge>, NarraError> {
-        #[derive(serde::Deserialize)]
+        #[derive(serde::Deserialize, SurrealValue)]
         struct RelRow {
             #[serde(rename = "in")]
-            from: surrealdb::sql::Thing,
+            from: surrealdb::types::RecordId,
             #[serde(rename = "out")]
-            to: surrealdb::sql::Thing,
+            to: surrealdb::types::RecordId,
             rel_type: String,
         }
         let mut result = self
@@ -357,12 +358,12 @@ impl TensionDataProvider for SurrealTensionDataProvider {
         let rows: Vec<RelRow> = result.take(0)?;
 
         // Also fetch perceives for tension levels
-        #[derive(serde::Deserialize)]
+        #[derive(serde::Deserialize, SurrealValue)]
         struct PercRow {
             #[serde(rename = "in")]
-            from: surrealdb::sql::Thing,
+            from: surrealdb::types::RecordId,
             #[serde(rename = "out")]
-            to: surrealdb::sql::Thing,
+            to: surrealdb::types::RecordId,
             tension_level: Option<i32>,
         }
         let mut perc_result = self
@@ -413,7 +414,7 @@ impl TensionDataProvider for SurrealTensionDataProvider {
         char_a: &str,
         char_b: &str,
     ) -> Result<Option<i32>, NarraError> {
-        #[derive(serde::Deserialize)]
+        #[derive(serde::Deserialize, SurrealValue)]
         struct TensionRow {
             tension_level: Option<i32>,
         }
@@ -643,7 +644,7 @@ fn format_tension_description(
 mod tests {
     use super::*;
     use crate::models::LearningMethod;
-    use surrealdb::RecordId;
+    use surrealdb::types::{RecordId, SurrealValue};
 
     fn mock_knowledge(
         target_table: &str,
@@ -652,16 +653,16 @@ mod tests {
     ) -> KnowledgeState {
         let past = chrono::Utc::now() - chrono::Duration::hours(1);
         KnowledgeState {
-            id: RecordId::from(("knows", "test")),
-            character: RecordId::from(("character", "test")),
-            target: RecordId::from((target_table, target_id)),
+            id: RecordId::new("knows", "test"),
+            character: RecordId::new("character", "test"),
+            target: RecordId::new(target_table, target_id),
             certainty,
             learning_method: LearningMethod::Witnessed,
             source_character: None,
             event: None,
             premises: None,
             truth_value: None,
-            learned_at: surrealdb::Datetime::from(past),
+            learned_at: surrealdb::types::Datetime::from(past),
             created_at: Default::default(),
             updated_at: Default::default(),
         }

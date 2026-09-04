@@ -12,6 +12,8 @@ use async_trait::async_trait;
 use serde::Serialize;
 use std::collections::HashMap;
 use std::sync::Arc;
+use surrealdb::types::SurrealValue;
+use crate::db::compat::RecordIdExt;
 
 use crate::db::connection::NarraDb;
 use crate::NarraError;
@@ -312,9 +314,9 @@ impl SurrealRoleInferenceDataProvider {
 impl RoleInferenceDataProvider for SurrealRoleInferenceDataProvider {
     async fn get_all_character_features(&self) -> Result<Vec<CharacterFeatures>, NarraError> {
         // 1. Get all characters with profiles
-        #[derive(serde::Deserialize)]
+        #[derive(serde::Deserialize, SurrealValue)]
         struct CharRow {
-            id: surrealdb::sql::Thing,
+            id: surrealdb::types::RecordId,
             name: String,
             #[serde(default)]
             profile: HashMap<String, Vec<String>>,
@@ -330,12 +332,12 @@ impl RoleInferenceDataProvider for SurrealRoleInferenceDataProvider {
         }
 
         // 2. Get knowledge edges for certainty analysis
-        #[derive(serde::Deserialize)]
+        #[derive(serde::Deserialize, SurrealValue)]
         struct KnowsRow {
             #[serde(rename = "in")]
-            knower: surrealdb::sql::Thing,
+            knower: surrealdb::types::RecordId,
             #[serde(rename = "out")]
-            target: surrealdb::sql::Thing,
+            target: surrealdb::types::RecordId,
             certainty: String,
         }
         let mut knows_result = self
@@ -345,22 +347,22 @@ impl RoleInferenceDataProvider for SurrealRoleInferenceDataProvider {
         let knows: Vec<KnowsRow> = knows_result.take(0)?;
 
         // 3. Get relationship edges for type classification
-        #[derive(serde::Deserialize)]
+        #[derive(serde::Deserialize, SurrealValue)]
         struct RelRow {
             #[serde(rename = "in")]
-            from: surrealdb::sql::Thing,
+            from: surrealdb::types::RecordId,
             rel_type: String,
         }
         let mut rel_result = self.db.query("SELECT in, rel_type FROM relates_to").await?;
         let rels: Vec<RelRow> = rel_result.take(0)?;
 
         // 4. Get perception edges for degree computation
-        #[derive(serde::Deserialize)]
+        #[derive(serde::Deserialize, SurrealValue)]
         struct PercRow {
             #[serde(rename = "in")]
-            from: surrealdb::sql::Thing,
+            from: surrealdb::types::RecordId,
             #[serde(rename = "out")]
-            to: surrealdb::sql::Thing,
+            to: surrealdb::types::RecordId,
         }
         let mut perc_result = self.db.query("SELECT in, out FROM perceives").await?;
         let percs: Vec<PercRow> = perc_result.take(0)?;

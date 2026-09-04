@@ -3,6 +3,7 @@
 //! Tests hot entity tracking, context restoration, and startup summaries.
 
 mod common;
+use narra::db::compat::RecordIdExt;
 
 use narra::repository::{EntityRepository, SurrealEntityRepository};
 use narra::services::{CachedContextService, ContextConfig, ContextService};

@@ -106,6 +106,9 @@ pub fn load_db_config(data_path: &Path) -> DbConfig {
 /// Supports both embedded RocksDB (single-process) and remote WebSocket
 /// (concurrent access) modes, driven by `DbConfig`.
 ///
+/// v3 still uses `engine::any::connect((endpoint, Config))` for embedded
+/// rocksdb. `Surreal::init()` is the static-client path; we don't need it.
+///
 /// # Arguments
 ///
 /// * `config` - Database connection configuration
@@ -119,6 +122,8 @@ pub async fn init_db(config: &DbConfig, data_path: &Path) -> Result<NarraDb, Nar
                 .unwrap_or_else(|| data_path.to_string_lossy().into_owned());
             let surreal_config = surrealdb::opt::Config::new()
                 .capabilities(Capabilities::all().with_all_experimental_features_allowed());
+            // TODO-SURREAL3: endpoint is still `rocksdb:{path}`; hermes confirm kv-rocksdb
+            // still accepts this scheme (docs.rs 3.2.4 embedding examples use RocksDb::new).
             let db =
                 surrealdb::engine::any::connect((format!("rocksdb:{db_path}"), surreal_config))
                     .await?;
@@ -142,9 +147,10 @@ pub async fn init_db(config: &DbConfig, data_path: &Path) -> Result<NarraDb, Nar
                 .clone()
                 .or_else(|| std::env::var("NARRA_DB_PASS").ok())
                 .unwrap_or_else(|| "root".to_string());
+            // v3 Root.username/password are String (2.x was &str).
             db.signin(surrealdb::opt::auth::Root {
-                username: &user,
-                password: &pass,
+                username: user,
+                password: pass,
             })
             .await?;
             db.use_ns(namespace).use_db(database).await?;

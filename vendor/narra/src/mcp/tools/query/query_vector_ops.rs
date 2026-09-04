@@ -2,6 +2,7 @@
 
 use crate::mcp::types::{EntityResult, QueryResponse};
 use crate::services::VectorOpsService;
+use surrealdb::types::SurrealValue;
 
 use super::NarraServer;
 
@@ -304,7 +305,7 @@ impl NarraServer {
         let character_id = normalize_id(character_id, Some("character"));
 
         // Fetch character with all facet embeddings and composites
-        #[derive(serde::Deserialize)]
+        #[derive(serde::Deserialize, SurrealValue)]
         struct FacetData {
             identity_embedding: Option<Vec<f32>>,
             identity_composite: Option<String>,

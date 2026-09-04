@@ -10,6 +10,8 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::time::{timeout, Duration};
+use surrealdb::types::SurrealValue;
+use crate::db::compat::RecordIdExt;
 
 use crate::models::event::get_event;
 use crate::models::fact::{
@@ -28,8 +30,9 @@ use crate::NarraError;
 ///
 /// Ordered from most to least severe: Critical > Warning > Info.
 /// This ordering enables sorting violations by importance.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, SurrealValue)]
 #[serde(rename_all = "UPPERCASE")]
+#[surreal(rename_all = "UPPERCASE")]
 pub enum ConsistencySeverity {
     /// Informational only - low confidence or informational enforcement
     Info,
@@ -44,7 +47,7 @@ pub enum ConsistencySeverity {
 // ============================================================================
 
 /// A single consistency violation detected during validation.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, SurrealValue)]
 pub struct Violation {
     /// ID of the fact that was violated
     pub fact_id: String,
@@ -65,7 +68,7 @@ pub struct Violation {
 // ============================================================================
 
 /// Aggregated validation result grouping violations by severity.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, SurrealValue)]
 pub struct ValidationResult {
     /// Whether the validation passed (no Critical violations)
     pub is_valid: bool,
@@ -303,7 +306,7 @@ impl ConsistencyChecker {
                     .query(&query)
                     .await
                     .map_err(|e| NarraError::Database(e.to_string()))?;
-                let targets: Vec<surrealdb::sql::Thing> = result
+                let targets: Vec<surrealdb::types::RecordId> = result
                     .take(0)
                     .map_err(|e| NarraError::Database(e.to_string()))?;
                 for t in targets {
@@ -320,7 +323,7 @@ impl ConsistencyChecker {
                     .query(&query)
                     .await
                     .map_err(|e| NarraError::Database(e.to_string()))?;
-                let targets: Vec<surrealdb::sql::Thing> = result
+                let targets: Vec<surrealdb::types::RecordId> = result
                     .take(0)
                     .map_err(|e| NarraError::Database(e.to_string()))?;
                 for t in targets {
@@ -338,7 +341,7 @@ impl ConsistencyChecker {
                     .query(&query)
                     .await
                     .map_err(|e| NarraError::Database(e.to_string()))?;
-                let targets: Vec<surrealdb::sql::Thing> = result
+                let targets: Vec<surrealdb::types::RecordId> = result
                     .take(0)
                     .map_err(|e| NarraError::Database(e.to_string()))?;
                 for t in targets {
@@ -356,7 +359,7 @@ impl ConsistencyChecker {
                     .query(&query)
                     .await
                     .map_err(|e| NarraError::Database(e.to_string()))?;
-                let targets: Vec<surrealdb::sql::Thing> = result
+                let targets: Vec<surrealdb::types::RecordId> = result
                     .take(0)
                     .map_err(|e| NarraError::Database(e.to_string()))?;
                 for t in targets {

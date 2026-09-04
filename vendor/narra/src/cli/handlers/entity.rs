@@ -1,6 +1,7 @@
 //! CRUD handlers for character, location, event, and scene entities.
 
 use anyhow::Result;
+use crate::db::compat::RecordIdExt;
 
 use crate::cli::output::{
     output_json, output_json_list, print_error, print_hint, print_success, print_table, OutputMode,
@@ -406,7 +407,7 @@ pub async fn create_location(
 ) -> Result<()> {
     let parent_id = parent.map(|p| {
         let key = bare_key(p, "location");
-        surrealdb::RecordId::from(("location", key.as_str()))
+        surrealdb::types::RecordId::new("location", key.as_str())
     });
 
     let data = LocationCreate {
@@ -490,7 +491,7 @@ pub async fn create_event(
             .unwrap_or_else(|_| chrono::Utc::now().date_naive());
         let datetime = dt.and_hms_opt(0, 0, 0).unwrap();
         let utc = chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(datetime, chrono::Utc);
-        surrealdb::Datetime::from(utc)
+        surrealdb::types::Datetime::from(utc)
     });
 
     let date_precision = date.map(|_| "day".to_string());
@@ -616,8 +617,8 @@ pub async fn create_scene(
     let data = SceneCreate {
         title: title.to_string(),
         summary: summary.map(|s| s.to_string()),
-        event: surrealdb::RecordId::from(("event", event_key.as_str())),
-        primary_location: surrealdb::RecordId::from(("location", location_key.as_str())),
+        event: surrealdb::types::RecordId::new("event", event_key.as_str()),
+        primary_location: surrealdb::types::RecordId::new("location", location_key.as_str()),
         secondary_locations: vec![],
     };
 

@@ -14,6 +14,7 @@ use narra::mcp::tools::SessionContextRequest;
 use narra::mcp::NarraServer;
 use narra::models::{CharacterCreate, LocationCreate};
 use narra::repository::{EntityRepository, SurrealEntityRepository};
+use narra::db::compat::RecordIdExt;
 use narra::session::{
     generate_startup_context, PendingDecision, SessionStateManager, StartupVerbosity,
 };

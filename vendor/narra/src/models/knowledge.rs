@@ -1,8 +1,9 @@
 use std::collections::HashSet;
+use crate::db::compat::RecordIdExt;
 
 use crate::db::connection::NarraDb;
 use serde::{Deserialize, Serialize};
-use surrealdb::{Datetime, RecordId};
+use surrealdb::types::{Datetime, RecordId, SurrealValue};
 
 use crate::models::event::get_event;
 use crate::NarraError;
@@ -17,8 +18,9 @@ use crate::NarraError;
 /// - Assumes: Inference without evidence
 /// - Denies: Actively rejects
 /// - Forgotten: Previously knew, no longer remembers
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default, SurrealValue)]
 #[serde(rename_all = "snake_case")]
+#[surreal(rename_all = "snake_case")]
 pub enum CertaintyLevel {
     #[default]
     Knows,
@@ -33,8 +35,9 @@ pub enum CertaintyLevel {
 /// Learning method for how knowledge was acquired.
 ///
 /// From CONTEXT.md decisions, plus Initial for pre-story knowledge.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, SurrealValue)]
 #[serde(rename_all = "snake_case")]
+#[surreal(rename_all = "snake_case")]
 pub enum LearningMethod {
     Told,
     Overheard,
@@ -49,7 +52,7 @@ pub enum LearningMethod {
 /// Knowledge state - what a character knows about a fact.
 ///
 /// Note: Phase 1 is simple string fact. Phase 3 will add certainty, provenance.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, SurrealValue)]
 pub struct Knowledge {
     pub id: RecordId,
     pub character: RecordId, // record<character> reference
@@ -76,7 +79,7 @@ pub struct Knowledge {
 /// - A knowledge record ID (for structured facts from Phase 1)
 /// - A character record ID (for "knows about person")
 ///   Use the appropriate query pattern based on your use case.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, SurrealValue)]
 pub struct KnowledgeState {
     pub id: RecordId,
     #[serde(rename = "in")]
@@ -95,7 +98,7 @@ pub struct KnowledgeState {
 }
 
 /// Data for creating a new knowledge state.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, SurrealValue)]
 pub struct KnowledgeStateCreate {
     pub certainty: CertaintyLevel,
     pub learning_method: LearningMethod,
@@ -123,7 +126,7 @@ impl Default for KnowledgeStateCreate {
 }
 
 /// Data for creating knowledge.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, SurrealValue)]
 pub struct KnowledgeCreate {
     pub character: RecordId,
     pub fact: String,
@@ -176,7 +179,7 @@ pub async fn get_character_knowledge(
     db: &NarraDb,
     character_id: &str,
 ) -> Result<Vec<Knowledge>, NarraError> {
-    let character = RecordId::from(("character", character_id));
+    let character = RecordId::new("character", character_id);
     let mut result = db
         .query("SELECT * FROM knowledge WHERE character = $character")
         .bind(("character", character))
@@ -241,7 +244,7 @@ pub async fn record_character_knows(
     character_id: &str,
     fact: &str,
 ) -> Result<Knowledge, NarraError> {
-    let record_id = RecordId::from(("character", character_id));
+    let record_id = RecordId::new("character", character_id);
     create_knowledge(
         db,
         KnowledgeCreate {
@@ -299,14 +302,14 @@ pub async fn create_knowledge_state(
     let source_ref = data
         .source_character
         .as_ref()
-        .map(|id| RecordId::from(("character", id.as_str())));
+        .map(|id| RecordId::new("character", id.as_str()));
     let event_ref = data
         .event
         .as_ref()
-        .map(|id| RecordId::from(("event", id.as_str())));
+        .map(|id| RecordId::new("event", id.as_str()));
     let premises_ref: Option<Vec<RecordId>> = data.premises.as_ref().map(|ids| {
         ids.iter()
-            .map(|id| RecordId::from(("knows", id.as_str())))
+            .map(|id| RecordId::new("knows", id.as_str()))
             .collect()
     });
 
@@ -584,7 +587,7 @@ pub async fn get_current_knowledge(
 // ============================================================================
 
 /// Response type for transmission chain queries.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, SurrealValue)]
 pub struct KnowledgeTransmission {
     pub character_id: String,
     pub source_id: Option<String>,
@@ -613,12 +616,12 @@ pub async fn get_transmission_chain(
 ) -> Result<Vec<KnowledgeTransmission>, NarraError> {
     let query = format!(
         r#"SELECT
-            string::concat(in.tb, ':', in.id) AS character_id,
-            IF source_character != NONE THEN string::concat(source_character.tb, ':', source_character.id) ELSE NONE END AS source_id,
+            string::concat(record::tb(in), ':', record::id(in)) AS character_id,
+            IF source_character != NONE THEN string::concat(record::tb(source_character), ':', record::id(source_character)) ELSE NONE END AS source_id,
             learning_method,
             certainty,
             learned_at,
-            IF event != NONE THEN string::concat(event.tb, ':', event.id) ELSE NONE END AS event_id
+            IF event != NONE THEN string::concat(record::tb(event), ':', record::id(event)) ELSE NONE END AS event_id
            FROM knows
            WHERE out = {}
            ORDER BY learned_at ASC"#,
@@ -631,13 +634,13 @@ pub async fn get_transmission_chain(
 }
 
 /// Response type for conflict detection.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, SurrealValue)]
 pub struct KnowledgeConflict {
     pub target: String,
     pub conflicting_states: Vec<ConflictingState>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, SurrealValue)]
 pub struct ConflictingState {
     pub character_id: String,
     pub certainty: CertaintyLevel,
@@ -665,8 +668,8 @@ pub async fn find_knowledge_conflicts(db: &NarraDb) -> Result<Vec<KnowledgeConfl
     // Group by target to identify conflicting knowledge
     let query = r#"
         SELECT
-            string::concat(out.tb, ':', out.id) AS target,
-            string::concat(in.tb, ':', in.id) AS character_id,
+            string::concat(record::tb(out), ':', record::id(out)) AS target,
+            string::concat(record::tb(in), ':', record::id(in)) AS character_id,
             certainty,
             truth_value
         FROM knows
@@ -676,7 +679,7 @@ pub async fn find_knowledge_conflicts(db: &NarraDb) -> Result<Vec<KnowledgeConfl
 
     let mut result = db.query(query).await?;
 
-    #[derive(Debug, Deserialize)]
+    #[derive(Debug, Deserialize, SurrealValue)]
     struct WrongBeliefRow {
         target: String,
         character_id: String,
@@ -744,15 +747,15 @@ pub async fn get_possible_sources(
     // Find all scenes at this event, then all participants
     // Using participates_in edge from Phase 2
     let query = r#"
-        SELECT DISTINCT string::concat(in.tb, ':', in.id) AS character_id
+        SELECT DISTINCT string::concat(record::tb(in), ':', record::id(in)) AS character_id
         FROM participates_in
         WHERE out.event.id = $event_id
     "#;
 
-    let event_ref = RecordId::from(("event", event_id.as_str()));
+    let event_ref = RecordId::new("event", event_id.as_str());
     let mut result = db.query(query).bind(("event_id", event_ref)).await?;
 
-    #[derive(Deserialize)]
+    #[derive(Deserialize, SurrealValue)]
     struct CharId {
         character_id: String,
     }

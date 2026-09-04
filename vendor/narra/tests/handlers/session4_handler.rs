@@ -7,6 +7,7 @@ use narra::mcp::{MutationRequest, QueryRequest};
 use narra::models::fact::{self, FactCreate};
 use narra::models::knowledge::{create_knowledge_state, KnowledgeStateCreate, LearningMethod};
 use narra::models::{EnforcementLevel, FactCategory};
+use narra::db::compat::RecordIdExt;
 use narra::repository::{
     EntityRepository, KnowledgeRepository, SurrealEntityRepository, SurrealKnowledgeRepository,
 };

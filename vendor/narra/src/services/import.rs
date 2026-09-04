@@ -1,6 +1,7 @@
 use std::sync::Arc;
+use crate::db::compat::RecordIdExt;
 
-use surrealdb::RecordId;
+use surrealdb::types::RecordId;
 
 use crate::db::connection::NarraDb;
 

@@ -3,9 +3,10 @@ use crate::session::{generate_startup_context, HotEntity, PendingDecisionInfo, W
 use rmcp::handler::server::wrapper::Parameters;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use surrealdb::types::SurrealValue;
 
 /// Request for session context.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, SurrealValue)]
 pub struct SessionContextRequest {
     /// Force full verbosity regardless of time elapsed
     #[serde(default)]
@@ -13,7 +14,7 @@ pub struct SessionContextRequest {
 }
 
 /// Response structure for hot entity.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, SurrealValue)]
 pub struct HotEntityResponse {
     pub id: String,
     pub name: String,
@@ -33,7 +34,7 @@ impl From<HotEntity> for HotEntityResponse {
 }
 
 /// Response structure for pending decision.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, SurrealValue)]
 pub struct PendingDecisionResponse {
     pub id: String,
     pub description: String,
@@ -53,7 +54,7 @@ impl From<PendingDecisionInfo> for PendingDecisionResponse {
 }
 
 /// Response structure for world overview.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, SurrealValue)]
 pub struct WorldOverviewResponse {
     pub character_count: usize,
     pub location_count: usize,
@@ -75,7 +76,7 @@ impl From<WorldOverview> for WorldOverviewResponse {
 }
 
 /// Response containing session context.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, SurrealValue)]
 pub struct SessionContextResponse {
     pub verbosity: String,
     pub summary: String,

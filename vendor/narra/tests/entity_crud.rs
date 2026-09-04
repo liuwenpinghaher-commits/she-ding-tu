@@ -4,11 +4,12 @@
 //! operations work correctly through the SurrealEntityRepository.
 
 mod common;
+use narra::db::compat::RecordIdExt;
 
 use narra::models::{CharacterUpdate, EventUpdate, LocationUpdate, SceneUpdate};
 use narra::repository::{EntityRepository, SurrealEntityRepository};
 use pretty_assertions::assert_eq;
-use surrealdb::Datetime;
+use surrealdb::types::Datetime;
 
 use common::builders::{CharacterBuilder, EventBuilder, LocationBuilder, SceneBuilder};
 use common::harness::TestHarness;

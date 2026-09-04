@@ -5,6 +5,7 @@
 
 use crate::common::harness::TestHarness;
 use crate::common::{builders::CharacterBuilder, to_mutation_input, to_query_input};
+use narra::db::compat::RecordIdExt;
 
 use insta::assert_snapshot;
 use narra::mcp::types::{MutationRequest, QueryRequest};

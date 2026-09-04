@@ -7,6 +7,7 @@ use narra::mcp::QueryRequest;
 use narra::models::relationship::{create_relationship, RelationshipCreate};
 use narra::repository::{EntityRepository, SurrealEntityRepository};
 use rmcp::handler::server::wrapper::Parameters;
+use narra::db::compat::RecordIdExt;
 
 use crate::common::{
     builders::{CharacterBuilder, EventBuilder, LocationBuilder, SceneBuilder},

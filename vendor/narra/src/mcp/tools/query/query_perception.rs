@@ -1,6 +1,8 @@
 use crate::mcp::NarraServer;
 use crate::mcp::{EntityResult, QueryResponse};
 use crate::services::perception::PerceptionService;
+use surrealdb::types::SurrealValue;
+use crate::db::compat::RecordIdExt;
 
 impl NarraServer {
     pub(crate) async fn handle_perspective_search(
@@ -43,19 +45,19 @@ impl NarraServer {
             .bind(("lim", limit));
         if let Some(ref obs_id) = observer_id {
             let (table, key) = obs_id.split_once(':').unwrap_or(("character", obs_id));
-            q = q.bind(("obs_ref", surrealdb::RecordId::from((table, key))));
+            q = q.bind(("obs_ref", surrealdb::types::RecordId::new(table, key)));
         }
         if let Some(ref tgt_id) = target_id {
             let (table, key) = tgt_id.split_once(':').unwrap_or(("character", tgt_id));
-            q = q.bind(("tgt_ref", surrealdb::RecordId::from((table, key))));
+            q = q.bind(("tgt_ref", surrealdb::types::RecordId::new(table, key)));
         }
         let mut response = q
             .await
             .map_err(|e| format!("Perspective search failed: {}", e))?;
 
-        #[derive(serde::Deserialize)]
+        #[derive(serde::Deserialize, SurrealValue)]
         struct PerspectiveResult {
-            id: surrealdb::sql::Thing,
+            id: surrealdb::types::RecordId,
             observer_name: Option<String>,
             target_name: Option<String>,
             perception: Option<String>,
@@ -399,7 +401,7 @@ impl NarraServer {
             _ => vec!["perceives", "relates_to"],
         };
 
-        #[derive(serde::Deserialize)]
+        #[derive(serde::Deserialize, SurrealValue)]
         struct EdgeEmbedding {
             embedding: Vec<f32>,
         }
@@ -493,7 +495,7 @@ impl NarraServer {
                 .await
                 .map_err(|e| format!("Failed to search {} edges: {}", table, e))?;
 
-            #[derive(serde::Deserialize)]
+            #[derive(serde::Deserialize, SurrealValue)]
             struct SimilarEdge {
                 edge_id: Option<String>,
                 from_name: Option<String>,

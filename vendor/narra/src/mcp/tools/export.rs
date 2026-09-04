@@ -4,19 +4,20 @@ use chrono::Utc;
 use rmcp::handler::server::wrapper::Parameters;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use surrealdb::types::SurrealValue;
 
 use crate::mcp::NarraServer;
 use crate::services::export::ExportService;
 
 /// Request to export world data.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, SurrealValue)]
 pub struct ExportRequest {
     /// Output file path (optional, defaults to ./narra-export-{date}.yaml)
     pub output_path: Option<String>,
 }
 
 /// Export result with summary.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, SurrealValue)]
 pub struct ExportResponse {
     /// Path where export was written
     pub output_path: String,
@@ -24,7 +25,7 @@ pub struct ExportResponse {
     pub summary: ExportSummary,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, SurrealValue)]
 pub struct ExportSummary {
     pub character_count: usize,
     pub location_count: usize,

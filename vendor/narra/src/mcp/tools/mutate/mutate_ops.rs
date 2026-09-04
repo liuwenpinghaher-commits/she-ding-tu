@@ -1,4 +1,6 @@
 use crate::mcp::{EntityResult, MutationResponse, NarraServer};
+use surrealdb::types::SurrealValue;
+use crate::db::compat::RecordIdExt;
 
 impl NarraServer {
     pub(crate) async fn handle_create_relationship(
@@ -214,9 +216,9 @@ impl NarraServer {
                 .await
                 .map_err(|e| format!("Failed to fetch {} entities: {}", etype, e))?;
 
-            #[derive(serde::Deserialize)]
+            #[derive(serde::Deserialize, SurrealValue)]
             struct EntityWithEmbedding {
-                id: surrealdb::RecordId,
+                id: surrealdb::types::RecordId,
                 embedding: Vec<f32>,
             }
 
@@ -237,7 +239,7 @@ impl NarraServer {
                     .await
                     .map_err(|e| format!("Failed to check snapshots for {}: {}", entity_id, e))?;
 
-                #[derive(serde::Deserialize)]
+                #[derive(serde::Deserialize, SurrealValue)]
                 struct CountResult {
                     cnt: i64,
                 }
@@ -354,12 +356,12 @@ async fn mark_perspective_stale_for_pair(
     char_a: &str,
     char_b: &str,
 ) {
-    let ref_a = surrealdb::RecordId::from(("character", char_a));
-    let ref_b = surrealdb::RecordId::from(("character", char_b));
+    let ref_a = surrealdb::types::RecordId::new("character", char_a);
+    let ref_b = surrealdb::types::RecordId::new("character", char_b);
 
-    #[derive(serde::Deserialize)]
+    #[derive(serde::Deserialize, SurrealValue)]
     struct EdgeId {
-        id: surrealdb::RecordId,
+        id: surrealdb::types::RecordId,
     }
 
     match db

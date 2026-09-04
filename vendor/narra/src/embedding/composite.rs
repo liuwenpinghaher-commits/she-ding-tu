@@ -4,6 +4,7 @@
 //! Composite text should be semantically rich but concise (50-200 words).
 
 use crate::models::{Character, Event, Location, Note, Scene, UniverseFact};
+use crate::db::compat::RecordIdExt;
 
 /// Generate composite text for a character.
 ///
@@ -739,18 +740,18 @@ pub fn generate_composite_text(entity_type: &str, entity_json: &serde_json::Valu
 mod tests {
     use super::*;
     use std::collections::HashMap;
-    use surrealdb::RecordId;
+    use surrealdb::types::RecordId;
 
     #[test]
     fn test_character_composite_minimal() {
         let character = Character {
-            id: RecordId::from(("character", "test")),
+            id: RecordId::new("character", "test"),
             name: "Alice".to_string(),
             aliases: vec![],
             roles: vec!["warrior".to_string()],
             profile: HashMap::new(),
-            created_at: surrealdb::Datetime::default(),
-            updated_at: surrealdb::Datetime::default(),
+            created_at: surrealdb::types::Datetime::default(),
+            updated_at: surrealdb::types::Datetime::default(),
         };
 
         let result = character_composite(&character, &[], &[]);
@@ -776,13 +777,13 @@ mod tests {
         );
 
         let character = Character {
-            id: RecordId::from(("character", "test")),
+            id: RecordId::new("character", "test"),
             name: "Alice".to_string(),
             aliases: vec!["The Blade".to_string()],
             roles: vec!["warrior".to_string(), "leader".to_string()],
             profile,
-            created_at: surrealdb::Datetime::default(),
-            updated_at: surrealdb::Datetime::default(),
+            created_at: surrealdb::types::Datetime::default(),
+            updated_at: surrealdb::types::Datetime::default(),
         };
 
         let relationships = vec![
@@ -888,13 +889,13 @@ mod tests {
     #[test]
     fn test_location_composite() {
         let location = Location {
-            id: RecordId::from(("location", "test")),
+            id: RecordId::new("location", "test"),
             name: "The Dark Forest".to_string(),
             description: Some("A dense, ancient forest shrouded in perpetual twilight".to_string()),
             loc_type: "place".to_string(),
             parent: None,
-            created_at: surrealdb::Datetime::default(),
-            updated_at: surrealdb::Datetime::default(),
+            created_at: surrealdb::types::Datetime::default(),
+            updated_at: surrealdb::types::Datetime::default(),
         };
 
         let result = location_composite(&location);
@@ -905,15 +906,15 @@ mod tests {
     #[test]
     fn test_event_composite() {
         let event = Event {
-            id: RecordId::from(("event", "test")),
+            id: RecordId::new("event", "test"),
             title: "The Great Betrayal".to_string(),
             description: Some("Bob reveals his true allegiance".to_string()),
             sequence: 5,
             date: None,
             date_precision: None,
             duration_end: None,
-            created_at: surrealdb::Datetime::default(),
-            updated_at: surrealdb::Datetime::default(),
+            created_at: surrealdb::types::Datetime::default(),
+            updated_at: surrealdb::types::Datetime::default(),
         };
 
         let result = event_composite(&event);
@@ -925,14 +926,14 @@ mod tests {
     #[test]
     fn test_scene_composite() {
         let scene = Scene {
-            id: RecordId::from(("scene", "test")),
+            id: RecordId::new("scene", "test"),
             title: "The Confrontation".to_string(),
             summary: Some("Alice confronts Bob about his betrayal".to_string()),
-            event: RecordId::from(("event", "betrayal")),
-            primary_location: RecordId::from(("location", "forest")),
+            event: RecordId::new("event", "betrayal"),
+            primary_location: RecordId::new("location", "forest"),
             secondary_locations: vec![],
-            created_at: surrealdb::Datetime::default(),
-            updated_at: surrealdb::Datetime::default(),
+            created_at: surrealdb::types::Datetime::default(),
+            updated_at: surrealdb::types::Datetime::default(),
         };
 
         let result = scene_composite(&scene, Some("The Great Betrayal"), Some("The Dark Forest"));
@@ -944,13 +945,13 @@ mod tests {
     #[test]
     fn test_identity_composite_minimal() {
         let character = Character {
-            id: RecordId::from(("character", "test")),
+            id: RecordId::new("character", "test"),
             name: "Alice".to_string(),
             aliases: vec![],
             roles: vec![],
             profile: HashMap::new(),
-            created_at: surrealdb::Datetime::default(),
-            updated_at: surrealdb::Datetime::default(),
+            created_at: surrealdb::types::Datetime::default(),
+            updated_at: surrealdb::types::Datetime::default(),
         };
 
         let result = identity_composite(&character);
@@ -961,13 +962,13 @@ mod tests {
     #[test]
     fn test_identity_composite_full() {
         let character = Character {
-            id: RecordId::from(("character", "test")),
+            id: RecordId::new("character", "test"),
             name: "Alice".to_string(),
             aliases: vec!["The Blade".to_string(), "Shadow".to_string()],
             roles: vec!["warrior".to_string(), "leader".to_string()],
             profile: HashMap::new(),
-            created_at: surrealdb::Datetime::default(),
-            updated_at: surrealdb::Datetime::default(),
+            created_at: surrealdb::types::Datetime::default(),
+            updated_at: surrealdb::types::Datetime::default(),
         };
 
         let result = identity_composite(&character);
@@ -981,13 +982,13 @@ mod tests {
     #[test]
     fn test_psychology_composite_empty() {
         let character = Character {
-            id: RecordId::from(("character", "test")),
+            id: RecordId::new("character", "test"),
             name: "Alice".to_string(),
             aliases: vec![],
             roles: vec![],
             profile: HashMap::new(),
-            created_at: surrealdb::Datetime::default(),
-            updated_at: surrealdb::Datetime::default(),
+            created_at: surrealdb::types::Datetime::default(),
+            updated_at: surrealdb::types::Datetime::default(),
         };
 
         let result = psychology_composite(&character);
@@ -1013,13 +1014,13 @@ mod tests {
         );
 
         let character = Character {
-            id: RecordId::from(("character", "test")),
+            id: RecordId::new("character", "test"),
             name: "Alice".to_string(),
             aliases: vec![],
             roles: vec![],
             profile,
-            created_at: surrealdb::Datetime::default(),
-            updated_at: surrealdb::Datetime::default(),
+            created_at: surrealdb::types::Datetime::default(),
+            updated_at: surrealdb::types::Datetime::default(),
         };
 
         let result = psychology_composite(&character);
@@ -1033,13 +1034,13 @@ mod tests {
     #[test]
     fn test_social_composite_empty() {
         let character = Character {
-            id: RecordId::from(("character", "test")),
+            id: RecordId::new("character", "test"),
             name: "Alice".to_string(),
             aliases: vec![],
             roles: vec![],
             profile: HashMap::new(),
-            created_at: surrealdb::Datetime::default(),
-            updated_at: surrealdb::Datetime::default(),
+            created_at: surrealdb::types::Datetime::default(),
+            updated_at: surrealdb::types::Datetime::default(),
         };
 
         let result = social_composite(&character, &[], &[]);
@@ -1050,13 +1051,13 @@ mod tests {
     #[test]
     fn test_social_composite_full() {
         let character = Character {
-            id: RecordId::from(("character", "test")),
+            id: RecordId::new("character", "test"),
             name: "Alice".to_string(),
             aliases: vec![],
             roles: vec![],
             profile: HashMap::new(),
-            created_at: surrealdb::Datetime::default(),
-            updated_at: surrealdb::Datetime::default(),
+            created_at: surrealdb::types::Datetime::default(),
+            updated_at: surrealdb::types::Datetime::default(),
         };
 
         let relationships = vec![

@@ -1,4 +1,5 @@
 use crate::mcp::{EntityResult, MutationResponse, NarraServer};
+use crate::db::compat::RecordIdExt;
 
 impl NarraServer {
     pub(crate) async fn handle_create_note(

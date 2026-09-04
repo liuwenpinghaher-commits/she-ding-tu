@@ -1,6 +1,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use surrealdb::types::SurrealValue;
 
 /// Maximum allowed limit for result counts (prevents unbounded queries).
 pub const MAX_LIMIT: usize = 500;
@@ -15,8 +16,9 @@ pub const DEFAULT_TOKEN_BUDGET: usize = 2000;
 pub const MAX_TOKEN_BUDGET: usize = 8000;
 
 /// Detail level for entity queries.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, JsonSchema, SurrealValue)]
 #[serde(rename_all = "snake_case")]
+#[surreal(rename_all = "snake_case")]
 pub enum DetailLevel {
     /// Brief overview (names, IDs only)
     #[default]
@@ -28,8 +30,9 @@ pub enum DetailLevel {
 }
 
 /// Graph format for traversal results.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, JsonSchema, SurrealValue)]
 #[serde(rename_all = "snake_case")]
+#[surreal(rename_all = "snake_case")]
 pub enum GraphFormat {
     /// List of entities (flat)
     #[default]
@@ -39,7 +42,7 @@ pub enum GraphFormat {
 }
 
 /// Query operations (read-only).
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, SurrealValue)]
 #[serde(tag = "operation", rename_all = "snake_case")]
 pub enum QueryRequest {
     /// Look up a specific entity by ID.
@@ -663,7 +666,7 @@ fn default_search_mode() -> String {
 }
 
 /// A single issue in validation results.
-#[derive(Debug, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Serialize, Deserialize, JsonSchema, SurrealValue)]
 pub struct ValidationIssue {
     pub issue_type: String,
     pub severity: String,
@@ -674,7 +677,7 @@ pub struct ValidationIssue {
 
 /// Typed metadata filter for semantic and hybrid search.
 /// Provides JSON Schema so LLMs can discover available filter fields.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, Default, SurrealValue)]
 pub struct SearchMetadataFilter {
     /// Filter characters by role (e.g. "warrior"). Checks array membership.
     #[serde(default)]
@@ -694,7 +697,7 @@ pub struct SearchMetadataFilter {
 }
 
 /// Spec for a character in batch creation.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, SurrealValue)]
 pub struct CharacterSpec {
     /// Caller-specified ID slug (e.g. "alice"). Auto-generated if omitted.
     #[serde(default)]
@@ -711,7 +714,7 @@ pub struct CharacterSpec {
 }
 
 /// Spec for a location in batch creation.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, SurrealValue)]
 pub struct LocationSpec {
     /// Caller-specified ID slug (e.g. "castle"). Auto-generated if omitted.
     #[serde(default)]
@@ -728,7 +731,7 @@ pub struct LocationSpec {
 }
 
 /// Spec for an event in batch creation.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, SurrealValue)]
 pub struct EventSpec {
     /// Caller-specified ID slug (e.g. "betrayal"). Auto-generated if omitted.
     #[serde(default)]
@@ -745,7 +748,7 @@ pub struct EventSpec {
 }
 
 /// Spec for a relationship in batch creation.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, SurrealValue)]
 pub struct RelationshipSpec {
     pub from_character_id: String,
     pub to_character_id: String,
@@ -757,8 +760,9 @@ pub struct RelationshipSpec {
 }
 
 /// Conflict resolution mode for import operations.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, JsonSchema, SurrealValue)]
 #[serde(rename_all = "snake_case")]
+#[surreal(rename_all = "snake_case")]
 pub enum ConflictMode {
     /// Return error for duplicate IDs (continue with remaining entities)
     #[default]
@@ -770,7 +774,7 @@ pub enum ConflictMode {
 }
 
 /// Spec for a scene participant in import.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, SurrealValue)]
 pub struct ParticipantSpec {
     pub character_id: String,
     #[serde(default = "default_participant_role")]
@@ -784,7 +788,7 @@ fn default_participant_role() -> String {
 }
 
 /// Spec for a scene in import.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, SurrealValue)]
 pub struct SceneSpec {
     #[serde(default)]
     pub id: Option<String>,
@@ -800,7 +804,7 @@ pub struct SceneSpec {
 }
 
 /// Spec for a knowledge entry in import.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, SurrealValue)]
 pub struct KnowledgeSpec {
     pub character_id: String,
     pub target_id: String,
@@ -820,7 +824,7 @@ fn default_certainty() -> String {
 }
 
 /// Spec for a fact-to-entity link in import.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, SurrealValue)]
 pub struct FactLinkSpec {
     pub entity_id: String,
     #[serde(default = "default_link_type")]
@@ -834,7 +838,7 @@ fn default_link_type() -> String {
 }
 
 /// Spec for a universe fact in import.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, SurrealValue)]
 pub struct FactSpec {
     #[serde(default)]
     pub id: Option<String>,
@@ -849,7 +853,7 @@ pub struct FactSpec {
 }
 
 /// Spec for a note in import.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, SurrealValue)]
 pub struct NoteSpec {
     #[serde(default)]
     pub id: Option<String>,
@@ -866,7 +870,7 @@ pub struct NoteSpec {
 ///
 /// Entity types are processed in dependency order:
 /// characters → locations → events → scenes → relationships → knowledge → notes → facts.
-#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema, SurrealValue)]
 pub struct NarraImport {
     #[serde(default)]
     pub characters: Vec<CharacterSpec>,
@@ -887,7 +891,7 @@ pub struct NarraImport {
 }
 
 /// Per-entity-type import result.
-#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema, SurrealValue)]
 pub struct ImportTypeResult {
     pub entity_type: String,
     pub created: usize,
@@ -897,7 +901,7 @@ pub struct ImportTypeResult {
 }
 
 /// Aggregate import result.
-#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema, SurrealValue)]
 pub struct ImportResult {
     pub total_created: usize,
     pub total_skipped: usize,
@@ -907,7 +911,7 @@ pub struct ImportResult {
 }
 
 /// Mutation operations (write).
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, SurrealValue)]
 #[serde(tag = "operation", rename_all = "snake_case")]
 pub enum MutationRequest {
     /// Create a new character.
@@ -1137,7 +1141,7 @@ fn default_true() -> bool {
 }
 
 /// Single entity result.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, SurrealValue)]
 pub struct EntityResult {
     /// Entity ID (e.g., "character:alice")
     pub id: String,
@@ -1163,7 +1167,7 @@ pub struct EntityResult {
 // --- Essential Tool Inputs ---
 
 /// Input for semantic_search tool.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, SurrealValue)]
 pub struct SemanticSearchInput {
     /// Natural language query (e.g., "characters who struggle with duty")
     pub query: String,
@@ -1176,21 +1180,21 @@ pub struct SemanticSearchInput {
 }
 
 /// Input for dossier tool.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, SurrealValue)]
 pub struct DossierInput {
     /// Character ID (e.g., "character:alice" or just "alice")
     pub character_id: String,
 }
 
 /// Input for scene_prep tool.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, SurrealValue)]
 pub struct ScenePrepInput {
     /// Character IDs for the scene (at least 2, e.g., ["character:alice", "character:bob"])
     pub character_ids: Vec<String>,
 }
 
 /// Input for overview tool.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, SurrealValue)]
 pub struct OverviewInput {
     /// Entity type: "character", "location", "event", "scene", or "all" (default: "all")
     #[serde(default = "default_overview_type")]
@@ -1205,7 +1209,7 @@ fn default_overview_type() -> String {
 }
 
 /// Input for record_knowledge tool.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, SurrealValue)]
 pub struct RecordKnowledgeInput {
     /// Character who learns (e.g., "character:alice" or "alice")
     pub character_id: String,
@@ -1229,7 +1233,7 @@ pub struct RecordKnowledgeInput {
 // --- Standard Tool Inputs ---
 
 /// Input for search tool (keyword).
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, SurrealValue)]
 pub struct KeywordSearchInput {
     /// Search query (names, titles, keywords)
     pub query: String,
@@ -1242,7 +1246,7 @@ pub struct KeywordSearchInput {
 }
 
 /// Input for lookup tool.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, SurrealValue)]
 pub struct LookupInput {
     /// Entity ID (e.g., "character:alice", "event:betrayal")
     pub entity_id: String,
@@ -1252,7 +1256,7 @@ pub struct LookupInput {
 }
 
 /// Input for create_character tool.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, SurrealValue)]
 pub struct CreateCharacterInput {
     /// Character name (display name)
     pub name: String,
@@ -1274,7 +1278,7 @@ pub struct CreateCharacterInput {
 }
 
 /// Input for create_relationship tool.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, SurrealValue)]
 pub struct CreateRelationshipInput {
     /// Source character ID (e.g., "character:alice")
     pub from_character_id: String,
@@ -1291,7 +1295,7 @@ pub struct CreateRelationshipInput {
 }
 
 /// Input for irony_report tool.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, SurrealValue)]
 pub struct IronyReportInput {
     /// Focus on specific character (omit for full world report)
     #[serde(default)]
@@ -1302,7 +1306,7 @@ pub struct IronyReportInput {
 }
 
 /// Input for update_entity tool.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, SurrealValue)]
 pub struct UpdateEntityInput {
     /// Entity ID (e.g., "character:alice", "event:betrayal")
     pub entity_id: String,
@@ -1311,7 +1315,7 @@ pub struct UpdateEntityInput {
 }
 
 /// Input for knowledge_asymmetries tool.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, SurrealValue)]
 pub struct KnowledgeAsymmetriesInput {
     /// First character ID (e.g., "character:alice" or "alice")
     pub character_a: String,
@@ -1320,7 +1324,7 @@ pub struct KnowledgeAsymmetriesInput {
 }
 
 /// Input for validate_entity tool.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, SurrealValue)]
 pub struct ValidateEntityInput {
     /// Entity ID to validate (e.g., "character:alice", "scene:chapter1")
     pub entity_id: String,
@@ -1333,7 +1337,7 @@ pub struct ValidateEntityInput {
 // =============================================================================
 
 /// Free-form input for query tool (runtime deserialization to QueryRequest).
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, SurrealValue)]
 pub struct QueryInput {
     /// Operation name (lookup, search, semantic_search, etc.)
     pub operation: String,
@@ -1347,7 +1351,7 @@ pub struct QueryInput {
 }
 
 /// Free-form input for mutate tool (runtime deserialization to MutationRequest).
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, SurrealValue)]
 pub struct MutationInput {
     /// Operation name (create_character, update, delete, etc.)
     pub operation: String,
@@ -1357,7 +1361,7 @@ pub struct MutationInput {
 }
 
 /// Free-form input for session tool (runtime deserialization to SessionRequest).
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, SurrealValue)]
 pub struct SessionInput {
     /// Operation name (get_context, pin_entity, unpin_entity)
     pub operation: String,
@@ -1367,7 +1371,7 @@ pub struct SessionInput {
 }
 
 /// Information about response truncation due to token budget constraints.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, SurrealValue)]
 pub struct TruncationInfo {
     /// Reason for truncation ("token_budget" or "result_limit")
     pub reason: String,
@@ -1380,7 +1384,7 @@ pub struct TruncationInfo {
 }
 
 /// Query response with multiple results.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, SurrealValue)]
 pub struct QueryResponse {
     /// Result entities
     pub results: Vec<EntityResult>,
@@ -1400,7 +1404,7 @@ pub struct QueryResponse {
 }
 
 /// Impact summary for mutations.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, SurrealValue)]
 pub struct ImpactSummary {
     /// Number of entities affected
     pub affected_count: usize,
@@ -1412,7 +1416,7 @@ pub struct ImpactSummary {
 }
 
 /// Mutation response.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, SurrealValue)]
 pub struct MutationResponse {
     /// The created/modified entity (summary for batch operations)
     pub entity: EntityResult,
@@ -1428,7 +1432,7 @@ pub struct MutationResponse {
 }
 
 /// Disambiguation result when entity is ambiguous.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, SurrealValue)]
 pub struct DisambiguationResult {
     /// Best matching entity (if any)
     #[serde(default)]
@@ -1441,7 +1445,7 @@ pub struct DisambiguationResult {
 }
 
 /// Session management operations.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, SurrealValue)]
 #[serde(tag = "operation", rename_all = "snake_case")]
 pub enum SessionRequest {
     /// Get session summary: recent work, hot entities, pinned items, pending decisions.
@@ -1463,7 +1467,7 @@ pub enum SessionRequest {
 }
 
 /// Response for session operations.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, SurrealValue)]
 pub struct SessionResponse {
     /// Which operation was performed
     pub operation: String,
@@ -1479,7 +1483,7 @@ pub struct SessionResponse {
 }
 
 /// Session context details.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, SurrealValue)]
 pub struct SessionContextData {
     pub verbosity: String,
     pub summary: String,
@@ -1492,7 +1496,7 @@ pub struct SessionContextData {
 }
 
 /// Hot entity in session context.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, SurrealValue)]
 pub struct HotEntityInfo {
     pub id: String,
     pub name: String,
@@ -1502,7 +1506,7 @@ pub struct HotEntityInfo {
 }
 
 /// Pending decision in session context.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, SurrealValue)]
 pub struct PendingDecisionInfo {
     pub id: String,
     pub description: String,
@@ -1511,7 +1515,7 @@ pub struct PendingDecisionInfo {
 }
 
 /// World overview counts.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, SurrealValue)]
 pub struct WorldOverviewInfo {
     pub character_count: usize,
     pub location_count: usize,
@@ -1521,7 +1525,7 @@ pub struct WorldOverviewInfo {
 }
 
 /// Pin/unpin operation result.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, SurrealValue)]
 pub struct PinResult {
     pub success: bool,
     pub entity_id: String,

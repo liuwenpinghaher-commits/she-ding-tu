@@ -9,6 +9,8 @@ use async_trait::async_trait;
 use serde::Serialize;
 use std::collections::{HashSet, VecDeque};
 use std::sync::Arc;
+use surrealdb::types::SurrealValue;
+use crate::db::compat::RecordIdExt;
 
 use crate::NarraError;
 
@@ -135,16 +137,16 @@ impl SurrealInfluenceDataProvider {
 }
 
 /// Edge structure returned from perceives queries.
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, serde::Deserialize, SurrealValue)]
 struct PerceptionEdge {
-    target: surrealdb::sql::Thing,
+    target: surrealdb::types::RecordId,
     rel_types: Vec<String>,
     tension_level: Option<i32>,
     subtype: Option<String>,
 }
 
 /// Character info for name resolution.
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, serde::Deserialize, SurrealValue)]
 struct CharacterInfo {
     name: String,
 }
@@ -174,7 +176,7 @@ impl InfluenceDataProvider for SurrealInfluenceDataProvider {
     }
 
     async fn get_character_name(&self, key: &str) -> Result<String, NarraError> {
-        let char_ref = surrealdb::RecordId::from(("character", key));
+        let char_ref = surrealdb::types::RecordId::new("character", key);
         let mut result = self
             .db
             .query("SELECT name FROM ONLY $char_ref")
@@ -191,7 +193,7 @@ impl InfluenceDataProvider for SurrealInfluenceDataProvider {
 
     async fn get_all_character_ids(&self) -> Result<Vec<String>, NarraError> {
         let mut result = self.db.query("SELECT VALUE id FROM character").await?;
-        let ids: Vec<surrealdb::sql::Thing> = result.take(0)?;
+        let ids: Vec<surrealdb::types::RecordId> = result.take(0)?;
         Ok(ids.into_iter().map(|id| id.to_string()).collect())
     }
 }

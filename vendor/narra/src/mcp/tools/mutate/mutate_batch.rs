@@ -1,6 +1,7 @@
 use crate::mcp::types::{CharacterSpec, EventSpec, LocationSpec, RelationshipSpec};
 use crate::mcp::{EntityResult, MutationResponse, NarraServer};
 use crate::models::{CharacterCreate, EventCreate, LocationCreate};
+use crate::db::compat::RecordIdExt;
 
 impl NarraServer {
     pub(crate) async fn handle_batch_create_characters(
@@ -85,7 +86,7 @@ impl NarraServer {
         locations: Vec<LocationSpec>,
     ) -> Result<MutationResponse, String> {
         use crate::models::location::{create_location, create_location_with_id};
-        use surrealdb::RecordId;
+        use surrealdb::types::RecordId;
 
         let count = locations.len();
         let mut entities = Vec::with_capacity(count);

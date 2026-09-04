@@ -6,7 +6,7 @@
 
 use crate::db::connection::NarraDb;
 use serde::{Deserialize, Serialize};
-use surrealdb::{Datetime, RecordId};
+use surrealdb::types::{Datetime, RecordId, SurrealValue};
 
 use crate::NarraError;
 
@@ -16,7 +16,7 @@ use crate::NarraError;
 /// - An `event` (when it happens in the timeline)
 /// - A `primary_location` (where it takes place)
 /// - Optional `secondary_locations` (other locations involved)
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, SurrealValue)]
 pub struct Scene {
     pub id: RecordId,
     pub title: String,
@@ -30,7 +30,7 @@ pub struct Scene {
 }
 
 /// Data for creating a new scene.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, SurrealValue)]
 pub struct SceneCreate {
     pub title: String,
     pub summary: Option<String>,
@@ -41,7 +41,7 @@ pub struct SceneCreate {
 }
 
 /// Data for updating a scene.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, SurrealValue)]
 pub struct SceneUpdate {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub title: Option<String>,
@@ -156,7 +156,7 @@ pub async fn delete_scene(db: &NarraDb, id: &str) -> Result<Option<Scene>, Narra
 ///
 /// A vector of scenes that occur at this event.
 pub async fn get_scenes_at_event(db: &NarraDb, event_id: &str) -> Result<Vec<Scene>, NarraError> {
-    let event_ref = RecordId::from(("event", event_id));
+    let event_ref = RecordId::new("event", event_id);
     let mut result = db
         .query("SELECT * FROM scene WHERE event = $event_ref")
         .bind(("event_ref", event_ref))
@@ -181,7 +181,7 @@ pub async fn get_scenes_at_location(
     db: &NarraDb,
     location_id: &str,
 ) -> Result<Vec<Scene>, NarraError> {
-    let loc_ref = RecordId::from(("location", location_id));
+    let loc_ref = RecordId::new("location", location_id);
     let mut result = db
         .query("SELECT * FROM scene WHERE primary_location = $loc_ref OR $loc_ref IN secondary_locations")
         .bind(("loc_ref", loc_ref))
@@ -208,7 +208,7 @@ pub async fn get_scenes_at_location(
 /// - mentioned
 ///
 /// Roles are user-extensible (not enforced by schema).
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, SurrealValue)]
 pub struct SceneParticipant {
     pub id: RecordId,
     #[serde(rename = "in")]
@@ -339,7 +339,7 @@ pub async fn delete_scene_participant(
 /// event involvement tracks causal impact:
 /// - Who was affected by this event?
 /// - How did it impact them?
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, SurrealValue)]
 pub struct Involvement {
     pub id: RecordId,
     #[serde(rename = "in")]
@@ -407,7 +407,7 @@ pub async fn get_event_characters(
     db: &NarraDb,
     event_id: &str,
 ) -> Result<Vec<Involvement>, NarraError> {
-    let event_ref = RecordId::from(("event", event_id));
+    let event_ref = RecordId::new("event", event_id);
     let mut result = db
         .query("SELECT * FROM involved_in WHERE out = $event_ref")
         .bind(("event_ref", event_ref))
@@ -430,7 +430,7 @@ pub async fn get_character_events(
     db: &NarraDb,
     character_id: &str,
 ) -> Result<Vec<Involvement>, NarraError> {
-    let char_ref = RecordId::from(("character", character_id));
+    let char_ref = RecordId::new("character", character_id);
     let mut result = db
         .query("SELECT * FROM involved_in WHERE in = $char_ref")
         .bind(("char_ref", char_ref))

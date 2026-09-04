@@ -1,6 +1,8 @@
 //! Find handler for CLI — hybrid search by default, plus semantic subcommands.
 
 use anyhow::Result;
+use surrealdb::types::SurrealValue;
+use crate::db::compat::RecordIdExt;
 
 use crate::cli::output::{
     create_spinner, output_json, output_json_list, print_hint, print_table, OutputMode,
@@ -248,9 +250,9 @@ pub async fn handle_semantic_join(
 
     let query_vector = ctx.embedding_service.embed_text(query).await?;
 
-    #[derive(serde::Deserialize, serde::Serialize)]
+    #[derive(serde::Deserialize, serde::Serialize, SurrealValue)]
     struct SearchResult {
-        id: surrealdb::sql::Thing,
+        id: surrealdb::types::RecordId,
         entity_type: String,
         name: String,
         score: f32,
@@ -390,9 +392,9 @@ pub async fn handle_semantic_knowledge(
         .bind(("query_vector", query_vector))
         .await?;
 
-    #[derive(serde::Deserialize, serde::Serialize)]
+    #[derive(serde::Deserialize, serde::Serialize, SurrealValue)]
     struct KnowledgeResult {
-        id: surrealdb::sql::Thing,
+        id: surrealdb::types::RecordId,
         entity_type: String,
         name: String,
         score: f32,
@@ -529,9 +531,9 @@ pub async fn handle_semantic_graph_search(
 
         let mut response = ctx.db.query(&query_str).await?;
 
-        #[derive(serde::Deserialize)]
+        #[derive(serde::Deserialize, SurrealValue)]
         struct EntityWithEmbedding {
-            id: surrealdb::sql::Thing,
+            id: surrealdb::types::RecordId,
             entity_type: String,
             name: String,
             embedding: Vec<f32>,

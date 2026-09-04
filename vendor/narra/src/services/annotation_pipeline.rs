@@ -5,6 +5,8 @@
 //! stream construction. Designed for throughput when annotating many entities.
 
 use std::sync::Arc;
+use surrealdb::types::SurrealValue;
+use crate::db::compat::RecordIdExt;
 
 use futures::StreamExt;
 use serde::Serialize;
@@ -319,9 +321,9 @@ impl AnnotationPipeline {
         let mut all_entities = Vec::new();
 
         for entity_type in entity_types {
-            #[derive(serde::Deserialize)]
+            #[derive(serde::Deserialize, SurrealValue)]
             struct Row {
-                id: surrealdb::RecordId,
+                id: surrealdb::types::RecordId,
                 composite_text: Option<String>,
                 name: Option<String>,
                 title: Option<String>,

@@ -4,8 +4,9 @@ use crate::db::connection::NarraDb;
 use crate::services::world::{world_at, worlds_equivalent, Canon, World};
 use crate::NarraError;
 use serde::{Deserialize, Serialize};
+use surrealdb::types::SurrealValue;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, SurrealValue)]
 struct MatRow {
     clock_from: i64,
     clock_to: i64,

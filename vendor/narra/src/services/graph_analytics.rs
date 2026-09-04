@@ -9,6 +9,8 @@ use async_trait::async_trait;
 use graphrs::{algorithms::centrality, Edge, Graph, GraphSpecs, Node};
 use std::collections::HashMap;
 use std::sync::Arc;
+use surrealdb::types::SurrealValue;
+use crate::db::compat::RecordIdExt;
 
 use crate::NarraError;
 
@@ -91,19 +93,19 @@ impl SurrealGraphDataProvider {
 }
 
 /// Internal struct for character query results.
-#[derive(Debug, Clone, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Deserialize, SurrealValue)]
 struct CharacterNode {
-    id: surrealdb::sql::Thing,
+    id: surrealdb::types::RecordId,
     name: String,
 }
 
 /// Internal struct for perception edge query results.
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, serde::Deserialize, SurrealValue)]
 struct PerceptionEdge {
     #[serde(rename = "in")]
-    from: surrealdb::sql::Thing,
+    from: surrealdb::types::RecordId,
     #[serde(rename = "out")]
-    to: surrealdb::sql::Thing,
+    to: surrealdb::types::RecordId,
 }
 
 #[async_trait]
@@ -133,12 +135,12 @@ impl GraphDataProvider for SurrealGraphDataProvider {
     }
 
     async fn get_all_relationship_edges(&self) -> Result<Vec<PerceptionEdgeInfo>, NarraError> {
-        #[derive(Debug, serde::Deserialize)]
+        #[derive(Debug, serde::Deserialize, SurrealValue)]
         struct RelationshipEdge {
             #[serde(rename = "in")]
-            from: surrealdb::sql::Thing,
+            from: surrealdb::types::RecordId,
             #[serde(rename = "out")]
-            to: surrealdb::sql::Thing,
+            to: surrealdb::types::RecordId,
         }
 
         let mut result = self.db.query("SELECT in, out FROM relates_to").await?;

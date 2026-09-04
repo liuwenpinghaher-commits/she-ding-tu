@@ -3,15 +3,16 @@
 use crate::services::world::{Canon, World, ROLE_PRESENT, STATUS_COMMITTED};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
+use surrealdb::types::SurrealValue;
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, SurrealValue)]
 pub struct RelNode {
     pub id: String,
     pub name: String,
     pub kind: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, SurrealValue)]
 pub struct RelEdge {
     pub from: String,
     pub to: String,

@@ -2,6 +2,8 @@
 
 use anyhow::Result;
 use serde::Serialize;
+use surrealdb::types::SurrealValue;
+use crate::db::compat::RecordIdExt;
 
 use crate::cli::output::{
     create_spinner, output_json, print_header, print_hint, print_kv, print_success, print_table,
@@ -371,17 +373,17 @@ pub async fn handle_perspective_search(
         .bind(("lim", limit));
     if let Some(ref obs_id) = observer_id {
         let (table, key) = obs_id.split_once(':').unwrap_or(("character", obs_id));
-        q = q.bind(("obs_ref", surrealdb::RecordId::from((table, key))));
+        q = q.bind(("obs_ref", surrealdb::types::RecordId::new(table, key)));
     }
     if let Some(ref tgt_id) = target_id {
         let (table, key) = tgt_id.split_once(':').unwrap_or(("character", tgt_id));
-        q = q.bind(("tgt_ref", surrealdb::RecordId::from((table, key))));
+        q = q.bind(("tgt_ref", surrealdb::types::RecordId::new(table, key)));
     }
     let mut response = q.await?;
 
-    #[derive(serde::Deserialize, Serialize)]
+    #[derive(serde::Deserialize, Serialize, SurrealValue)]
     struct PerspectiveResult {
-        id: surrealdb::sql::Thing,
+        id: surrealdb::types::RecordId,
         observer_name: Option<String>,
         target_name: Option<String>,
         perception: Option<String>,

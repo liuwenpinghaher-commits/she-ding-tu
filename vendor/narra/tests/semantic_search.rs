@@ -8,6 +8,7 @@
 //! - Empty embeddings handled correctly
 
 mod common;
+use narra::db::compat::RecordIdExt;
 
 use common::harness::TestHarness;
 use narra::embedding::backfill::BackfillService;

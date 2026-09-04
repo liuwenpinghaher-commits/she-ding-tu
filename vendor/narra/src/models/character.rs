@@ -2,12 +2,13 @@ use crate::db::connection::NarraDb;
 use serde::{Deserialize, Serialize};
 use serde_with::skip_serializing_none;
 use std::collections::HashMap;
-use surrealdb::{Datetime, RecordId};
+use surrealdb::types::{Datetime, RecordId, SurrealValue};
+use crate::db::compat::RecordIdExt;
 
 use crate::NarraError;
 
 /// Character entity as stored in database.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, SurrealValue)]
 pub struct Character {
     pub id: RecordId,
     pub name: String,
@@ -23,7 +24,7 @@ pub struct Character {
 }
 
 /// Data for creating a new character.
-#[derive(Debug, Default, Serialize)]
+#[derive(Debug, Default, Serialize, SurrealValue)]
 pub struct CharacterCreate {
     pub name: String,
     pub aliases: Vec<String>,
@@ -34,7 +35,7 @@ pub struct CharacterCreate {
 
 /// Data for updating a character.
 #[skip_serializing_none]
-#[derive(Debug, Default, Serialize)]
+#[derive(Debug, Default, Serialize, SurrealValue)]
 pub struct CharacterUpdate {
     pub name: Option<String>,
     pub aliases: Option<Vec<String>>,

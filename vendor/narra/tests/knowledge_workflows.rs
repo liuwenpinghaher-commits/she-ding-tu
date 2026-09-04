@@ -7,6 +7,7 @@
 //! complete history of what characters knew and when.
 
 mod common;
+use narra::db::compat::RecordIdExt;
 
 use pretty_assertions::assert_eq;
 

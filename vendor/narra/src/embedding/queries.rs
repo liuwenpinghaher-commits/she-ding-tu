@@ -5,6 +5,8 @@
 
 use crate::db::connection::NarraDb;
 use tracing::warn;
+use surrealdb::types::SurrealValue;
+use crate::db::compat::RecordIdExt;
 
 /// Fetch observer's knowledge about a target character (text-match on target name).
 ///
@@ -21,7 +23,7 @@ pub async fn fetch_knowledge_about(
         observer_id
     );
 
-    #[derive(serde::Deserialize)]
+    #[derive(serde::Deserialize, SurrealValue)]
     struct KnowledgeFact {
         fact: String,
         certainty: Option<String>,
@@ -73,8 +75,8 @@ pub async fn fetch_shared_scenes(
     let mut resp_a = resp_a;
     let mut resp_b = resp_b;
 
-    let scenes_a: Vec<surrealdb::RecordId> = resp_a.take(0).unwrap_or_default();
-    let scenes_b: Vec<surrealdb::RecordId> = resp_b.take(0).unwrap_or_default();
+    let scenes_a: Vec<surrealdb::types::RecordId> = resp_a.take(0).unwrap_or_default();
+    let scenes_b: Vec<surrealdb::types::RecordId> = resp_b.take(0).unwrap_or_default();
 
     let set_b: std::collections::HashSet<String> = scenes_b.iter().map(|r| r.to_string()).collect();
     let shared: Vec<String> = scenes_a
@@ -96,7 +98,7 @@ pub async fn fetch_shared_scenes(
 
     match db.query(&detail_query).await {
         Ok(mut resp) => {
-            #[derive(serde::Deserialize)]
+            #[derive(serde::Deserialize, SurrealValue)]
             struct SceneInfo {
                 title: String,
                 summary: Option<String>,

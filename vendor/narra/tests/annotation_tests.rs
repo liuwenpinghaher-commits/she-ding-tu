@@ -1,6 +1,7 @@
 //! Integration tests for annotation CRUD, staleness propagation, emotion, theme, and NER queries.
 
 mod common;
+use narra::db::compat::RecordIdExt;
 
 use std::sync::Arc;
 

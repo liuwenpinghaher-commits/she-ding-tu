@@ -1,6 +1,7 @@
 //! MCP query handlers for composite intelligence operations.
 
 use std::sync::Arc;
+use surrealdb::types::SurrealValue;
 
 use crate::mcp::{EntityResult, NarraServer, QueryResponse};
 use crate::services::progress::ProgressReporter;
@@ -10,7 +11,7 @@ use serde::Deserialize;
 impl NarraServer {
     /// Fetch composite_text for an entity, falling back to name/title/description.
     async fn fetch_composite_text(&self, entity_id: &str) -> Option<String> {
-        #[derive(Deserialize)]
+        #[derive(Deserialize, SurrealValue)]
         struct TextRow {
             composite_text: Option<String>,
             name: Option<String>,

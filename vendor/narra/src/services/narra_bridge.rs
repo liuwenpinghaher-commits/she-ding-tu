@@ -1,12 +1,14 @@
 //! 把设定图正史双写进官方 Narra 表。load_canon 场骨架以带 setting_beat 的 scene 为准。
 
 use crate::db::connection::NarraDb;
+use crate::db::compat::RecordIdExt;
 use crate::services::world::{
     Beat, Canon, Column, Delta, Entity, ROLE_PRESENT, STATUS_COMMITTED,
 };
 use crate::NarraError;
 use serde::Deserialize;
-use surrealdb::{RecordId, Response};
+use surrealdb::types::{RecordId, SurrealValue};
+use surrealdb::IndexedResults as Response;
 
 fn check_ctx(resp: Response, ctx: &str) -> Result<(), NarraError> {
     resp.check()
@@ -27,7 +29,7 @@ fn aliases_of(e: &Entity) -> Vec<String> {
 }
 
 fn rec(table: &str, id: &str) -> RecordId {
-    RecordId::from((table, id))
+    RecordId::new(table, id)
 }
 
 fn djb2(s: &str) -> u64 {
@@ -145,7 +147,7 @@ pub async fn delete_mirrored_column(db: &NarraDb, id: &str) -> Result<(), NarraE
 }
 
 async fn character_exists(db: &NarraDb, id: &str) -> bool {
-    #[derive(Deserialize)]
+    #[derive(Deserialize, SurrealValue)]
     struct Named {
         name: Option<String>,
     }

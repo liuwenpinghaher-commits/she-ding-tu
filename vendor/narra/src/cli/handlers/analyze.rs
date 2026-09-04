@@ -2,6 +2,8 @@
 
 use anyhow::Result;
 use serde::Serialize;
+use surrealdb::types::SurrealValue;
+use crate::db::compat::RecordIdExt;
 
 use crate::cli::output::{
     output_json, output_json_list, print_error, print_header, print_hint, print_kv, print_success,
@@ -293,7 +295,7 @@ pub async fn handle_tensions(ctx: &AppContext, limit: usize, mode: OutputMode) -
         .await
         .map_err(|e| anyhow::anyhow!("Tension query failed: {}", e))?;
 
-    #[derive(serde::Deserialize, Serialize)]
+    #[derive(serde::Deserialize, Serialize, SurrealValue)]
     struct TensionRow {
         observer: String,
         target: String,
@@ -461,7 +463,7 @@ pub async fn handle_arc_drift(
         .await
         .map_err(|e| anyhow::anyhow!("Arc drift query failed: {}", e))?;
 
-    #[derive(serde::Deserialize)]
+    #[derive(serde::Deserialize, SurrealValue)]
     struct ArcEntity {
         entity_id: String,
         snapshot_count: usize,
@@ -496,7 +498,7 @@ pub async fn handle_arc_drift(
             entity.entity_id
         );
 
-        #[derive(serde::Deserialize)]
+        #[derive(serde::Deserialize, SurrealValue)]
         struct EmbOnly {
             embedding: Vec<f32>,
         }
@@ -1106,7 +1108,7 @@ pub async fn handle_temporal(
                     format!("{:?}", s.learning_method),
                     s.event
                         .as_ref()
-                        .map(|e: &surrealdb::RecordId| e.to_string())
+                        .map(|e: &surrealdb::types::RecordId| e.to_string())
                         .unwrap_or_else(|| "-".to_string()),
                 ]
             })
@@ -1472,7 +1474,7 @@ pub async fn handle_facets(
     let character_id = resolve_single(ctx, character, no_semantic).await?;
 
     // Fetch character with all facet embeddings and composites
-    #[derive(serde::Deserialize)]
+    #[derive(serde::Deserialize, SurrealValue)]
     struct FacetData {
         name: String,
         identity_embedding: Option<Vec<f32>>,
@@ -1987,7 +1989,7 @@ pub async fn handle_transitions(
 /// Fetch composite text for an entity from the DB.
 /// Falls back to name/title/fact fields if composite_text is absent.
 async fn fetch_entity_text(ctx: &AppContext, entity_id: &str) -> Result<(String, String)> {
-    #[derive(serde::Deserialize)]
+    #[derive(serde::Deserialize, SurrealValue)]
     struct TextRow {
         composite_text: Option<String>,
         name: Option<String>,

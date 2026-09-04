@@ -1,6 +1,8 @@
 //! World management command handlers: status, health, backfill, export, import, validate, graph.
 
 use std::path::Path;
+use surrealdb::types::SurrealValue;
+use crate::db::compat::RecordIdExt;
 
 use anyhow::Result;
 use colored::Colorize;
@@ -17,7 +19,7 @@ use crate::init::AppContext;
 // Status — world overview dashboard
 // =============================================================================
 
-#[derive(Deserialize)]
+#[derive(Deserialize, SurrealValue)]
 struct CountResult {
     count: usize,
 }
@@ -540,9 +542,9 @@ pub async fn handle_validate(
             }
         }
         None => {
-            #[derive(Deserialize)]
+            #[derive(Deserialize, SurrealValue)]
             struct IdOnly {
-                id: surrealdb::RecordId,
+                id: surrealdb::types::RecordId,
             }
 
             let mut resp = ctx.db.query("SELECT id FROM character").await?;
@@ -753,9 +755,9 @@ pub async fn handle_baseline_arcs(
 
         let mut response = ctx.db.query(&fetch_query).await?;
 
-        #[derive(Deserialize)]
+        #[derive(Deserialize, SurrealValue)]
         struct EntityWithEmbedding {
-            id: surrealdb::RecordId,
+            id: surrealdb::types::RecordId,
             embedding: Vec<f32>,
         }
 
@@ -771,7 +773,7 @@ pub async fn handle_baseline_arcs(
                 .bind(("eid", entity.id.clone()))
                 .await?;
 
-            #[derive(Deserialize)]
+            #[derive(Deserialize, SurrealValue)]
             struct ArcCount {
                 cnt: i64,
             }
@@ -912,9 +914,9 @@ pub async fn handle_benchmark(
     ];
     let per_table = (sample / tables.len()).max(1);
 
-    #[derive(Deserialize, Clone)]
+    #[derive(Deserialize, Clone, SurrealValue)]
     struct TextEntity {
-        id: surrealdb::RecordId,
+        id: surrealdb::types::RecordId,
         composite_text: String,
         embedding: Option<Vec<f32>>,
     }

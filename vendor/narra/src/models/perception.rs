@@ -7,7 +7,8 @@
 
 use crate::db::connection::NarraDb;
 use serde::{Deserialize, Serialize};
-use surrealdb::{Datetime, RecordId};
+use surrealdb::types::{Datetime, RecordId, SurrealValue};
+use crate::db::compat::RecordIdExt;
 
 use crate::NarraError;
 
@@ -28,7 +29,7 @@ use crate::NarraError;
 /// - alliance
 ///
 /// A single perception can have multiple types (e.g., family + rivalry).
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, SurrealValue)]
 pub struct Perception {
     pub id: RecordId,
     #[serde(rename = "in")]
@@ -52,7 +53,7 @@ pub struct Perception {
 }
 
 /// Data for creating a new perception edge.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, SurrealValue)]
 pub struct PerceptionCreate {
     pub rel_types: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -68,7 +69,7 @@ pub struct PerceptionCreate {
 }
 
 /// Data for updating a perception edge.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, SurrealValue)]
 pub struct PerceptionUpdate {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub rel_types: Option<Vec<String>>,

@@ -7,6 +7,7 @@
 //! which entities they apply to during consistency checking.
 
 mod common;
+use narra::db::compat::RecordIdExt;
 
 use common::harness::TestHarness;
 use narra::models::character::create_character;

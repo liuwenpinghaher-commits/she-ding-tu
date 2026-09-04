@@ -8,6 +8,8 @@ use crate::db::connection::NarraDb;
 use async_trait::async_trait;
 use serde::Serialize;
 use std::sync::Arc;
+use surrealdb::types::SurrealValue;
+use crate::db::compat::RecordIdExt;
 
 use crate::utils::math::cosine_similarity;
 use crate::NarraError;
@@ -196,7 +198,7 @@ impl PerceptionDataProvider for SurrealPerceptionDataProvider {
 
         let mut resp = self.db.query(&query).await?;
 
-        #[derive(serde::Deserialize)]
+        #[derive(serde::Deserialize, SurrealValue)]
         struct Row {
             embedding: Vec<f32>,
             observer_name: Option<String>,
@@ -239,7 +241,7 @@ impl PerceptionDataProvider for SurrealPerceptionDataProvider {
 
         let mut resp = self.db.query(&query).await?;
 
-        #[derive(serde::Deserialize)]
+        #[derive(serde::Deserialize, SurrealValue)]
         struct Row {
             embedding: Vec<f32>,
             observer_name: Option<String>,
@@ -266,9 +268,9 @@ impl PerceptionDataProvider for SurrealPerceptionDataProvider {
         );
         let mut resp = self.db.query(&query).await?;
 
-        #[derive(serde::Deserialize)]
+        #[derive(serde::Deserialize, SurrealValue)]
         struct Row {
-            id: surrealdb::sql::Thing,
+            id: surrealdb::types::RecordId,
         }
 
         let rows: Vec<Row> = resp.take(0)?;
@@ -288,7 +290,7 @@ impl PerceptionDataProvider for SurrealPerceptionDataProvider {
         );
         let mut resp = self.db.query(&query).await?;
 
-        #[derive(serde::Deserialize)]
+        #[derive(serde::Deserialize, SurrealValue)]
         struct Row {
             embedding: Vec<f32>,
             delta_magnitude: Option<f32>,
@@ -320,7 +322,7 @@ impl PerceptionDataProvider for SurrealPerceptionDataProvider {
         );
         let mut resp = self.db.query(&query).await?;
 
-        #[derive(serde::Deserialize)]
+        #[derive(serde::Deserialize, SurrealValue)]
         struct Row {
             embedding: Vec<f32>,
             created_at: String,

@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
-use surrealdb::Datetime;
+use surrealdb::types::{Datetime, SurrealValue};
 
 use crate::db::connection::NarraDb;
 
@@ -10,8 +10,9 @@ use crate::repository::{RelationshipRepository, SurrealRelationshipRepository};
 use crate::NarraError;
 
 /// Severity level for affected entities.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, SurrealValue)]
 #[serde(rename_all = "lowercase")]
+#[surreal(rename_all = "lowercase")]
 pub enum Severity {
     /// Minor ripple effect (distant connection)
     Low,
@@ -24,7 +25,7 @@ pub enum Severity {
 }
 
 /// An entity affected by a change.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, SurrealValue)]
 pub struct AffectedEntity {
     /// Entity ID
     pub id: String,
@@ -43,7 +44,7 @@ pub struct AffectedEntity {
 }
 
 /// Impact analysis result.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, SurrealValue)]
 pub struct ImpactAnalysis {
     /// Changed entity that triggered analysis
     pub changed_entity: String,
@@ -60,7 +61,7 @@ pub struct ImpactAnalysis {
 }
 
 /// A decision record with impact tracking.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, SurrealValue)]
 pub struct Decision {
     /// Unique decision ID
     pub id: String,
@@ -77,7 +78,7 @@ pub struct Decision {
 }
 
 /// A deferred implication to be resolved later.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, SurrealValue)]
 pub struct DeferredImplication {
     /// Decision that created this implication
     pub decision_id: String,
@@ -194,7 +195,7 @@ impl ImpactAnalyzer {
 
         let mut response = self.db.query(&query).await.ok()?;
 
-        #[derive(Deserialize)]
+        #[derive(Deserialize, SurrealValue)]
         struct NameOnly {
             name: String,
         }

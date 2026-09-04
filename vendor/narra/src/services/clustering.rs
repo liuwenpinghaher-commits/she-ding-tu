@@ -10,6 +10,8 @@ use ndarray::{Array1, Array2};
 use serde::Serialize;
 use std::collections::HashMap;
 use std::sync::Arc;
+use surrealdb::types::SurrealValue;
+use crate::db::compat::RecordIdExt;
 
 use crate::services::EntityType;
 use crate::NarraError;
@@ -105,9 +107,9 @@ impl ClusteringDataProvider for SurrealClusteringDataProvider {
 
             let mut response = self.db.query(&query_str).await?;
 
-            #[derive(serde::Deserialize)]
+            #[derive(serde::Deserialize, SurrealValue)]
             struct EntityWithEmbedding {
-                id: surrealdb::RecordId,
+                id: surrealdb::types::RecordId,
                 entity_type: String,
                 name: String,
                 embedding: Vec<f32>,
@@ -118,7 +120,7 @@ impl ClusteringDataProvider for SurrealClusteringDataProvider {
             let count_query = format!("SELECT count() FROM {} GROUP ALL", table);
             let mut count_response = self.db.query(&count_query).await?;
 
-            #[derive(serde::Deserialize)]
+            #[derive(serde::Deserialize, SurrealValue)]
             struct CountResult {
                 count: i64,
             }

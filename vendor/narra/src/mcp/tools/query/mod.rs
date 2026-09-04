@@ -8,6 +8,7 @@ mod query_perception;
 mod query_search;
 mod query_validation;
 mod query_vector_ops;
+use surrealdb::types::SurrealValue;
 
 use crate::mcp::NarraServer;
 use crate::mcp::{
@@ -20,7 +21,7 @@ use rmcp::handler::server::wrapper::Parameters;
 use serde::{Deserialize, Serialize};
 
 // Cursor data structure (internal, opaque to clients)
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, SurrealValue)]
 pub(crate) struct CursorData {
     pub(crate) offset: usize,
 }

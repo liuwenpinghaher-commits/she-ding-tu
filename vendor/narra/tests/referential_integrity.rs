@@ -8,6 +8,7 @@
 //! - Connection path finding (BFS graph traversal)
 
 mod common;
+use narra::db::compat::RecordIdExt;
 
 use common::builders::{CharacterBuilder, EventBuilder, LocationBuilder, SceneBuilder};
 use common::harness::TestHarness;
@@ -15,14 +16,11 @@ use narra::models::character::{create_character, delete_character};
 use narra::models::event::create_event;
 use narra::models::knowledge::{create_knowledge, KnowledgeCreate};
 use narra::models::location::create_location;
-#[cfg(feature = "surrealdb3")]
 use narra::models::location::delete_location;
 use narra::models::perception::{create_perception, PerceptionCreate};
 use narra::models::scene::create_scene;
-#[cfg(feature = "surrealdb3")]
 use narra::models::scene::get_scene;
 use narra::services::graph::MermaidGraphService;
-#[cfg(feature = "surrealdb3")]
 use narra::NarraError;
 
 /// Test cascade delete: deleting character removes their knowledge.
@@ -62,7 +60,7 @@ async fn test_cascade_delete_character_removes_knowledge() {
         .query(&query)
         .await
         .expect("Query should succeed");
-    let remaining: Vec<surrealdb::sql::Value> = result.take(0).unwrap_or_default();
+    let remaining: Vec<surrealdb::types::Value> = result.take(0).unwrap_or_default();
 
     assert!(
         remaining.is_empty(),
@@ -121,7 +119,7 @@ async fn test_cascade_delete_character_removes_relationships() {
         .query(&query)
         .await
         .expect("Query should succeed");
-    let remaining: Vec<surrealdb::sql::Value> = result.take(0).unwrap_or_default();
+    let remaining: Vec<surrealdb::types::Value> = result.take(0).unwrap_or_default();
 
     assert!(
         remaining.is_empty(),
@@ -195,7 +193,7 @@ async fn test_cascade_delete_character_removes_participations() {
         .query(&query)
         .await
         .expect("Query should succeed");
-    let edges: Vec<surrealdb::sql::Value> = result.take(0).unwrap_or_default();
+    let edges: Vec<surrealdb::types::Value> = result.take(0).unwrap_or_default();
 
     assert!(
         edges.is_empty(),
@@ -209,7 +207,6 @@ async fn test_cascade_delete_character_removes_participations() {
 ///
 /// Verifies: DATA-03 REJECT behavior for scene.primary_location field
 #[tokio::test]
-#[cfg(feature = "surrealdb3")]
 async fn test_reject_delete_location_with_scenes() {
     let harness = TestHarness::new().await;
 
@@ -266,7 +263,6 @@ async fn test_reject_delete_location_with_scenes() {
 ///
 /// Verifies: DATA-03 REJECT behavior for location.parent field
 #[tokio::test]
-#[cfg(feature = "surrealdb3")]
 async fn test_reject_delete_location_parent() {
     let harness = TestHarness::new().await;
 
@@ -317,7 +313,6 @@ async fn test_reject_delete_location_parent() {
 ///
 /// Verifies: DATA-02 UNSET behavior for scene.secondary_locations array
 #[tokio::test]
-#[cfg(feature = "surrealdb3")]
 async fn test_unset_location_from_secondary_locations() {
     let harness = TestHarness::new().await;
 

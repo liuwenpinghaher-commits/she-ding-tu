@@ -4,24 +4,26 @@ use crate::services::world::{
     Beat, BeatDraft, Canon, Presence, ROLE_PRESENT, World, BEAT_SCENE, ATTR_WHERE, KIND_RULE,
     STATUS_COMMITTED,
 };
+use surrealdb::types::SurrealValue;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, SurrealValue)]
 #[serde(rename_all = "lowercase")]
+#[surreal(rename_all = "lowercase")]
 pub enum Grade {
     Info,
     Warn,
     Strict,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, SurrealValue)]
 pub struct Finding {
     pub grade: Grade,
     pub code: String,
     pub message: String,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, SurrealValue)]
 pub struct ConstraintReport {
     pub findings: Vec<Finding>,
 }

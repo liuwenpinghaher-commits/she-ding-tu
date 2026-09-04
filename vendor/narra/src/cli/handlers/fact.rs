@@ -151,7 +151,7 @@ pub async fn update_fact(
         categories: cats,
         enforcement_level: enforcement.map(parse_enforcement),
         scope: None,
-        updated_at: surrealdb::Datetime::default(),
+        updated_at: surrealdb::types::Datetime::default(),
     };
 
     let updated = fact::update_fact(&ctx.db, &key, data).await?;

@@ -7,6 +7,8 @@
 //! - Semantic midpoints: what bridges two concepts?
 
 use std::sync::Arc;
+use surrealdb::types::SurrealValue;
+use crate::db::compat::RecordIdExt;
 
 use crate::db::connection::NarraDb;
 use serde::{Deserialize, Serialize};
@@ -98,7 +100,7 @@ impl VectorOpsService {
         entity_id: &str,
         limit: usize,
     ) -> Result<GrowthVectorResult, NarraError> {
-        #[derive(Deserialize)]
+        #[derive(Deserialize, SurrealValue)]
         struct Snapshot {
             embedding: Vec<f32>,
         }
@@ -150,7 +152,7 @@ impl VectorOpsService {
         limit: usize,
     ) -> Result<MisperceptionResult, NarraError> {
         // Get observer's perception of target
-        #[derive(Deserialize)]
+        #[derive(Deserialize, SurrealValue)]
         struct PerceptionRow {
             embedding: Option<Vec<f32>>,
         }
@@ -171,7 +173,7 @@ impl VectorOpsService {
         })?;
 
         // Get target's actual embedding
-        #[derive(Deserialize)]
+        #[derive(Deserialize, SurrealValue)]
         struct EmbeddingRow {
             embedding: Option<Vec<f32>>,
         }
@@ -214,7 +216,7 @@ impl VectorOpsService {
         entity_b: &str,
         window: Option<usize>,
     ) -> Result<ConvergenceResult, NarraError> {
-        #[derive(Deserialize)]
+        #[derive(Deserialize, SurrealValue)]
         struct Snapshot {
             embedding: Vec<f32>,
             #[serde(default)]
@@ -307,7 +309,7 @@ impl VectorOpsService {
     // =========================================================================
 
     async fn get_entity_name(&self, entity_id: &str) -> Result<String, NarraError> {
-        #[derive(Deserialize)]
+        #[derive(Deserialize, SurrealValue)]
         struct NameRow {
             #[serde(default)]
             name: Option<String>,
@@ -325,7 +327,7 @@ impl VectorOpsService {
     }
 
     async fn get_entity_embedding(&self, entity_id: &str) -> Result<Vec<f32>, NarraError> {
-        #[derive(Deserialize)]
+        #[derive(Deserialize, SurrealValue)]
         struct EmbRow {
             embedding: Option<Vec<f32>>,
         }
@@ -370,9 +372,9 @@ impl VectorOpsService {
                 _ => "name",
             };
 
-            #[derive(Deserialize)]
+            #[derive(Deserialize, SurrealValue)]
             struct Row {
-                id: surrealdb::RecordId,
+                id: surrealdb::types::RecordId,
                 name: String,
                 score: f32,
             }

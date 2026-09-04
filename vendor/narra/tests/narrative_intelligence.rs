@@ -9,6 +9,8 @@
 //! Tests marked `#[ignore]` require real embeddings (run with `cargo test --ignored`).
 
 mod common;
+use surrealdb::types::SurrealValue;
+use narra::db::compat::RecordIdExt;
 
 use std::sync::Arc;
 
@@ -514,7 +516,7 @@ async fn test_unresolved_tensions_max_shared_scenes() {
     }
 
     // Verify participates_in edges were created
-    #[derive(serde::Deserialize)]
+    #[derive(serde::Deserialize, SurrealValue)]
     struct CountResult {
         count: i64,
     }
@@ -987,9 +989,9 @@ async fn test_what_if_no_character_embedding() {
         .expect("RecordKnowledge should succeed");
 
     // Find the knowledge key
-    #[derive(serde::Deserialize)]
+    #[derive(serde::Deserialize, SurrealValue)]
     struct KId {
-        id: surrealdb::RecordId,
+        id: surrealdb::types::RecordId,
     }
     let mut k_resp = harness
         .db
@@ -1093,9 +1095,9 @@ async fn test_what_if_full_workflow() {
         .expect("Knowledge backfill should succeed");
 
     // Find the knowledge entity ID
-    #[derive(serde::Deserialize)]
+    #[derive(serde::Deserialize, SurrealValue)]
     struct KnowledgeId {
-        id: surrealdb::RecordId,
+        id: surrealdb::types::RecordId,
     }
 
     let mut k_resp = harness
@@ -1270,9 +1272,9 @@ async fn test_what_if_id_normalization() {
         .unwrap();
 
     // Find knowledge key
-    #[derive(serde::Deserialize)]
+    #[derive(serde::Deserialize, SurrealValue)]
     struct KnowledgeId {
-        id: surrealdb::RecordId,
+        id: surrealdb::types::RecordId,
     }
     let mut k_resp = harness
         .db
@@ -1389,9 +1391,9 @@ async fn test_what_if_conflict_detection() {
         .unwrap();
 
     // Find the guilt fact ID
-    #[derive(serde::Deserialize)]
+    #[derive(serde::Deserialize, SurrealValue)]
     struct KFact {
-        id: surrealdb::RecordId,
+        id: surrealdb::types::RecordId,
         #[allow(dead_code)]
         fact: String,
     }

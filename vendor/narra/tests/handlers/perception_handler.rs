@@ -7,6 +7,7 @@ use narra::mcp::QueryRequest;
 use narra::models::perception::{create_perception, PerceptionCreate};
 use narra::repository::{EntityRepository, SurrealEntityRepository};
 use rmcp::handler::server::wrapper::Parameters;
+use narra::db::compat::RecordIdExt;
 
 use crate::common::harness::TestHarness;
 use crate::common::{builders::CharacterBuilder, to_query_input};

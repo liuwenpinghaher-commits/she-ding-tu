@@ -10,13 +10,14 @@ use crate::services::world::{
     KnowledgeWrite, Presence, Promise, PromiseOp, World, KIND_RULE, STATUS_COMMITTED,
     STATUS_SUPERSEDED,
 };
+use crate::db::compat::RecordIdExt;
 use crate::NarraError;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use surrealdb::RecordId;
+use surrealdb::types::{RecordId, SurrealValue};
 use uuid::Uuid;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, SurrealValue)]
 struct EntityRow {
     id: RecordId,
     kind: String,
@@ -24,7 +25,7 @@ struct EntityRow {
     profile: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, SurrealValue)]
 struct ColumnRow {
     id: RecordId,
     clock_from: i64,
@@ -32,7 +33,7 @@ struct ColumnRow {
     display_ord: i64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, SurrealValue)]
 struct BeatRow {
     id: RecordId,
     kind: String,
@@ -57,7 +58,7 @@ struct BeatRow {
     story_threads_json: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, SurrealValue)]
 struct WindowRow {
     entity: RecordId,
     attr: String,
@@ -68,7 +69,7 @@ struct WindowRow {
     source_beat: RecordId,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, SurrealValue)]
 struct KnowsEdgeRow {
     #[serde(rename = "in")]
     inn: RecordId,
@@ -81,13 +82,13 @@ struct KnowsEdgeRow {
     commit_seq: Option<i64>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, SurrealValue)]
 struct KnowledgeRow {
     id: RecordId,
     fact: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, SurrealValue)]
 struct RelRow {
     #[serde(rename = "in")]
     inn: RecordId,
@@ -96,7 +97,7 @@ struct RelRow {
     role: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, SurrealValue)]
 struct SceneRow {
     id: RecordId,
     status: Option<String>,
@@ -117,7 +118,7 @@ struct SceneRow {
     cause_beat: Option<RecordId>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, SurrealValue)]
 struct FactRow {
     id: RecordId,
     title: Option<String>,
@@ -125,7 +126,7 @@ struct FactRow {
     enforcement_level: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, SurrealValue)]
 struct PromiseRow {
     id: RecordId,
     name: String,
@@ -137,7 +138,7 @@ struct PromiseRow {
 }
 
 /// 改已写入正史的场。缺省字段保持原值。不新分配 commit_seq。
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, SurrealValue)]
 pub struct BeatPatch {
     pub intent: Option<String>,
     pub do_text: Option<String>,
@@ -566,7 +567,7 @@ impl SettingBook {
 
     pub async fn upsert_entity(&self, e: &Entity) -> Result<(), NarraError> {
         let profile = serde_json::to_string(&e.profile)?;
-        let rid = RecordId::from(("setting_entity", e.id.as_str()));
+        let rid = RecordId::new("setting_entity", e.id.as_str());
         self.db
             .query("UPSERT $rid SET kind = $kind, name = $name, profile = $profile")
             .bind(("rid", rid))
@@ -579,7 +580,7 @@ impl SettingBook {
     }
 
     pub async fn upsert_column(&self, c: &Column) -> Result<(), NarraError> {
-        let rid = RecordId::from(("setting_column", c.id.as_str()));
+        let rid = RecordId::new("setting_column", c.id.as_str());
         self.db
             .query("UPSERT $rid SET clock_from = $a, clock_to = $b, display_ord = $o")
             .bind(("rid", rid))
@@ -592,7 +593,7 @@ impl SettingBook {
     }
 
     pub async fn upsert_promise(&self, p: &Promise) -> Result<(), NarraError> {
-        let rid = RecordId::from(("setting_promise", p.id.as_str()));
+        let rid = RecordId::new("setting_promise", p.id.as_str());
         self.db
             .query("UPSERT $rid SET name = $n, status = $s, related = $r, plant_clock = $pc, deadline_clock = $dc, red_herring = $rh")
             .bind(("rid", rid))
@@ -611,7 +612,7 @@ impl SettingBook {
             .db
             .query("SELECT math::max(commit_seq) AS m FROM setting_beat GROUP ALL")
             .await?;
-        #[derive(Deserialize)]
+        #[derive(Deserialize, SurrealValue)]
         struct M {
             m: Option<i64>,
         }
@@ -650,8 +651,8 @@ impl SettingBook {
         let tracks = serde_json::to_string(&draft.tracks)?;
         let threads = serde_json::to_string(&draft.story_threads)?;
 
-        let beat_rid = RecordId::from(("setting_beat", id.as_str()));
-        let col_rid = RecordId::from(("setting_column", draft.column_id.as_str()));
+        let beat_rid = RecordId::new("setting_beat", id.as_str());
+        let col_rid = RecordId::new("setting_column", draft.column_id.as_str());
         let mut stmts = String::from("BEGIN TRANSACTION;\n");
         stmts.push_str(
             "CREATE $bid SET kind = $kind, column = $col, status = 'committed', commit_seq = $seq, intent = $intent, value_shift = $vs, do_text = $do, say_text = $say, think_text = $th, clock_from = $cf, clock_to = $ct, place = $place, telling_ord = $tell, cause_beat = $cause, visible_to = $vis, deltas_json = $dj, promise_ops_json = $pj, knowledge_json = $kj, tracks_json = $tj, story_threads_json = $sj;\n",
@@ -687,7 +688,7 @@ impl SettingBook {
                 draft
                     .place_id
                     .as_ref()
-                    .map(|p| RecordId::from(("setting_entity", p.as_str()))),
+                    .map(|p| RecordId::new("setting_entity", p.as_str())),
             ))
             .bind(("tell", draft.telling_ord))
             .bind((
@@ -695,7 +696,7 @@ impl SettingBook {
                 draft
                     .cause_beat
                     .as_ref()
-                    .map(|p| RecordId::from(("setting_beat", p.as_str()))),
+                    .map(|p| RecordId::new("setting_beat", p.as_str())),
             ))
             .bind(("vis", draft.visible_to.clone()))
             .bind(("dj", deltas))
@@ -705,13 +706,13 @@ impl SettingBook {
             .bind(("sj", threads))
             .bind((
                 "ghost",
-                RecordId::from(("setting_entity", "___no_such_entity___")),
+                RecordId::new("setting_entity", "___no_such_entity___"),
             ));
         for (i, p) in draft.presences.iter().enumerate() {
             q = q
                 .bind((
                     format!("e{i}"),
-                    RecordId::from(("setting_entity", p.entity_id.as_str())),
+                    RecordId::new("setting_entity", p.entity_id.as_str()),
                 ))
                 .bind((format!("r{i}"), p.role.clone()));
         }
@@ -745,7 +746,7 @@ impl SettingBook {
         let mut q = self
             .db
             .query("UPDATE $id SET status = 'superseded' WHERE status = 'committed' RETURN AFTER")
-            .bind(("id", RecordId::from(("setting_beat", beat_id))))
+            .bind(("id", RecordId::new("setting_beat", beat_id)))
             .await?;
         let rows: Vec<BeatRow> = q.take(0)?;
         if rows.is_empty() {
@@ -852,7 +853,7 @@ impl SettingBook {
             .query(
                 "UPDATE $bid SET intent = $intent, value_shift = $vs, do_text = $do, say_text = $say, think_text = $th, place = $place, visible_to = $vis, deltas_json = $dj, promise_ops_json = $pj, knowledge_json = $kj, tracks_json = $tj, story_threads_json = $sj WHERE status = 'committed' RETURN AFTER",
             )
-            .bind(("bid", RecordId::from(("setting_beat", beat_id))))
+            .bind(("bid", RecordId::new("setting_beat", beat_id)))
             .bind(("intent", next.intent.clone()))
             .bind(("vs", next.value_shift.clone()))
             .bind(("do", next.do_text.clone()))
@@ -862,7 +863,7 @@ impl SettingBook {
                 "place",
                 next.place_id
                     .as_ref()
-                    .map(|p| RecordId::from(("setting_entity", p.as_str()))),
+                    .map(|p| RecordId::new("setting_entity", p.as_str())),
             ))
             .bind(("vis", next.visible_to.clone()))
             .bind(("dj", dj))
@@ -955,7 +956,7 @@ impl SettingBook {
     ) -> Result<(), NarraError> {
         self.db
             .query("UPDATE $id SET clock_from = $a, clock_to = $b WHERE status = 'committed'")
-            .bind(("id", RecordId::from(("setting_beat", beat_id))))
+            .bind(("id", RecordId::new("setting_beat", beat_id)))
             .bind(("a", clock_from))
             .bind(("b", clock_to))
             .await?;
@@ -989,7 +990,7 @@ impl SettingBook {
         let mut q = self.db.query(stmts);
         for (i, c) in columns.iter().enumerate() {
             q = q
-                .bind((format!("id{i}"), RecordId::from(("setting_column", c.id.as_str()))))
+                .bind((format!("id{i}"), RecordId::new("setting_column", c.id.as_str())))
                 .bind((format!("a{i}"), c.clock_from))
                 .bind((format!("b{i}"), c.clock_to))
                 .bind((format!("o{i}"), c.display_ord));
@@ -1034,7 +1035,7 @@ impl SettingBook {
                 "已挂在场上的设定不能从设定里删，须先从分场条拿掉".into(),
             ));
         }
-        let rid = RecordId::from(("setting_entity", resolved.as_str()));
+        let rid = RecordId::new("setting_entity", resolved.as_str());
         self.db.query("DELETE $rid").bind(("rid", rid)).await?;
         narra_bridge::delete_mirrored_entity(&self.db, &resolved).await?;
         Ok(())
@@ -1042,8 +1043,8 @@ impl SettingBook {
 
     /// 从正史场拿掉在场边。不新分配 commit_seq。须人点确认变更后才调。
     pub async fn remove_presence(&self, beat_id: &str, entity_id: &str) -> Result<(), NarraError> {
-        let beat = RecordId::from(("setting_beat", beat_id));
-        let ent = RecordId::from(("setting_entity", entity_id));
+        let beat = RecordId::new("setting_beat", beat_id);
+        let ent = RecordId::new("setting_entity", entity_id);
         let mut q = self
             .db
             .query("DELETE setting_present_in WHERE in = $eid AND out = $bid RETURN BEFORE")
@@ -1060,7 +1061,7 @@ impl SettingBook {
         let mut bq = self
             .db
             .query("SELECT * FROM $bid")
-            .bind(("bid", RecordId::from(("setting_beat", beat_id))))
+            .bind(("bid", RecordId::new("setting_beat", beat_id)))
             .await?;
         let beats: Vec<BeatRow> = bq.take(0)?;
         if let Some(b) = beats.first() {
@@ -1071,7 +1072,7 @@ impl SettingBook {
     }
 
     pub async fn delete_column(&self, column_id: &str) -> Result<(), NarraError> {
-        let rid = RecordId::from(("setting_column", column_id));
+        let rid = RecordId::new("setting_column", column_id);
         self.db.query("DELETE $rid").bind(("rid", rid)).await?;
         narra_bridge::delete_mirrored_column(&self.db, column_id).await?;
         Ok(())
@@ -1080,7 +1081,7 @@ impl SettingBook {
     pub async fn set_telling_ord(&self, beat_id: &str, ord: i64) -> Result<(), NarraError> {
         self.db
             .query("UPDATE $id SET telling_ord = $o WHERE status = 'committed'")
-            .bind(("id", RecordId::from(("setting_beat", beat_id))))
+            .bind(("id", RecordId::new("setting_beat", beat_id)))
             .bind(("o", ord))
             .await?;
         self.remirror_beat_id(beat_id).await?;
@@ -1091,8 +1092,8 @@ impl SettingBook {
         let mut q = self
             .db
             .query("UPDATE $id SET column = $col WHERE status = 'committed' RETURN AFTER")
-            .bind(("id", RecordId::from(("setting_beat", beat_id))))
-            .bind(("col", RecordId::from(("setting_column", column_id))))
+            .bind(("id", RecordId::new("setting_beat", beat_id)))
+            .bind(("col", RecordId::new("setting_column", column_id)))
             .await?;
         let rows: Vec<BeatRow> = q.take(0)?;
         if rows.is_empty() {

@@ -1,6 +1,8 @@
 //! Relationship command handlers for CLI.
 
 use anyhow::Result;
+use surrealdb::types::SurrealValue;
+use crate::db::compat::RecordIdExt;
 
 use crate::cli::output::{
     create_spinner, output_json, output_json_list, print_hint, print_success, print_table,
@@ -139,7 +141,7 @@ pub async fn handle_similar_relationships(
         _ => vec!["perceives", "relates_to"],
     };
 
-    #[derive(serde::Deserialize)]
+    #[derive(serde::Deserialize, SurrealValue)]
     struct EdgeEmbedding {
         embedding: Vec<f32>,
     }
@@ -150,8 +152,8 @@ pub async fn handle_similar_relationships(
     // Convert to RecordId for proper binding
     let (from_table, from_key) = from_ref.split_once(':').unwrap_or(("character", &from_ref));
     let (to_table, to_key) = to_ref.split_once(':').unwrap_or(("character", &to_ref));
-    let from_record = surrealdb::RecordId::from((from_table, from_key));
-    let to_record = surrealdb::RecordId::from((to_table, to_key));
+    let from_record = surrealdb::types::RecordId::new(from_table, from_key);
+    let to_record = surrealdb::types::RecordId::new(to_table, to_key);
 
     for table in &tables_to_try {
         let query = format!(
@@ -201,7 +203,7 @@ pub async fn handle_similar_relationships(
     };
 
     // Search across both edge tables
-    #[derive(serde::Deserialize, serde::Serialize)]
+    #[derive(serde::Deserialize, serde::Serialize, SurrealValue)]
     struct SimilarEdge {
         from_name: Option<String>,
         to_name: Option<String>,

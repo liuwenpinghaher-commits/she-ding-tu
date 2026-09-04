@@ -3,25 +3,26 @@
 use rmcp::handler::server::wrapper::Parameters;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use surrealdb::types::SurrealValue;
 
 use crate::mcp::NarraServer;
 
 /// Request to pin an entity.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, SurrealValue)]
 pub struct PinEntityRequest {
     /// Entity ID to pin (e.g., "character:alice")
     pub entity_id: String,
 }
 
 /// Request to unpin an entity.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, SurrealValue)]
 pub struct UnpinEntityRequest {
     /// Entity ID to unpin
     pub entity_id: String,
 }
 
 /// Response for pin/unpin operations.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, SurrealValue)]
 pub struct PinResponse {
     /// Whether the operation succeeded
     pub success: bool,

@@ -15,6 +15,8 @@ use ndarray::{Array1, Array2};
 use serde::Serialize;
 use std::collections::HashMap;
 use std::sync::Arc;
+use surrealdb::types::SurrealValue;
+use crate::db::compat::RecordIdExt;
 
 // ---------------------------------------------------------------------------
 // Types
@@ -205,9 +207,9 @@ impl TemporalDataProvider for SurrealTemporalDataProvider {
             );
             let mut response = self.db.query(&query_str).await?;
 
-            #[derive(serde::Deserialize)]
+            #[derive(serde::Deserialize, SurrealValue)]
             struct EntityRow {
-                id: surrealdb::RecordId,
+                id: surrealdb::types::RecordId,
                 entity_type: String,
                 name: String,
                 embedding: Vec<f32>,
@@ -219,7 +221,7 @@ impl TemporalDataProvider for SurrealTemporalDataProvider {
             let count_query = format!("SELECT count() FROM {} GROUP ALL", table);
             let mut count_resp = self.db.query(&count_query).await?;
 
-            #[derive(serde::Deserialize)]
+            #[derive(serde::Deserialize, SurrealValue)]
             struct CountResult {
                 count: i64,
             }
@@ -255,7 +257,7 @@ impl TemporalDataProvider for SurrealTemporalDataProvider {
                      FROM participates_in";
         let mut resp = self.db.query(query).await?;
 
-        #[derive(serde::Deserialize)]
+        #[derive(serde::Deserialize, SurrealValue)]
         struct Participation {
             char_id: String,
             scene_id: String,
@@ -408,7 +410,7 @@ impl TemporalDataProvider for SurrealTemporalDataProvider {
     async fn has_saved_phases(&self) -> Result<bool, NarraError> {
         let mut resp = self.db.query("SELECT count() FROM phase GROUP ALL").await?;
 
-        #[derive(serde::Deserialize)]
+        #[derive(serde::Deserialize, SurrealValue)]
         struct CountResult {
             count: i64,
         }
@@ -429,7 +431,7 @@ impl SurrealTemporalDataProvider {
             .query("SELECT math::max(sequence) AS max_seq FROM event GROUP ALL")
             .await?;
 
-        #[derive(serde::Deserialize)]
+        #[derive(serde::Deserialize, SurrealValue)]
         struct MaxSeq {
             max_seq: Option<i64>,
         }
@@ -454,7 +456,7 @@ impl SurrealTemporalDataProvider {
                 let q = format!("SELECT sequence FROM {}", entity_id);
                 let mut resp = self.db.query(&q).await?;
 
-                #[derive(serde::Deserialize)]
+                #[derive(serde::Deserialize, SurrealValue)]
                 struct SeqRow {
                     sequence: Option<i64>,
                 }
@@ -469,7 +471,7 @@ impl SurrealTemporalDataProvider {
                 let q = format!("SELECT event.sequence AS seq FROM {}", entity_id);
                 let mut resp = self.db.query(&q).await?;
 
-                #[derive(serde::Deserialize)]
+                #[derive(serde::Deserialize, SurrealValue)]
                 struct SeqRow {
                     seq: Option<i64>,
                 }
@@ -487,7 +489,7 @@ impl SurrealTemporalDataProvider {
                 );
                 let mut resp = self.db.query(&q).await?;
 
-                #[derive(serde::Deserialize)]
+                #[derive(serde::Deserialize, SurrealValue)]
                 struct SeqRow {
                     seq: Option<i64>,
                 }
@@ -505,7 +507,7 @@ impl SurrealTemporalDataProvider {
                 );
                 let mut resp = self.db.query(&q).await?;
 
-                #[derive(serde::Deserialize)]
+                #[derive(serde::Deserialize, SurrealValue)]
                 struct SeqRow {
                     seq: Option<i64>,
                 }

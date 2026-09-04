@@ -7,12 +7,13 @@ use rmcp::handler::server::wrapper::Parameters;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
+use surrealdb::types::SurrealValue;
 
 use crate::mcp::NarraServer;
 use crate::services::graph::{GraphOptions, GraphScope, GraphService, MermaidGraphService};
 
 /// Request to generate a relationship graph.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, SurrealValue)]
 pub struct GraphRequest {
     /// Scope of the graph: "full" for all characters, or "character:ID" for centered view
     pub scope: String,
@@ -28,7 +29,7 @@ pub struct GraphRequest {
 }
 
 /// Response from graph generation.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, SurrealValue)]
 pub struct GraphResponse {
     /// Path where the graph was written
     pub file_path: String,

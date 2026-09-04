@@ -2,6 +2,8 @@ use crate::mcp::NarraServer;
 use crate::mcp::{EntityResult, QueryResponse};
 use crate::services::arc::ArcService;
 use crate::utils::math::cosine_similarity;
+use surrealdb::types::SurrealValue;
+use crate::db::compat::RecordIdExt;
 
 impl NarraServer {
     pub(crate) async fn handle_arc_history(
@@ -209,9 +211,9 @@ impl NarraServer {
             .await
             .map_err(|e| format!("Arc drift query failed: {}", e))?;
 
-        #[derive(serde::Deserialize)]
+        #[derive(serde::Deserialize, SurrealValue)]
         struct DriftResult {
-            entity_id: surrealdb::sql::Thing,
+            entity_id: surrealdb::types::RecordId,
             entity_type: String,
             total_drift: f32,
             snapshot_count: i64,
@@ -259,7 +261,7 @@ impl NarraServer {
                 eid
             );
 
-            #[derive(serde::Deserialize)]
+            #[derive(serde::Deserialize, SurrealValue)]
             struct EmbeddingRow {
                 embedding: Vec<f32>,
             }
@@ -424,7 +426,7 @@ impl NarraServer {
             );
             let stale_query = format!("SELECT count() AS cnt FROM {} WHERE embedding IS NOT NONE AND embedding_stale = true GROUP ALL", table);
 
-            #[derive(serde::Deserialize)]
+            #[derive(serde::Deserialize, SurrealValue)]
             struct CountResult {
                 cnt: i64,
             }
@@ -576,7 +578,7 @@ impl NarraServer {
         let character = character.ok_or_else(|| format!("Character not found: {}", char_ref))?;
 
         // Fetch fact
-        #[derive(serde::Deserialize)]
+        #[derive(serde::Deserialize, SurrealValue)]
         struct FactRecord {
             fact: String,
             character_name: Option<String>,
@@ -639,7 +641,7 @@ impl NarraServer {
             .await
             .map_err(|e| format!("Failed to fetch relationships: {}", e))?;
 
-        #[derive(serde::Deserialize)]
+        #[derive(serde::Deserialize, SurrealValue)]
         struct RelResult {
             relationships: Option<Vec<serde_json::Value>>,
         }
@@ -657,7 +659,7 @@ impl NarraServer {
             .collect();
 
         // Fetch perceptions
-        #[derive(serde::Deserialize)]
+        #[derive(serde::Deserialize, SurrealValue)]
         struct PerceptionRecord {
             target_name: Option<String>,
             perception: Option<String>,
@@ -728,9 +730,9 @@ impl NarraServer {
             .await
             .map_err(|e| format!("Failed to fetch character knowledge: {}", e))?;
 
-        #[derive(serde::Deserialize)]
+        #[derive(serde::Deserialize, SurrealValue)]
         struct KnowledgeWithEmbedding {
-            id: surrealdb::sql::Thing,
+            id: surrealdb::types::RecordId,
             fact: String,
             embedding: Vec<f32>,
         }
@@ -769,7 +771,7 @@ impl NarraServer {
             .await
             .map_err(|e| format!("Failed to fetch cascade targets: {}", e))?;
 
-        #[derive(serde::Deserialize)]
+        #[derive(serde::Deserialize, SurrealValue)]
         struct CascadeRecord {
             observer_id: String,
             observer_name: Option<String>,
@@ -901,21 +903,21 @@ impl NarraServer {
             .query(&query)
             .bind((
                 "eid",
-                surrealdb::RecordId::from((
+                surrealdb::types::RecordId::new(
                     entity_id.split(':').next().unwrap_or("character"),
                     entity_id.split(':').nth(1).unwrap_or(entity_id),
-                )),
+                ),
             ))
             .bind(("facet", facet.to_string()))
             .await
             .map_err(|e| format!("Failed to fetch facet arc snapshots: {}", e))?;
 
-        #[derive(serde::Deserialize)]
+        #[derive(serde::Deserialize, SurrealValue)]
         struct Snapshot {
             embedding: Vec<f32>,
             delta_magnitude: Option<f32>,
-            event_id: Option<surrealdb::RecordId>,
-            created_at: surrealdb::Datetime,
+            event_id: Option<surrealdb::types::RecordId>,
+            created_at: surrealdb::types::Datetime,
         }
 
         let snapshots: Vec<Snapshot> = resp

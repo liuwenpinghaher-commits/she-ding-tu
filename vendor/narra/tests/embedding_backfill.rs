@@ -8,6 +8,7 @@
 //! - Composite text generation produces natural language
 
 mod common;
+use narra::db::compat::RecordIdExt;
 
 use common::harness::TestHarness;
 use narra::embedding::backfill::BackfillService;
@@ -23,7 +24,7 @@ use narra::models::perception::{create_perception, PerceptionCreate};
 use narra::models::scene::{create_scene, SceneCreate};
 use std::collections::HashMap;
 use std::sync::Arc;
-use surrealdb::Datetime;
+use surrealdb::types::Datetime;
 
 /// Test backfill generates embeddings for all entity types.
 ///

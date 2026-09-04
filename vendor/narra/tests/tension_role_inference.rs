@@ -3,6 +3,7 @@
 //! Tests both services against real SurrealDB with crafted narrative topologies.
 
 mod common;
+use narra::db::compat::RecordIdExt;
 
 use common::builders::{CharacterBuilder, EventBuilder, KnowledgeBuilder};
 use common::harness::TestHarness;

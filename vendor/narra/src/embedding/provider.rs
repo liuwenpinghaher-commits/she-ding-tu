@@ -6,6 +6,7 @@
 
 use std::path::Path;
 use std::sync::Arc;
+use surrealdb::types::SurrealValue;
 
 use serde::{Deserialize, Serialize};
 use tracing::info;
@@ -17,7 +18,7 @@ use crate::NarraError;
 ///
 /// Determines which embedding backend to use. Loaded from
 /// `{data_path}/embedding.toml` or `NARRA_EMBEDDING_PROVIDER` env var.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, SurrealValue)]
 #[serde(tag = "provider", rename_all = "snake_case")]
 pub enum EmbeddingProviderConfig {
     /// Local candle model (default).
@@ -56,7 +57,7 @@ impl Default for EmbeddingProviderConfig {
 }
 
 /// Stored metadata about the active embedding model in a world database.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, SurrealValue)]
 pub struct EmbeddingMetadata {
     pub embedding_model: String,
     pub embedding_dimensions: usize,

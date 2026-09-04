@@ -1,7 +1,8 @@
 use std::sync::Arc;
+use crate::db::compat::RecordIdExt;
 
 use serde::Deserialize;
-use surrealdb::RecordId;
+use surrealdb::types::{RecordId, SurrealValue};
 
 use crate::db::connection::NarraDb;
 
@@ -19,7 +20,7 @@ use crate::models::scene::{Scene, SceneParticipant};
 use crate::NarraError;
 
 /// Row returned by the knowledge join query.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, SurrealValue)]
 struct KnowledgeExportRow {
     #[serde(rename = "in")]
     character: RecordId,

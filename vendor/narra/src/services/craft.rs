@@ -3,6 +3,7 @@
 use crate::services::world::Column;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
+use surrealdb::types::SurrealValue;
 
 fn default_true() -> bool {
     true
@@ -12,7 +13,7 @@ fn default_tick() -> i64 {
     1
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default, SurrealValue)]
 pub struct BookCraft {
     /// 一句前提。空则导出不写主脑。
     #[serde(default)]
@@ -107,7 +108,7 @@ pub fn parse_hm_offset(label: &str) -> i64 {
     0
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default, SurrealValue)]
 pub struct CraftChapter {
     #[serde(default)]
     pub id: String,

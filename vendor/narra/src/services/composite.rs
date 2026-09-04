@@ -5,6 +5,8 @@ use crate::db::connection::NarraDb;
 use crate::models::annotation::{EmotionOutput, ThemeOutput};
 use serde::Serialize;
 use std::sync::Arc;
+use surrealdb::types::SurrealValue;
+use crate::db::compat::RecordIdExt;
 
 use crate::models::knowledge::find_knowledge_conflicts;
 use crate::services::role_inference::InferredRole;
@@ -204,7 +206,7 @@ pub struct FactConstraint {
 // Internal query types
 // ---------------------------------------------------------------------------
 
-#[derive(serde::Deserialize)]
+#[derive(serde::Deserialize, SurrealValue)]
 struct TensionRow {
     observer: String,
     target: String,
@@ -214,7 +216,7 @@ struct TensionRow {
     feelings: Option<String>,
 }
 
-#[derive(serde::Deserialize)]
+#[derive(serde::Deserialize, SurrealValue)]
 struct PerceptionRow {
     observer: String,
     observer_name: Option<String>,
@@ -222,23 +224,23 @@ struct PerceptionRow {
     feelings: Option<String>,
 }
 
-#[derive(serde::Deserialize)]
+#[derive(serde::Deserialize, SurrealValue)]
 struct CharacterRow {
     name: String,
     roles: Vec<String>,
 }
 
-#[derive(serde::Deserialize)]
+#[derive(serde::Deserialize, SurrealValue)]
 struct KnowledgeCountRow {
     count: usize,
 }
 
-#[derive(serde::Deserialize)]
+#[derive(serde::Deserialize, SurrealValue)]
 struct FactTitleRow {
     title: String,
 }
 
-#[derive(serde::Deserialize)]
+#[derive(serde::Deserialize, SurrealValue)]
 struct ArcSnapshotCountRow {
     #[allow(dead_code)]
     count: usize,
@@ -246,7 +248,7 @@ struct ArcSnapshotCountRow {
     old_count: Option<usize>,
 }
 
-#[derive(serde::Deserialize)]
+#[derive(serde::Deserialize, SurrealValue)]
 struct SecretTargetRow {
     target: String,
     character_id: String,
@@ -254,26 +256,26 @@ struct SecretTargetRow {
     fact: String,
 }
 
-#[derive(serde::Deserialize)]
+#[derive(serde::Deserialize, SurrealValue)]
 struct HighTensionRow {
     observer: String,
     target: String,
     tension_level: i32,
 }
 
-#[derive(serde::Deserialize)]
+#[derive(serde::Deserialize, SurrealValue)]
 struct FalseBeliefRow {
     character_id: String,
     target: String,
 }
 
-#[derive(serde::Deserialize)]
+#[derive(serde::Deserialize, SurrealValue)]
 struct StaleArcRow {
     character_id: String,
     character_name: String,
 }
 
-#[derive(serde::Deserialize)]
+#[derive(serde::Deserialize, SurrealValue)]
 struct CharacterArcRow {
     character_id: String,
     character_name: String,
@@ -281,28 +283,28 @@ struct CharacterArcRow {
     recent_drift: Option<f32>,
 }
 
-#[derive(serde::Deserialize)]
+#[derive(serde::Deserialize, SurrealValue)]
 struct ArcSnapshotRow {
     delta_magnitude: Option<f32>,
     event_id: Option<String>,
     #[allow(dead_code)]
-    created_at: surrealdb::sql::Datetime,
+    created_at: surrealdb::types::Datetime,
 }
 
-#[derive(serde::Deserialize)]
+#[derive(serde::Deserialize, SurrealValue)]
 struct RelationshipRow {
     other_character: String,
     other_name: String,
     rel_type: String,
 }
 
-#[derive(serde::Deserialize)]
+#[derive(serde::Deserialize, SurrealValue)]
 struct CertaintyCountRow {
     certainty: String,
     count: usize,
 }
 
-#[derive(serde::Deserialize)]
+#[derive(serde::Deserialize, SurrealValue)]
 struct FactConstraintRow {
     fact_id: String,
     title: String,
@@ -662,6 +664,8 @@ impl CompositeIntelligenceService {
         let mut result = self
             .db
             .query(
+                // TODO-SURREAL3: type::string(record) — v3 docs emphasize <string> / record::id;
+                // keep type::string until hermes compile/query says otherwise.
                 "SELECT type::string(in) AS observer, type::string(out) AS target, \
                  in.name AS observer_name, out.name AS target_name, \
                  tension_level, feelings \
@@ -717,9 +721,10 @@ impl CompositeIntelligenceService {
             )
             .bind((
                 "char_id",
-                surrealdb::RecordId::from(
-                    full_id.split_once(':').unwrap_or(("character", full_id)),
-                ),
+                {
+                    let (tb, key) = full_id.split_once(':').unwrap_or(("character", full_id));
+                    surrealdb::types::RecordId::new(tb, key)
+                },
             ))
             .await
             .map_err(|e| NarraError::Database(e.to_string()))?;
@@ -779,9 +784,12 @@ impl CompositeIntelligenceService {
             return Ok(vec![]);
         }
 
-        let record_ids: Vec<surrealdb::RecordId> = character_ids
+        let record_ids: Vec<surrealdb::types::RecordId> = character_ids
             .iter()
-            .map(|id| surrealdb::RecordId::from(id.split_once(':').unwrap_or(("character", id))))
+            .map(|id| {
+                let (tb, key) = id.split_once(':').unwrap_or(("character", id));
+                surrealdb::types::RecordId::new(tb, key)
+            })
             .collect();
         let query = "SELECT title FROM universe_fact \
              WHERE id IN (SELECT VALUE fact FROM fact_applies WHERE entity IN $ids)";
@@ -812,7 +820,7 @@ impl CompositeIntelligenceService {
             WHERE tension_level IS NOT NONE \
             GROUP ALL";
 
-        #[derive(serde::Deserialize)]
+        #[derive(serde::Deserialize, SurrealValue)]
         struct AvgTensionRow {
             avg_tension: Option<f32>,
         }
@@ -1111,7 +1119,7 @@ impl CompositeIntelligenceService {
                 let fid = full_id_owned.clone();
                 let other = rel.other_character.clone();
                 async move {
-                    #[derive(serde::Deserialize)]
+                    #[derive(serde::Deserialize, SurrealValue)]
                     struct TensionOnlyRow {
                         tension_level: Option<i32>,
                     }
@@ -1218,9 +1226,12 @@ impl CompositeIntelligenceService {
             return vec![];
         }
 
-        let record_ids: Vec<surrealdb::RecordId> = character_ids
+        let record_ids: Vec<surrealdb::types::RecordId> = character_ids
             .iter()
-            .map(|id| surrealdb::RecordId::from(id.split_once(':').unwrap_or(("character", id))))
+            .map(|id| {
+                let (tb, key) = id.split_once(':').unwrap_or(("character", id));
+                surrealdb::types::RecordId::new(tb, key)
+            })
             .collect();
         let query = "SELECT type::string(id) AS fact_id, title, enforcement_level \
             FROM universe_fact \
@@ -1261,7 +1272,7 @@ async fn fetch_pair_tension_standalone(
         a, b, b, a
     );
 
-    #[derive(serde::Deserialize)]
+    #[derive(serde::Deserialize, SurrealValue)]
     struct PairRow {
         tension_level: Option<i32>,
         feelings: Option<String>,
@@ -1287,7 +1298,7 @@ async fn count_shared_scenes_standalone(db: &NarraDb, a: &str, b: &str) -> usize
         a, b
     );
 
-    #[derive(serde::Deserialize)]
+    #[derive(serde::Deserialize, SurrealValue)]
     struct CountRow {
         count: usize,
     }

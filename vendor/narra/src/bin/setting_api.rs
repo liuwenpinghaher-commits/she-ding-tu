@@ -415,9 +415,8 @@ fn proc_fd_count() -> u32 {
         .unwrap_or(0)
 }
 
-/// Surreal 2.6 没有公开 close。最后一次 Drop 关掉 route 通道后，
-/// `run_router` 才 `kvs.shutdown()`。必须等线程/fd 回落再删盘或开下一本，
-/// 否则 RocksDB 还活着。
+/// v3 仍无公开 `Surreal::shutdown`。最后一次 Drop 才关嵌入式引擎。
+/// 换书/删书先丢掉句柄，再轮询线程和 fd，避免下一本叠在旧 RocksDB 上。
 async fn release_book_engine(sess: BookSess) {
     let before_t = proc_thread_count();
     let before_fd = proc_fd_count();

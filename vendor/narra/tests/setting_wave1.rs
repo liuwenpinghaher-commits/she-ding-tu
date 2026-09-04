@@ -1,6 +1,7 @@
 //! 波次 1：公共写入正史入口 + 算出这一刻。不是单测纯函数。
 
 mod common;
+use surrealdb::types::SurrealValue;
 
 use narra::services::canon::{BeatPatch, SettingBook};
 use narra::services::circumstances::{apply_person_lens, given_circumstances};
@@ -650,12 +651,12 @@ async fn s2_dual_write_official_scene_and_alias_search() {
     book.sync_official().await.expect("sync official");
     book.sync_official().await.expect("sync 二次须幂等");
 
-    #[derive(Debug, serde::Deserialize)]
+    #[derive(Debug, serde::Deserialize, SurrealValue)]
     struct SceneRow {
         intent: Option<String>,
         title: Option<String>,
     }
-    #[derive(Debug, serde::Deserialize)]
+    #[derive(Debug, serde::Deserialize, SurrealValue)]
     struct CountRow {
         n: Option<i64>,
     }
@@ -1122,7 +1123,7 @@ async fn s6_official_cli_scene_is_not_canon() {
         .query("SELECT intent, title FROM scene WHERE intent = '官方CLI冒充' OR title = '官方CLI冒充'")
         .await
         .expect("select ghost");
-    #[derive(Debug, serde::Deserialize)]
+    #[derive(Debug, serde::Deserialize, SurrealValue)]
     struct Row {
         intent: Option<String>,
         title: Option<String>,

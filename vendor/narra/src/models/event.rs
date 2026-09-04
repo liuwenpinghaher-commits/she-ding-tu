@@ -1,6 +1,7 @@
 use crate::db::connection::NarraDb;
 use serde::{Deserialize, Serialize};
-use surrealdb::{Datetime, RecordId};
+use surrealdb::types::{Datetime, RecordId, SurrealValue};
+use crate::db::compat::RecordIdExt;
 
 use crate::NarraError;
 
@@ -11,7 +12,7 @@ use crate::NarraError;
 /// - `date` provides optional absolute positioning
 /// - `date_precision` indicates how precise the date is ("year", "month", "day")
 /// - `duration_end` allows events to span time
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, SurrealValue)]
 pub struct Event {
     pub id: RecordId,
     pub title: String,
@@ -25,7 +26,7 @@ pub struct Event {
 }
 
 /// Data for creating a new event.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, SurrealValue)]
 pub struct EventCreate {
     pub title: String,
     pub description: Option<String>,
@@ -36,7 +37,7 @@ pub struct EventCreate {
 }
 
 /// Data for updating an event.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, SurrealValue)]
 pub struct EventUpdate {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub title: Option<String>,
@@ -170,7 +171,7 @@ pub async fn delete_event(db: &NarraDb, id: &str) -> Result<Option<Event>, Narra
 }
 
 /// Response type for max sequence query.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, SurrealValue)]
 struct MaxSeqResult {
     max_seq: Option<i64>,
 }

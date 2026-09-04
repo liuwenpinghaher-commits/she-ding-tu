@@ -3,8 +3,9 @@
 use crate::services::circumstances::{select_open_promises, OpenPromise};
 use crate::services::world::{BeatDraft, Canon, World, ROLE_PRESENT, STATUS_COMMITTED};
 use serde::{Deserialize, Serialize};
+use surrealdb::types::SurrealValue;
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq, SurrealValue)]
 pub struct SpanPacket {
     pub clock_from: i64,
     pub clock_to: i64,
@@ -80,7 +81,7 @@ pub fn span_circumstances(
     }
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq, SurrealValue)]
 pub struct PlanBone {
     pub serial: bool,
     pub intent: String,

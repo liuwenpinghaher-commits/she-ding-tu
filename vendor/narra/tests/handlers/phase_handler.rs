@@ -16,6 +16,7 @@ use narra::models::event::create_event;
 use narra::models::location::create_location;
 use narra::models::scene::create_scene;
 use rmcp::handler::server::wrapper::Parameters;
+use narra::db::compat::RecordIdExt;
 
 use crate::common::{
     builders::{CharacterBuilder, EventBuilder, LocationBuilder, SceneBuilder},

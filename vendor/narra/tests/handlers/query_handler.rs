@@ -5,6 +5,7 @@
 //! responses.
 
 use std::sync::Arc;
+use narra::db::compat::RecordIdExt;
 
 use insta::assert_snapshot;
 use narra::embedding::{EmbeddingConfig, EmbeddingService, LocalEmbeddingService};

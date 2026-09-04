@@ -12,7 +12,7 @@ categories = ["command-line-utilities", "database"]
 authors = ["Florin"]
 
 [dependencies]
-surrealdb = { version = "2.6.0", features = ["kv-rocksdb", "protocol-ws"] }
+surrealdb = { version = "3.2.4", features = ["kv-rocksdb", "protocol-ws"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal", "time"] }
 serde = { version = "1", features = ["derive"] }
 thiserror = "2"
@@ -57,7 +57,6 @@ async-stream = "0.3"
 default = []
 metal = ["candle-core/metal"]
 cuda = ["candle-core/cuda"]
-surrealdb3 = []
 
 # Auto-enable Metal acceleration on macOS
 [target.'cfg(target_os = "macos")'.dependencies]
@@ -78,11 +77,6 @@ proptest = "1.6"
 
 [lints.clippy]
 redundant_closure_for_method_calls = "allow"
-
-# 2.6.0 原包 DEFINE INDEX 后 Datastore/RocksDB 永不 Drop（#7304）。
-# 补丁与官方 3.1.0 36b421e 相同：new_concurrent 不再回指 IndexBuilder。
-[patch.crates-io]
-surrealdb-core = { path = "patched/surrealdb-core-2.6.0" }
 
 [[bin]]
 name = "narra"

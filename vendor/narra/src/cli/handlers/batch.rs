@@ -2,6 +2,7 @@
 
 use anyhow::Result;
 use colored::Colorize;
+use crate::db::compat::RecordIdExt;
 
 use crate::cli::output::{create_spinner, output_json, print_error, print_success, OutputMode};
 use crate::init::AppContext;
@@ -85,7 +86,7 @@ async fn batch_characters(ctx: &AppContext, yaml: &str, mode: OutputMode) -> Res
 
 async fn batch_locations(ctx: &AppContext, yaml: &str, mode: OutputMode) -> Result<()> {
     use crate::models::location::{create_location, create_location_with_id};
-    use surrealdb::RecordId;
+    use surrealdb::types::RecordId;
 
     let specs: Vec<LocationSpec> =
         serde_yaml_ng::from_str(yaml).map_err(|e| anyhow::anyhow!("Invalid YAML: {}", e))?;

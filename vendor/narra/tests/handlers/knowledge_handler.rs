@@ -9,6 +9,7 @@
 use insta::assert_snapshot;
 use narra::mcp::{MutationRequest, QueryRequest};
 use narra::models::{CertaintyLevel, LearningMethod};
+use narra::db::compat::RecordIdExt;
 use narra::repository::{
     EntityRepository, KnowledgeRepository, SurrealEntityRepository, SurrealKnowledgeRepository,
 };

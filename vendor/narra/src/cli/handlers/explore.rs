@@ -1,6 +1,7 @@
 //! Deep entity exploration handler.
 
 use anyhow::Result;
+use surrealdb::types::SurrealValue;
 
 use crate::cli::output::{
     output_json, print_error, print_header, print_hint, print_kv, print_section, print_table,
@@ -474,7 +475,7 @@ async fn explore_generic(
 
 /// Fetch composite_text for an entity, falling back to name/title/description.
 async fn fetch_composite_text(ctx: &AppContext, entity_id: &str) -> Option<String> {
-    #[derive(serde::Deserialize)]
+    #[derive(serde::Deserialize, SurrealValue)]
     struct TextRow {
         composite_text: Option<String>,
         name: Option<String>,

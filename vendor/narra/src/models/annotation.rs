@@ -7,10 +7,11 @@
 use crate::db::connection::NarraDb;
 use crate::NarraError;
 use serde::{Deserialize, Serialize};
-use surrealdb::{Datetime, RecordId};
+use surrealdb::types::{Datetime, RecordId, SurrealValue};
+use crate::db::compat::RecordIdExt;
 
 /// A cached ML model annotation for an entity.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, SurrealValue)]
 pub struct Annotation {
     pub id: RecordId,
     /// Entity ID in "table:key" format (e.g., "character:alice")
@@ -28,7 +29,7 @@ pub struct Annotation {
 }
 
 /// Data for creating or upserting an annotation.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, SurrealValue)]
 pub struct AnnotationCreate {
     pub entity_id: String,
     pub model_type: String,
@@ -37,7 +38,7 @@ pub struct AnnotationCreate {
 }
 
 /// Typed emotion classification output.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, SurrealValue)]
 pub struct EmotionOutput {
     /// Emotion scores sorted descending by score
     pub scores: Vec<EmotionScore>,
@@ -48,14 +49,14 @@ pub struct EmotionOutput {
 }
 
 /// A single emotion label and its score.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, SurrealValue)]
 pub struct EmotionScore {
     pub label: String,
     pub score: f32,
 }
 
 /// Typed theme classification output (zero-shot NLI).
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, SurrealValue)]
 pub struct ThemeOutput {
     /// Theme scores sorted descending by score
     pub themes: Vec<ThemeScore>,
@@ -66,14 +67,14 @@ pub struct ThemeOutput {
 }
 
 /// A single theme label and its entailment score.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, SurrealValue)]
 pub struct ThemeScore {
     pub label: String,
     pub score: f32,
 }
 
 /// Typed NER extraction output.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, SurrealValue)]
 pub struct NerOutput {
     /// Extracted entities sorted by position
     pub entities: Vec<NerEntity>,
@@ -82,7 +83,7 @@ pub struct NerOutput {
 }
 
 /// A single named entity extracted from text.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, SurrealValue)]
 pub struct NerEntity {
     /// Entity text as it appears in the input
     pub text: String,

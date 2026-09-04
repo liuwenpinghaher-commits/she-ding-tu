@@ -2,6 +2,8 @@
 
 use anyhow::Result;
 use serde::Serialize;
+use surrealdb::types::SurrealValue;
+use crate::db::compat::RecordIdExt;
 
 use crate::cli::output::{output_json, print_header, print_kv, print_table, OutputMode};
 use crate::cli::resolve::resolve_single;
@@ -199,7 +201,7 @@ pub async fn handle_what_if(
         char_record.ok_or_else(|| anyhow::anyhow!("Character not found: {}", char_ref))?;
 
     // Fetch fact
-    #[derive(serde::Deserialize)]
+    #[derive(serde::Deserialize, SurrealValue)]
     struct FactRecord {
         fact: String,
     }
@@ -238,7 +240,7 @@ pub async fn handle_what_if(
         ))
         .await?;
 
-    #[derive(serde::Deserialize)]
+    #[derive(serde::Deserialize, SurrealValue)]
     struct RelResult {
         relationships: Option<Vec<serde_json::Value>>,
     }
@@ -255,7 +257,7 @@ pub async fn handle_what_if(
         .collect();
 
     // Fetch perceptions
-    #[derive(serde::Deserialize)]
+    #[derive(serde::Deserialize, SurrealValue)]
     struct PerceptionRecord {
         target_name: Option<String>,
         perception: Option<String>,
@@ -315,9 +317,9 @@ pub async fn handle_what_if(
     );
     let mut knowledge_resp = ctx.db.query(&knowledge_query).await?;
 
-    #[derive(serde::Deserialize)]
+    #[derive(serde::Deserialize, SurrealValue)]
     struct KnowledgeWithEmbedding {
-        id: surrealdb::sql::Thing,
+        id: surrealdb::types::RecordId,
         fact: String,
         embedding: Vec<f32>,
     }
@@ -340,7 +342,7 @@ pub async fn handle_what_if(
     );
     let mut cascade_resp = ctx.db.query(&cascade_query).await?;
 
-    #[derive(serde::Deserialize)]
+    #[derive(serde::Deserialize, SurrealValue)]
     struct CascadeRecord {
         observer_name: Option<String>,
     }

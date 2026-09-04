@@ -8,6 +8,7 @@
 //! - VGRF-03: Character-centered graphs with depth limiting
 
 mod common;
+use narra::db::compat::RecordIdExt;
 
 use common::harness::TestHarness;
 use narra::embedding::NoopEmbeddingService;

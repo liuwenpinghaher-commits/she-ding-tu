@@ -2,8 +2,9 @@ use crate::mcp::NarraServer;
 use rmcp::handler::server::wrapper::Parameters;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use surrealdb::types::SurrealValue;
 
-#[derive(Deserialize, JsonSchema)]
+#[derive(Deserialize, JsonSchema, SurrealValue)]
 pub struct ImpactRequest {
     /// The entity ID to analyze impact for
     pub entity_id: String,

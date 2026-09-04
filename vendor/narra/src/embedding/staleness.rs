@@ -6,6 +6,8 @@
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
+use surrealdb::types::SurrealValue;
+use crate::db::compat::RecordIdExt;
 
 use crate::db::connection::NarraDb;
 use tokio::time::Instant;
@@ -164,9 +166,9 @@ impl StalenessManager {
                 NarraError::Database(format!("Failed to find related entities: {}", e))
             })?;
 
-        #[derive(serde::Deserialize)]
+        #[derive(serde::Deserialize, SurrealValue)]
         struct RelatedResult {
-            related: Option<Vec<surrealdb::RecordId>>,
+            related: Option<Vec<surrealdb::types::RecordId>>,
         }
 
         let related: Vec<RelatedResult> = result.take(0).map_err(|e| {
@@ -376,12 +378,12 @@ async fn regenerate_facet_embedding_internal(
         let (table, key) = entity_id
             .split_once(':')
             .ok_or_else(|| NarraError::Validation(format!("Invalid entity ID: {}", entity_id)))?;
-        surrealdb::RecordId::from((table, key))
+        surrealdb::types::RecordId::new(table, key)
     };
 
     // Fetch old facet embedding before regeneration
     let old_embedding: Option<Vec<f32>> = {
-        #[derive(serde::Deserialize)]
+        #[derive(serde::Deserialize, SurrealValue)]
         struct EmbRow {
             embedding: Option<Vec<f32>>,
         }
@@ -420,13 +422,13 @@ async fn regenerate_facet_embedding_internal(
         "psychology" => psychology_composite(&character),
         "social" => {
             // Fetch relationships and perceptions in parallel
-            #[derive(serde::Deserialize)]
+            #[derive(serde::Deserialize, SurrealValue)]
             struct RelResult {
                 rel_type: Option<Vec<String>>,
                 target_name: Option<Vec<String>>,
             }
 
-            #[derive(serde::Deserialize)]
+            #[derive(serde::Deserialize, SurrealValue)]
             struct PerceptionRecord {
                 observer_name: Option<String>,
                 perception: Option<String>,
@@ -473,13 +475,13 @@ async fn regenerate_facet_embedding_internal(
         }
         "narrative" => {
             // Fetch scenes and knowledge in parallel
-            #[derive(serde::Deserialize)]
+            #[derive(serde::Deserialize, SurrealValue)]
             struct SceneRecord {
                 scene_title: Option<String>,
                 scene_summary: Option<String>,
             }
 
-            #[derive(serde::Deserialize)]
+            #[derive(serde::Deserialize, SurrealValue)]
             struct KnowledgeRecord {
                 fact: Option<String>,
                 certainty: Option<String>,
@@ -526,7 +528,7 @@ async fn regenerate_facet_embedding_internal(
 
     // No-op detection: skip re-embedding if composite text hasn't changed
     {
-        #[derive(serde::Deserialize)]
+        #[derive(serde::Deserialize, SurrealValue)]
         struct CompositeRow {
             composite_text: Option<String>,
         }
@@ -570,12 +572,12 @@ async fn regenerate_facet_embedding_internal(
         .as_ref()
         .map(|old| 1.0 - crate::utils::math::cosine_similarity(old, &embedding));
 
-    let event_ref: Option<surrealdb::RecordId> = match &event_id {
+    let event_ref: Option<surrealdb::types::RecordId> = match &event_id {
         Some(eid) if eid.starts_with("event:") => {
             let key = eid.strip_prefix("event:").unwrap_or(eid);
-            Some(surrealdb::RecordId::from(("event", key)))
+            Some(surrealdb::types::RecordId::new("event", key))
         }
-        Some(eid) => Some(surrealdb::RecordId::from(("event", eid.as_str()))),
+        Some(eid) => Some(surrealdb::types::RecordId::new("event", eid.as_str())),
         None => None,
     };
 
@@ -647,7 +649,7 @@ async fn regenerate_embedding_internal(
         let (table, key) = entity_id
             .split_once(':')
             .ok_or_else(|| NarraError::Validation(format!("Invalid entity ID: {}", entity_id)))?;
-        surrealdb::RecordId::from((table, key))
+        surrealdb::types::RecordId::new(table, key)
     };
 
     // For arc-trackable types, fetch old embedding before regeneration
@@ -655,7 +657,7 @@ async fn regenerate_embedding_internal(
         entity_type,
         "character" | "knowledge" | "perceives" | "relates_to"
     ) {
-        #[derive(serde::Deserialize)]
+        #[derive(serde::Deserialize, SurrealValue)]
         struct EmbRow {
             embedding: Option<Vec<f32>>,
         }
@@ -690,12 +692,12 @@ async fn regenerate_embedding_internal(
             })?;
 
             // Fetch relationships and perceptions in parallel
-            #[derive(serde::Deserialize)]
+            #[derive(serde::Deserialize, SurrealValue)]
             struct RelResult {
                 relationships: Option<Vec<serde_json::Value>>,
             }
 
-            #[derive(serde::Deserialize)]
+            #[derive(serde::Deserialize, SurrealValue)]
             struct PerceptionRecord {
                 target_name: Option<String>,
                 perception: Option<String>,
@@ -787,9 +789,9 @@ async fn regenerate_embedding_internal(
                 .await
                 .map_err(|e| NarraError::Database(format!("Failed to fetch scene: {}", e)))?;
 
-            #[derive(serde::Deserialize)]
+            #[derive(serde::Deserialize, SurrealValue)]
             struct SceneForComposite {
-                id: surrealdb::RecordId,
+                id: surrealdb::types::RecordId,
                 title: String,
                 summary: Option<String>,
                 event_title: Option<String>,
@@ -807,11 +809,11 @@ async fn regenerate_embedding_internal(
                 id: scene_data.id,
                 title: scene_data.title,
                 summary: scene_data.summary,
-                event: surrealdb::RecordId::from(("event", "placeholder")),
-                primary_location: surrealdb::RecordId::from(("location", "placeholder")),
+                event: surrealdb::types::RecordId::new("event", "placeholder"),
+                primary_location: surrealdb::types::RecordId::new("location", "placeholder"),
                 secondary_locations: vec![],
-                created_at: surrealdb::Datetime::default(),
-                updated_at: surrealdb::Datetime::default(),
+                created_at: surrealdb::types::Datetime::default(),
+                updated_at: surrealdb::types::Datetime::default(),
             };
 
             scene_composite(
@@ -829,7 +831,7 @@ async fn regenerate_embedding_internal(
                 .await
                 .map_err(|e| NarraError::Database(format!("Failed to fetch knowledge: {}", e)))?;
 
-            #[derive(serde::Deserialize)]
+            #[derive(serde::Deserialize, SurrealValue)]
             struct KnowledgeWithContext {
                 fact: String,
                 character_name: Option<String>,
@@ -854,7 +856,7 @@ async fn regenerate_embedding_internal(
                     NarraError::Database(format!("Failed to fetch knows edge: {}", e))
                 })?;
 
-            #[derive(serde::Deserialize)]
+            #[derive(serde::Deserialize, SurrealValue)]
             struct KnowsEdge {
                 certainty: Option<String>,
                 learning_method: Option<String>,
@@ -879,7 +881,7 @@ async fn regenerate_embedding_internal(
         }
         "relates_to" => {
             // Fetch relates_to edge data + connected character names/roles
-            #[derive(serde::Deserialize)]
+            #[derive(serde::Deserialize, SurrealValue)]
             struct RelatesToData {
                 rel_type: String,
                 subtype: Option<String>,
@@ -920,7 +922,7 @@ async fn regenerate_embedding_internal(
         }
         "perceives" => {
             // Fetch perceives edge data + observer/target names
-            #[derive(serde::Deserialize)]
+            #[derive(serde::Deserialize, SurrealValue)]
             struct PerceivesData {
                 rel_types: Vec<String>,
                 subtype: Option<String>,
@@ -1027,7 +1029,7 @@ async fn regenerate_embedding_internal(
 
     // No-op detection: skip re-embedding if composite text hasn't changed
     {
-        #[derive(serde::Deserialize)]
+        #[derive(serde::Deserialize, SurrealValue)]
         struct CompositeRow {
             composite_text: Option<String>,
         }
@@ -1067,12 +1069,12 @@ async fn regenerate_embedding_internal(
             .as_ref()
             .map(|old| 1.0 - cosine_similarity(old, &embedding));
 
-        let event_ref: Option<surrealdb::RecordId> = match &event_id {
+        let event_ref: Option<surrealdb::types::RecordId> = match &event_id {
             Some(eid) if eid.starts_with("event:") => {
                 let key = eid.strip_prefix("event:").unwrap_or(eid);
-                Some(surrealdb::RecordId::from(("event", key)))
+                Some(surrealdb::types::RecordId::new("event", key))
             }
-            Some(eid) => Some(surrealdb::RecordId::from(("event", eid.as_str()))),
+            Some(eid) => Some(surrealdb::types::RecordId::new("event", eid.as_str())),
             None => None,
         };
 

@@ -7,7 +7,8 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
-use surrealdb::RecordId;
+use surrealdb::types::{RecordId, SurrealValue};
+use crate::db::compat::RecordIdExt;
 
 use crate::db::connection::NarraDb;
 
@@ -178,7 +179,7 @@ pub trait IronyDataProvider: Send + Sync {
     async fn get_fact_text(&self, target: &RecordId) -> Result<String, NarraError>;
     async fn estimate_scenes_since(
         &self,
-        learned_at: &surrealdb::Datetime,
+        learned_at: &surrealdb::types::Datetime,
     ) -> Result<usize, NarraError>;
 
     /// Bulk-fetch all fact texts (knowledge facts + character names).
@@ -187,7 +188,7 @@ pub trait IronyDataProvider: Send + Sync {
 
     /// Get all scene created_at timestamps in descending order.
     /// Used to compute scenes_since without per-item queries.
-    async fn get_scene_timestamps(&self) -> Result<Vec<surrealdb::Datetime>, NarraError>;
+    async fn get_scene_timestamps(&self) -> Result<Vec<surrealdb::types::Datetime>, NarraError>;
 
     /// Get tension/feelings/history for all perceives edges with tension_level set.
     /// Returns `(from_char_key, to_char_key) -> PairContext`.
@@ -218,7 +219,7 @@ impl IronyDataProvider for SurrealIronyDataProvider {
     async fn get_scene_count(&self) -> Result<usize, NarraError> {
         let mut result = self.db.query("SELECT count() FROM scene GROUP ALL").await?;
 
-        #[derive(Deserialize)]
+        #[derive(Deserialize, SurrealValue)]
         struct CountResult {
             count: usize,
         }
@@ -260,7 +261,7 @@ impl IronyDataProvider for SurrealIronyDataProvider {
                 let query = format!("SELECT fact FROM knowledge:{}", key);
                 let mut result = self.db.query(&query).await?;
 
-                #[derive(Deserialize)]
+                #[derive(Deserialize, SurrealValue)]
                 struct FactResult {
                     fact: String,
                 }
@@ -275,7 +276,7 @@ impl IronyDataProvider for SurrealIronyDataProvider {
                 let query = format!("SELECT name FROM character:{}", key);
                 let mut result = self.db.query(&query).await?;
 
-                #[derive(Deserialize)]
+                #[derive(Deserialize, SurrealValue)]
                 struct NameResult {
                     name: String,
                 }
@@ -292,7 +293,7 @@ impl IronyDataProvider for SurrealIronyDataProvider {
 
     async fn estimate_scenes_since(
         &self,
-        learned_at: &surrealdb::Datetime,
+        learned_at: &surrealdb::types::Datetime,
     ) -> Result<usize, NarraError> {
         let learned_at_copy = learned_at.clone();
         let query = "SELECT count() FROM scene WHERE created_at > $learned_at GROUP ALL";
@@ -302,7 +303,7 @@ impl IronyDataProvider for SurrealIronyDataProvider {
             .bind(("learned_at", learned_at_copy))
             .await?;
 
-        #[derive(Deserialize)]
+        #[derive(Deserialize, SurrealValue)]
         struct CountResult {
             count: usize,
         }
@@ -317,9 +318,9 @@ impl IronyDataProvider for SurrealIronyDataProvider {
         // Fetch all knowledge facts
         let mut result = self.db.query("SELECT id, fact FROM knowledge").await?;
 
-        #[derive(Deserialize)]
+        #[derive(Deserialize, SurrealValue)]
         struct KnowledgeFact {
-            id: surrealdb::RecordId,
+            id: surrealdb::types::RecordId,
             fact: String,
         }
 
@@ -331,9 +332,9 @@ impl IronyDataProvider for SurrealIronyDataProvider {
         // Fetch all character names (for "knows about <name>" display)
         let mut result = self.db.query("SELECT id, name FROM character").await?;
 
-        #[derive(Deserialize)]
+        #[derive(Deserialize, SurrealValue)]
         struct CharName {
-            id: surrealdb::RecordId,
+            id: surrealdb::types::RecordId,
             name: String,
         }
 
@@ -345,12 +346,12 @@ impl IronyDataProvider for SurrealIronyDataProvider {
         Ok(map)
     }
 
-    async fn get_scene_timestamps(&self) -> Result<Vec<surrealdb::Datetime>, NarraError> {
+    async fn get_scene_timestamps(&self) -> Result<Vec<surrealdb::types::Datetime>, NarraError> {
         let mut result = self
             .db
             .query("SELECT VALUE created_at FROM scene ORDER BY created_at DESC")
             .await?;
-        let timestamps: Vec<surrealdb::Datetime> = result.take(0)?;
+        let timestamps: Vec<surrealdb::types::Datetime> = result.take(0)?;
         Ok(timestamps)
     }
 
@@ -366,12 +367,12 @@ impl IronyDataProvider for SurrealIronyDataProvider {
             )
             .await?;
 
-        #[derive(Deserialize)]
+        #[derive(Deserialize, SurrealValue)]
         struct PerceptionRow {
             #[serde(rename = "in")]
-            from: surrealdb::RecordId,
+            from: surrealdb::types::RecordId,
             #[serde(rename = "out")]
-            to: surrealdb::RecordId,
+            to: surrealdb::types::RecordId,
             tension_level: Option<i32>,
             feelings: Option<String>,
             history_notes: Option<String>,
@@ -403,13 +404,13 @@ impl IronyDataProvider for SurrealIronyDataProvider {
             .query(
                 "SELECT out AS target, in.enforcement_level AS enforcement_level \
                  FROM applies_to \
-                 WHERE in.tb = 'universe_fact'",
+                 WHERE record::tb(in) = 'universe_fact'",
             )
             .await?;
 
-        #[derive(Deserialize)]
+        #[derive(Deserialize, SurrealValue)]
         struct EnforcementRow {
-            target: surrealdb::RecordId,
+            target: surrealdb::types::RecordId,
             enforcement_level: Option<EnforcementLevel>,
         }
 
@@ -849,7 +850,7 @@ mod tests {
 
         async fn estimate_scenes_since(
             &self,
-            _learned_at: &surrealdb::Datetime,
+            _learned_at: &surrealdb::types::Datetime,
         ) -> Result<usize, NarraError> {
             // Return scene_count as a simple estimate
             Ok(self.scene_count)
@@ -866,13 +867,13 @@ mod tests {
             Ok(map)
         }
 
-        async fn get_scene_timestamps(&self) -> Result<Vec<surrealdb::Datetime>, NarraError> {
+        async fn get_scene_timestamps(&self) -> Result<Vec<surrealdb::types::Datetime>, NarraError> {
             // Return scene_count timestamps spaced 1 second apart (descending)
             let base = chrono::Utc::now();
-            let timestamps: Vec<surrealdb::Datetime> = (0..self.scene_count)
+            let timestamps: Vec<surrealdb::types::Datetime> = (0..self.scene_count)
                 .map(|i| {
                     let t = base - chrono::Duration::seconds(i as i64);
-                    surrealdb::Datetime::from(t)
+                    surrealdb::types::Datetime::from(t)
                 })
                 .collect();
             Ok(timestamps)
@@ -892,9 +893,9 @@ mod tests {
     }
 
     fn mock_character(id: &str, name: &str) -> Character {
-        use surrealdb::RecordId;
+        use surrealdb::types::RecordId;
         Character {
-            id: RecordId::from(("character", id)),
+            id: RecordId::new("character", id),
             name: name.to_string(),
             aliases: vec![],
             roles: vec![],
@@ -906,21 +907,21 @@ mod tests {
 
     fn mock_knowledge(target_table: &str, target_id: &str) -> KnowledgeState {
         use crate::models::{CertaintyLevel, LearningMethod};
-        use surrealdb::RecordId;
+        use surrealdb::types::RecordId;
         // Use a fixed time in the past so scene_timestamps (generated near "now")
         // are clearly after learned_at.
         let past = chrono::Utc::now() - chrono::Duration::hours(1);
         KnowledgeState {
-            id: RecordId::from(("knows", "test")),
-            character: RecordId::from(("character", "test")),
-            target: RecordId::from((target_table, target_id)),
+            id: RecordId::new("knows", "test"),
+            character: RecordId::new("character", "test"),
+            target: RecordId::new(target_table, target_id),
             certainty: CertaintyLevel::Knows,
             learning_method: LearningMethod::Witnessed,
             source_character: None,
             event: None,
             premises: None,
             truth_value: None,
-            learned_at: surrealdb::Datetime::from(past),
+            learned_at: surrealdb::types::Datetime::from(past),
             created_at: Default::default(),
             updated_at: Default::default(),
         }
@@ -1130,7 +1131,7 @@ mod tests {
 
         async fn estimate_scenes_since(
             &self,
-            _learned_at: &surrealdb::Datetime,
+            _learned_at: &surrealdb::types::Datetime,
         ) -> Result<usize, NarraError> {
             Ok(self.scene_count)
         }
@@ -1145,12 +1146,12 @@ mod tests {
             Ok(map)
         }
 
-        async fn get_scene_timestamps(&self) -> Result<Vec<surrealdb::Datetime>, NarraError> {
+        async fn get_scene_timestamps(&self) -> Result<Vec<surrealdb::types::Datetime>, NarraError> {
             let base = chrono::Utc::now();
-            let timestamps: Vec<surrealdb::Datetime> = (0..self.scene_count)
+            let timestamps: Vec<surrealdb::types::Datetime> = (0..self.scene_count)
                 .map(|i| {
                     let t = base - chrono::Duration::seconds(i as i64);
-                    surrealdb::Datetime::from(t)
+                    surrealdb::types::Datetime::from(t)
                 })
                 .collect();
             Ok(timestamps)

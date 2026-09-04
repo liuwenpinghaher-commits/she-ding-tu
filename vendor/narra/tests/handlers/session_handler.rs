@@ -7,6 +7,7 @@
 
 use crate::common::builders::CharacterBuilder;
 use crate::common::harness::TestHarness;
+use narra::db::compat::RecordIdExt;
 
 #[allow(unused_imports)]
 use super::*;

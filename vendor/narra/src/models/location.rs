@@ -1,11 +1,12 @@
 use crate::db::connection::NarraDb;
 use serde::{Deserialize, Serialize};
-use surrealdb::{Datetime, RecordId};
+use surrealdb::types::{Datetime, RecordId, SurrealValue};
+use crate::db::compat::RecordIdExt;
 
 use crate::NarraError;
 
 /// Location entity as stored in database.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, SurrealValue)]
 pub struct Location {
     pub id: RecordId,
     pub name: String,
@@ -17,7 +18,7 @@ pub struct Location {
 }
 
 /// Data for creating a new location.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, SurrealValue)]
 pub struct LocationCreate {
     pub name: String,
     pub description: Option<String>,
@@ -26,7 +27,7 @@ pub struct LocationCreate {
 }
 
 /// Data for updating a location.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, SurrealValue)]
 pub struct LocationUpdate {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
@@ -161,7 +162,7 @@ pub async fn delete_location(db: &NarraDb, id: &str) -> Result<Option<Location>,
 ///
 /// A vector of child locations.
 pub async fn get_children(db: &NarraDb, parent_id: &str) -> Result<Vec<Location>, NarraError> {
-    let parent = RecordId::from(("location", parent_id));
+    let parent = RecordId::new("location", parent_id);
     let mut result = db
         .query("SELECT * FROM location WHERE parent = $parent")
         .bind(("parent", parent))

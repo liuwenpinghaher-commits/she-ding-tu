@@ -6,13 +6,15 @@
 use crate::db::connection::NarraDb;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use surrealdb::types::SurrealValue;
+use crate::db::compat::RecordIdExt;
 
 use crate::services::consistency::{
     generate_suggested_fix, ConsistencyService, ConsistencySeverity, Violation,
 };
 
 /// Summary of consistency issues for resource response.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, SurrealValue)]
 pub struct ConsistencyReport {
     /// Total number of issues found
     pub total_issues: usize,
@@ -27,7 +29,7 @@ pub struct ConsistencyReport {
 }
 
 /// Issues grouped by severity level.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, SurrealValue)]
 pub struct ConsistencyIssuesByLevel {
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub critical: Vec<IssueDetail>,
@@ -38,7 +40,7 @@ pub struct ConsistencyIssuesByLevel {
 }
 
 /// Detail for a single consistency issue.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, SurrealValue)]
 pub struct IssueDetail {
     /// Entity or relationship this issue relates to
     pub source: String,
@@ -73,7 +75,7 @@ pub async fn get_consistency_issues_resource(
     let mut all_violations: Vec<(ConsistencySeverity, Violation)> = Vec::new();
 
     // Get all characters to check
-    let characters: Vec<surrealdb::sql::Thing> = db
+    let characters: Vec<surrealdb::types::RecordId> = db
         .query("SELECT VALUE id FROM character")
         .await
         .map_err(|e| format!("Failed to query characters: {}", e))?

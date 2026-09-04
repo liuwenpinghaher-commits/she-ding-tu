@@ -11,6 +11,7 @@
 //! - EmbeddingHealth query operation
 
 mod common;
+use surrealdb::types::SurrealValue;
 
 use std::sync::Arc;
 
@@ -80,7 +81,7 @@ async fn test_relates_to_embedding_fields() {
         "SELECT embedding_stale FROM relates_to WHERE in = character:alice AND out = character:bob"
     ).await.unwrap();
 
-    #[derive(serde::Deserialize)]
+    #[derive(serde::Deserialize, SurrealValue)]
     struct StaleCheck {
         embedding_stale: bool,
     }
@@ -123,7 +124,7 @@ async fn test_composite_text_field_exists() {
     harness.db.query("CREATE event:test SET title = 'Test', sequence = 1, composite_text = 'event composite'").await.unwrap();
 
     // Verify composite_text is stored
-    #[derive(serde::Deserialize)]
+    #[derive(serde::Deserialize, SurrealValue)]
     struct CompositeCheck {
         composite_text: Option<String>,
     }
@@ -170,7 +171,7 @@ async fn test_composite_text_defaults_to_none() {
         .await
         .unwrap();
 
-    #[derive(serde::Deserialize)]
+    #[derive(serde::Deserialize, SurrealValue)]
     struct CompositeCheck {
         composite_text: Option<String>,
     }
@@ -297,7 +298,7 @@ async fn test_create_relationship_marks_character_embeddings_stale() {
     tokio::time::sleep(std::time::Duration::from_millis(100)).await;
 
     // Verify character embeddings were marked stale
-    #[derive(serde::Deserialize)]
+    #[derive(serde::Deserialize, SurrealValue)]
     struct StaleCheck {
         embedding_stale: bool,
     }
@@ -349,7 +350,7 @@ async fn test_character_name_change_marks_relates_to_stale() {
     ).await.unwrap();
 
     // Verify edge is not stale
-    #[derive(serde::Deserialize)]
+    #[derive(serde::Deserialize, SurrealValue)]
     struct StaleCheck {
         embedding_stale: bool,
     }

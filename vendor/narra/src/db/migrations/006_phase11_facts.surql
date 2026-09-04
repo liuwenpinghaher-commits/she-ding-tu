@@ -14,8 +14,8 @@ DEFINE INDEX idx_fact_title ON universe_fact FIELDS title;
 
 -- FULLTEXT search indexes for facts (same pattern as notes)
 DEFINE ANALYZER fact_analyzer TOKENIZERS class FILTERS ascii, lowercase, snowball(english);
-DEFINE INDEX idx_fact_search_title ON universe_fact FIELDS title SEARCH ANALYZER fact_analyzer BM25;
-DEFINE INDEX idx_fact_search_description ON universe_fact FIELDS description SEARCH ANALYZER fact_analyzer BM25;
+DEFINE INDEX idx_fact_search_title ON universe_fact FIELDS title FULLTEXT ANALYZER fact_analyzer BM25;
+DEFINE INDEX idx_fact_search_description ON universe_fact FIELDS description FULLTEXT ANALYZER fact_analyzer BM25;
 
 -- Fact application edge (fact -> any entity)
 -- Uses union type to allow linking to all entity types

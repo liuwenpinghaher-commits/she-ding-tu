@@ -4,6 +4,8 @@ use crate::db::connection::NarraDb;
 use anyhow::Result;
 use serde::Deserialize;
 use std::sync::Arc;
+use surrealdb::types::SurrealValue;
+use crate::db::compat::RecordIdExt;
 
 use crate::init::AppContext;
 use crate::services::{SearchFilter, SearchService};
@@ -83,9 +85,9 @@ pub struct ResolvedEntity {
     pub method: ResolutionMethod,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, SurrealValue)]
 struct NameResult {
-    id: surrealdb::RecordId,
+    id: surrealdb::types::RecordId,
     name: String,
 }
 

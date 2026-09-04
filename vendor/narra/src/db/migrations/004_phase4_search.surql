@@ -13,35 +13,35 @@ DEFINE ANALYZER narra_analyzer TOKENIZERS class FILTERS ascii, lowercase, snowba
 -- Full-text search on character names for SRCH-01, SRCH-02
 -- ==============================================================================
 
-DEFINE INDEX character_name_ft ON character FIELDS name SEARCH ANALYZER narra_analyzer BM25;
+DEFINE INDEX character_name_ft ON character FIELDS name FULLTEXT ANALYZER narra_analyzer BM25;
 
 -- ==============================================================================
 -- LOCATION SEARCH INDEXES
 -- Full-text search on location names and descriptions
 -- ==============================================================================
 
-DEFINE INDEX location_name_ft ON location FIELDS name SEARCH ANALYZER narra_analyzer BM25;
-DEFINE INDEX location_desc_ft ON location FIELDS description SEARCH ANALYZER narra_analyzer BM25;
+DEFINE INDEX location_name_ft ON location FIELDS name FULLTEXT ANALYZER narra_analyzer BM25;
+DEFINE INDEX location_desc_ft ON location FIELDS description FULLTEXT ANALYZER narra_analyzer BM25;
 
 -- ==============================================================================
 -- EVENT SEARCH INDEXES
 -- Full-text search on event titles and descriptions
 -- ==============================================================================
 
-DEFINE INDEX event_title_ft ON event FIELDS title SEARCH ANALYZER narra_analyzer BM25;
-DEFINE INDEX event_desc_ft ON event FIELDS description SEARCH ANALYZER narra_analyzer BM25;
+DEFINE INDEX event_title_ft ON event FIELDS title FULLTEXT ANALYZER narra_analyzer BM25;
+DEFINE INDEX event_desc_ft ON event FIELDS description FULLTEXT ANALYZER narra_analyzer BM25;
 
 -- ==============================================================================
 -- SCENE SEARCH INDEXES
 -- Full-text search on scene titles and summaries
 -- ==============================================================================
 
-DEFINE INDEX scene_title_ft ON scene FIELDS title SEARCH ANALYZER narra_analyzer BM25;
-DEFINE INDEX scene_summary_ft ON scene FIELDS summary SEARCH ANALYZER narra_analyzer BM25;
+DEFINE INDEX scene_title_ft ON scene FIELDS title FULLTEXT ANALYZER narra_analyzer BM25;
+DEFINE INDEX scene_summary_ft ON scene FIELDS summary FULLTEXT ANALYZER narra_analyzer BM25;
 
 -- ==============================================================================
 -- KNOWLEDGE SEARCH INDEXES
 -- Full-text search on knowledge facts
 -- ==============================================================================
 
-DEFINE INDEX knowledge_fact_ft ON knowledge FIELDS fact SEARCH ANALYZER narra_analyzer BM25;
+DEFINE INDEX knowledge_fact_ft ON knowledge FIELDS fact FULLTEXT ANALYZER narra_analyzer BM25;

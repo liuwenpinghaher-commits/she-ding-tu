@@ -4,6 +4,7 @@
 //! NarrativeThreads, CharacterVoice.
 
 use serde::Deserialize;
+use surrealdb::types::SurrealValue;
 
 use crate::mcp::types::MAX_LIMIT;
 use crate::mcp::{EntityResult, NarraServer, QueryResponse};
@@ -18,7 +19,7 @@ impl NarraServer {
         let min_tension = min_tension.unwrap_or(1);
         let limit = limit.unwrap_or(50).min(MAX_LIMIT);
 
-        #[derive(Deserialize)]
+        #[derive(Deserialize, SurrealValue)]
         struct TensionRow {
             observer: String,
             target: String,
@@ -121,7 +122,7 @@ impl NarraServer {
         validate_entity_id(character_id).map_err(|e| e.to_string())?;
 
         // Get character name
-        #[derive(Deserialize)]
+        #[derive(Deserialize, SurrealValue)]
         struct NameRow {
             name: String,
         }
@@ -140,7 +141,7 @@ impl NarraServer {
             .unwrap_or_else(|| character_id.to_string());
 
         // Get all knowledge states for this character
-        #[derive(Deserialize)]
+        #[derive(Deserialize, SurrealValue)]
         struct KnowledgeRow {
             target: String,
             certainty: String,
@@ -173,7 +174,7 @@ impl NarraServer {
             .await
             .map_err(|e| format!("World knowledge query failed: {}", e))?;
 
-        #[derive(Deserialize)]
+        #[derive(Deserialize, SurrealValue)]
         struct WorldKnowledgeRow {
             knower: String,
             target: String,
@@ -321,7 +322,7 @@ impl NarraServer {
         validate_entity_id(character_id).map_err(|e| e.to_string())?;
 
         // Get character name
-        #[derive(Deserialize)]
+        #[derive(Deserialize, SurrealValue)]
         struct NameRow {
             name: String,
         }
@@ -340,7 +341,7 @@ impl NarraServer {
             .unwrap_or_else(|| character_id.to_string());
 
         // Get outgoing relationships
-        #[derive(Deserialize)]
+        #[derive(Deserialize, SurrealValue)]
         struct RelRow {
             other: String,
             other_name: Option<String>,
@@ -381,7 +382,7 @@ impl NarraServer {
             .map_err(|e| format!("Failed to parse relationships: {}", e))?;
 
         // Get perceptions (for tension overlay)
-        #[derive(Deserialize)]
+        #[derive(Deserialize, SurrealValue)]
         struct PercRow {
             other: String,
             tension_level: Option<i32>,
@@ -494,7 +495,7 @@ impl NarraServer {
 
         // Thread type 1: Knowledge secrets (one character knows, others don't)
         if filter_status == "all" || filter_status == "open" {
-            #[derive(Deserialize)]
+            #[derive(Deserialize, SurrealValue)]
             struct SecretRow {
                 knower: String,
                 target: String,
@@ -529,7 +530,7 @@ impl NarraServer {
 
         // Thread type 2: False beliefs (unresolved contradictions)
         if (filter_status == "all" || filter_status == "open") && threads.len() < limit {
-            #[derive(Deserialize)]
+            #[derive(Deserialize, SurrealValue)]
             struct ConflictRow {
                 character: String,
                 target: String,
@@ -561,7 +562,7 @@ impl NarraServer {
 
         // Thread type 3: High-tension unresolved relationships
         if (filter_status == "all" || filter_status == "open") && threads.len() < limit {
-            #[derive(Deserialize)]
+            #[derive(Deserialize, SurrealValue)]
             struct HighTensionRow {
                 observer: String,
                 target: String,
@@ -596,7 +597,7 @@ impl NarraServer {
 
         // Thread type 4: Stale embeddings (entities that changed but haven't been re-embedded)
         if (filter_status == "all" || filter_status == "stale") && threads.len() < limit {
-            #[derive(Deserialize)]
+            #[derive(Deserialize, SurrealValue)]
             struct StaleRow {
                 id: String,
                 name: Option<String>,
@@ -671,7 +672,7 @@ impl NarraServer {
         }
 
         // Fetch composite text for the entity (used as input to the classifier)
-        #[derive(Deserialize)]
+        #[derive(Deserialize, SurrealValue)]
         struct CompositeRow {
             composite_text: Option<String>,
             name: Option<String>,
@@ -765,7 +766,7 @@ impl NarraServer {
         }
 
         // Fetch composite text for the entity
-        #[derive(Deserialize)]
+        #[derive(Deserialize, SurrealValue)]
         struct CompositeRow {
             composite_text: Option<String>,
             name: Option<String>,
@@ -882,7 +883,7 @@ impl NarraServer {
         }
 
         // Fetch composite text for the entity
-        #[derive(Deserialize)]
+        #[derive(Deserialize, SurrealValue)]
         struct CompositeRow {
             composite_text: Option<String>,
             name: Option<String>,
@@ -1146,7 +1147,7 @@ impl NarraServer {
     ) -> Result<QueryResponse, String> {
         validate_entity_id(character_id).map_err(|e| e.to_string())?;
         // Get character details
-        #[derive(Deserialize)]
+        #[derive(Deserialize, SurrealValue)]
         struct CharacterRow {
             name: String,
             roles: Option<Vec<String>>,
@@ -1171,7 +1172,7 @@ impl NarraServer {
             character.ok_or_else(|| format!("Character not found: {}", character_id))?;
 
         // Get knowledge certainty distribution
-        #[derive(Deserialize)]
+        #[derive(Deserialize, SurrealValue)]
         struct CertaintyCount {
             certainty: String,
             count: usize,
@@ -1190,7 +1191,7 @@ impl NarraServer {
         let certainty_dist: Vec<CertaintyCount> = resp.take(0).unwrap_or_default();
 
         // Get perception patterns (how they see others)
-        #[derive(Deserialize)]
+        #[derive(Deserialize, SurrealValue)]
         struct PercOutRow {
             target_name: Option<String>,
             feelings: Option<String>,

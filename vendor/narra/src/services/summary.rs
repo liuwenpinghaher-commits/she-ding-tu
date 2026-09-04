@@ -6,13 +6,15 @@ use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 use std::time::Duration;
+use surrealdb::types::SurrealValue;
 
 use crate::repository::{EntityRepository, SurrealEntityRepository};
 use crate::NarraError;
 
 /// Detail level for entity retrieval.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, SurrealValue)]
 #[serde(rename_all = "lowercase")]
+#[surreal(rename_all = "lowercase")]
 pub enum DetailLevel {
     /// Full entity details (no summarization)
     Full,
@@ -45,7 +47,7 @@ impl Default for SummaryConfig {
 }
 
 /// A cached summary for an entity.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, SurrealValue)]
 pub struct EntitySummary {
     /// Entity ID
     pub id: String,
@@ -64,7 +66,7 @@ pub struct EntitySummary {
 }
 
 /// Full entity content with all fields.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, SurrealValue)]
 pub struct EntityFullContent {
     /// Entity ID
     pub id: String,

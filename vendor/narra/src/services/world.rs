@@ -3,6 +3,7 @@
 
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
+use surrealdb::types::SurrealValue;
 
 pub const ROLE_PRESENT: &str = "present";
 pub const ROLE_MENTIONED: &str = "mentioned";
@@ -30,7 +31,7 @@ pub const CERT_SUSPECT: &str = "suspects";
 pub const CERT_DENY: &str = "denies";
 pub const CERT_FORGOT: &str = "forgot";
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, SurrealValue)]
 pub struct Entity {
     pub id: String,
     pub kind: String,
@@ -39,7 +40,7 @@ pub struct Entity {
     pub profile: BTreeMap<String, String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, SurrealValue)]
 pub struct Column {
     pub id: String,
     pub clock_from: i64,
@@ -47,14 +48,14 @@ pub struct Column {
     pub display_ord: i64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, SurrealValue)]
 pub struct Presence {
     pub entity_id: String,
     pub beat_id: String,
     pub role: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, SurrealValue)]
 pub struct Delta {
     pub entity_id: String,
     pub attr: String,
@@ -65,7 +66,7 @@ pub struct Delta {
     pub clock_to: Option<i64>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default, SurrealValue)]
 pub struct KnowledgeWrite {
     pub person_id: String,
     pub fact: String,
@@ -95,13 +96,13 @@ impl KnowledgeWrite {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, SurrealValue)]
 pub struct PromiseOp {
     pub promise_id: String,
     pub op: String, // plant / advance / payoff / discard
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, SurrealValue)]
 pub struct Promise {
     pub id: String,
     pub name: String,
@@ -115,7 +116,7 @@ pub struct Promise {
 }
 
 /// 一场里一个人的动作 / 对白 / 内心。限知按这条轨检查。
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default, SurrealValue)]
 pub struct PersonTrack {
     pub person_id: String,
     #[serde(default)]
@@ -169,7 +170,7 @@ pub fn apply_track_flatten(draft: &mut BeatDraft) {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, SurrealValue)]
 pub struct Beat {
     pub id: String,
     pub kind: String,
@@ -203,7 +204,7 @@ pub struct Beat {
 }
 
 /// 一场挂着的一条逻辑线。入线 / 出线不存，按故事时推导。
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default, SurrealValue)]
 pub struct BeatThread {
     pub id: String,
     /// 推进 | 旁及 | 暂停
@@ -212,7 +213,7 @@ pub struct BeatThread {
 }
 
 /// 书内逻辑线目录。不算进算出这一刻。
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, SurrealValue)]
 pub struct StoryThread {
     pub id: String,
     pub name: String,
@@ -227,7 +228,7 @@ pub struct StoryThread {
 }
 
 /// 写入正史之前的一场，只存在应用内存。不进 Narra。
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default, SurrealValue)]
 pub struct BeatDraft {
     pub id: Option<String>,
     pub kind: String,
@@ -261,7 +262,7 @@ pub struct BeatDraft {
     pub fail_relate: bool,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, SurrealValue)]
 pub struct StateWindow {
     pub entity_id: String,
     pub attr: String,
@@ -272,7 +273,7 @@ pub struct StateWindow {
     pub source_beat: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, SurrealValue)]
 pub struct KnowledgeFact {
     pub person_id: String,
     pub fact: String,
@@ -305,7 +306,7 @@ impl KnowledgeFact {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default, SurrealValue)]
 pub struct World {
     pub t: i64,
     pub as_of: Option<i64>,
@@ -323,7 +324,7 @@ pub struct World {
     pub playing: Vec<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default, SurrealValue)]
 pub struct Canon {
     pub entities: Vec<Entity>,
     pub columns: Vec<Column>,

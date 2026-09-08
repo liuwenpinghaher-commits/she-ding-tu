@@ -14,7 +14,7 @@ export function TableLook() {
   return (
     <div id="table-view" data-testid="table-view">
       <button type="button" data-testid="table-back" onClick={() => s.setLook("时间轴")}>回时间轴</button>
-      <p className="muted">草稿和正史都能改格。勾几场再点批量标读序，即时生效，⌘Z 可撤。</p>
+      <p className="muted">草稿可改格。正史的动作/任务须先点「改这一场」。读序可以轻改。</p>
       <div className="look-toolbar">
         <button
           type="button"
@@ -36,7 +36,9 @@ export function TableLook() {
           </tr>
         </thead>
         <tbody data-testid="table-body">
-          {s.scenes.map((sc) => (
+          {s.scenes.map((sc) => {
+            const textLocked = !sc.draft && !(s.editingCanon && s.state?.selected_canon === sc.id);
+            return (
             <tr key={`${sc.id}-${sc.intent}-${sc.telling_ord}-${sc.do_text || ""}`} onClick={() => s.selectScene(sc.id, sc.draft)}>
               <td onClick={(e) => e.stopPropagation()}>
                 <input
@@ -57,11 +59,19 @@ export function TableLook() {
                     if (v !== sc.intent) void s.patchSceneField(sc.id, sc.draft, { intent: v });
                   }}
                 />
+                {!sc.draft && (
+                  <button
+                    type="button"
+                    data-testid={`table-edit-${sc.id}`}
+                    onClick={(e) => { e.stopPropagation(); void s.requestCanonEdit(sc.id); }}
+                  >改这一场</button>
+                )}
               </td>
               <td>
                 <input
                   data-testid={`table-do-${sc.id}`}
                   defaultValue={sc.do_text || ""}
+                  readOnly={textLocked}
                   onClick={(e) => e.stopPropagation()}
                   onBlur={(e) => {
                     const v = e.target.value;
@@ -73,6 +83,7 @@ export function TableLook() {
                 <input
                   data-testid={`table-place-${sc.id}`}
                   defaultValue={sc.place_id || ""}
+                  readOnly={textLocked}
                   onClick={(e) => e.stopPropagation()}
                   onBlur={(e) => {
                     const v = e.target.value;
@@ -84,6 +95,7 @@ export function TableLook() {
                 <input
                   data-testid={`table-shift-${sc.id}`}
                   defaultValue={sc.value_shift || ""}
+                  readOnly={textLocked}
                   onClick={(e) => e.stopPropagation()}
                   onBlur={(e) => {
                     const v = e.target.value;
@@ -106,7 +118,8 @@ export function TableLook() {
                 />
               </td>
             </tr>
-          ))}
+          );
+          })}
         </tbody>
       </table>
       <div className="look-toolbar">

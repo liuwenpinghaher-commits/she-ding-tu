@@ -125,6 +125,13 @@ pub fn fact_check(source: &str, prose: &str, entity_names: &[String]) -> FactRep
     }
 }
 
+impl FactReport {
+    /// 拼章润色过审：无漏引语、无增实体。允许 added_quotes（内层改写）。
+    pub fn polish_pass(&self) -> bool {
+        self.added_entities.is_empty() && self.missing_quotes.is_empty()
+    }
+}
+
 pub fn weave_beat(b: &SourceBeat) -> String {
     let mut out = String::new();
     let push = |out: &mut String, t: &str| {
@@ -260,13 +267,65 @@ pub fn export_composed(book: &str, premise: &str, chapter_title: &str, bodies: &
     md
 }
 
-pub fn min_hanzi_for_beat(b: &SourceBeat, chapter_target: usize, chapter_source: usize) -> usize {
-    let src = hanzi_count(&source_blob(b));
-    if chapter_source == 0 {
-        return src;
+/// 章级目标汉字如何摊到每一拍。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MinHanziMode {
+    /// 按拍长平方加权分摊盈余：长拍多摊、短拍少摊。
+    Weighted,
+    /// 每拍源汉字 × 1.15。
+    Ratio115,
+}
+
+impl MinHanziMode {
+    pub fn parse(s: &str) -> Self {
+        match s.trim().to_ascii_lowercase().as_str() {
+            "ratio_115" | "ratio115" | "1.15" | "flat" => Self::Ratio115,
+            _ => Self::Weighted,
+        }
     }
-    let share = (chapter_target.saturating_mul(src) + chapter_source - 1) / chapter_source;
-    share.max(src)
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Weighted => "weighted",
+            Self::Ratio115 => "ratio_115",
+        }
+    }
+}
+
+pub fn beat_source_hanzi(b: &SourceBeat) -> usize {
+    hanzi_count(&source_blob(b))
+}
+
+/// 拍长权重：源汉字平方，使短拍扩张比低于章均。
+pub fn beat_weight(src_hanzi: usize) -> u64 {
+    let s = src_hanzi as u64;
+    s.saturating_mul(s)
+}
+
+/// `surplus` = 章级 target − 全章源汉字；`weight_sum` = 参与摊派的拍 `beat_weight` 之和。
+pub fn min_hanzi_for_beat(
+    src_hanzi: usize,
+    mode: MinHanziMode,
+    weight_sum: u64,
+    surplus: usize,
+) -> usize {
+    match mode {
+        MinHanziMode::Ratio115 => {
+            let scaled = ((src_hanzi as f64) * 1.15).ceil() as usize;
+            scaled.max(src_hanzi)
+        }
+        MinHanziMode::Weighted => {
+            if weight_sum == 0 {
+                return src_hanzi;
+            }
+            let w = beat_weight(src_hanzi);
+            let extra = ((surplus as u64)
+                .saturating_mul(w)
+                .saturating_add(weight_sum - 1)
+                / weight_sum) as usize;
+            src_hanzi.saturating_add(extra)
+        }
+    }
 }
 
 #[cfg(test)]
@@ -348,5 +407,65 @@ mod tests {
         assert!(md.contains("## 场 · 看水路图"));
         assert!(md.contains("状态：正史"));
         assert!(md.contains("朱瞻基：「何时可以不必拉纤？」"));
+    }
+
+    #[test]
+    fn polish_pass_allows_added_quotes() {
+        let b = beat();
+        let src = source_blob(&b);
+        let r = fact_check(
+            &src,
+            "于谦把炭笔递给太子。朱瞻基：「何时可以不必拉纤？」于谦：「殿下勿急。」朱瞻基：「雨还在下。」",
+            &[],
+        );
+        assert!(r.polish_pass(), "{r:?}");
+        assert!(!r.added_quotes.is_empty());
+        assert!(!r.ok);
+    }
+
+    #[test]
+    fn polish_pass_rejects_missing_quote_or_new_entity() {
+        let b = beat();
+        let src = source_blob(&b);
+        let missing = fact_check(&src, "于谦把炭笔递给太子。", &[]);
+        assert!(!missing.polish_pass());
+        let names = vec!["朱瞻基".into(), "杨士奇".into()];
+        let added = fact_check(
+            &src,
+            "杨士奇走进舱来。朱瞻基：「何时可以不必拉纤？」于谦：「殿下勿急。」",
+            &names,
+        );
+        assert!(!added.polish_pass());
+        assert!(added.added_entities.contains(&"杨士奇".into()));
+    }
+
+    #[test]
+    fn min_hanzi_ratio_115_is_flat() {
+        assert_eq!(
+            min_hanzi_for_beat(100, MinHanziMode::Ratio115, 0, 9999),
+            115
+        );
+        assert_eq!(min_hanzi_for_beat(0, MinHanziMode::Ratio115, 0, 100), 0);
+    }
+
+    #[test]
+    fn min_hanzi_weighted_gives_short_less_ratio() {
+        let short = 80usize;
+        let long = 800usize;
+        let w = beat_weight(short) + beat_weight(long);
+        let surplus = 2200usize;
+        let s_min = min_hanzi_for_beat(short, MinHanziMode::Weighted, w, surplus);
+        let l_min = min_hanzi_for_beat(long, MinHanziMode::Weighted, w, surplus);
+        assert!(s_min >= short);
+        assert!(l_min >= long);
+        let s_ratio = s_min as f64 / short as f64;
+        let l_ratio = l_min as f64 / long as f64;
+        assert!(
+            s_ratio < l_ratio,
+            "short ratio {s_ratio} should be < long {l_ratio} (s={s_min} l={l_min})"
+        );
+        assert!(l_min > s_min);
+        // 短拍不应再背 1.39× 均摊
+        assert!(s_ratio < 1.39, "short ratio {s_ratio}");
     }
 }

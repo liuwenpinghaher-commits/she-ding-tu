@@ -7,6 +7,7 @@ import { GuideStartButton } from "./GuideTour";
 
 export function Topbar() {
   const s = useStore();
+  const hall = s.route.kind === "shelf" || s.route.kind === "new" || s.route.kind === "library" || s.route.kind === "settings";
   const book = s.state?.book || "";
   const n = s.state?.n ?? 1;
   const start = s.state?.window_start || 0;
@@ -76,7 +77,7 @@ export function Topbar() {
       <select
         data-testid="book-list"
         aria-label="切换书"
-        value={book}
+        value={hall ? "" : book}
         onChange={(e) => { if (e.target.value) s.openBook(e.target.value); }}
       >
         <option value="">选书</option>
@@ -183,36 +184,30 @@ export function Topbar() {
         <button
           type="button"
           className="icon-btn"
-          data-testid="export"
-          title="导出 Markdown"
-          onClick={() => { s.setExportOpen(true); s.loadExport(s.exportIncludeDrafts); s.setNotice("导出不会写回正史"); }}
-        >导出</button>
-        <button
-          type="button"
-          className="icon-btn"
           data-testid="paste"
           title="丢一段草稿，拆开后仍要一场一场放进格子"
           onClick={() => { s.setPasteOpen(true); s.setNotice("贴进来的还是草稿"); }}
         >贴草稿</button>
-        <button
-          type="button"
-          className="icon-btn"
-          data-testid="plant-promise"
-          title="埋伏笔"
-          onClick={s.plantPromise}
-        >伏笔</button>
-        <button
-          type="button"
-          className="icon-btn"
-          data-testid="open-cmd"
-          title="命令面板 ⌘K"
-          onClick={() => s.setCmdOpen(true)}
-        >命令</button>
         <GuideStartButton testid="guide-help" label="引导" />
       </div>
-      <details className="ops-menu">
+      <details className="ops-menu" data-testid="ops-menu">
         <summary>⋯ 操作 ▾</summary>
-        <div className="flyout ops-menu-panel">
+        <div
+          className="flyout ops-menu-panel"
+          onClick={(e) => {
+            if ((e.target as HTMLElement).closest("button")) {
+              const d = (e.currentTarget as HTMLElement).closest("details") as HTMLDetailsElement | null;
+              if (d) d.open = false;
+            }
+          }}
+        >
+          <button
+            type="button"
+            data-testid="export"
+            onClick={() => { s.setExportOpen(true); s.loadExport(s.exportIncludeDrafts); s.setNotice("导出不会写回正史"); }}
+          >导出</button>
+          <button type="button" data-testid="open-cmd" onClick={() => s.setCmdOpen(true)}>命令 ⌘K</button>
+          <button type="button" data-testid="plant-promise" onClick={s.plantPromise}>伏笔</button>
           <button type="button" onClick={s.writeParallel}>在本列再写一场</button>
           <button type="button" onClick={s.addColumn}>加列</button>
           <button type="button" onClick={s.goLibrary}>设定库</button>
@@ -220,6 +215,7 @@ export function Topbar() {
           <button type="button" onClick={() => s.setLook("轨迹")}>支线轨迹</button>
           <button type="button" onClick={() => s.setLook("出场")}>出场</button>
           <button type="button" onClick={() => s.setLook("关系")}>关系</button>
+          <button type="button" onClick={() => s.setLook("连线")}>连线</button>
           <button type="button" onClick={() => s.setLook("白板")}>白板</button>
           <label className="muted">只看谁
             <select value={s.q.who || ""} onChange={(e) => s.setWho(e.target.value || null)}>

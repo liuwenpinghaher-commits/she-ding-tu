@@ -773,6 +773,17 @@ button.big { font-size: var(--text-title); padding: 10px 18px; }
 .card-actions { display: flex; gap: 6px; align-items: center; }
 .err { color: var(--err); }
 .toast-inline { color: var(--brand); }
+.sit-note { color: var(--text-aux); font-size: var(--text-aux-size); margin-top: 2px; font-weight: 400; }
+.commit-gap { background: var(--warn-bg); color: var(--warn); padding: 6px 8px; border-radius: var(--radius-1); }
+.app.hall .win-seg,
+.app.hall .compose-cluster,
+.app.hall .icon-row,
+.app.hall .ops-menu,
+.app.hall .thread-strip {
+  display: none !important;
+}
+.graph-view { padding: var(--space-3); min-height: 360px; }
+.graph-view svg { background: var(--bg-canvas); border-radius: var(--radius-2); }
 .chap-row { display: flex; gap: 6px; margin-bottom: 6px; }
 .lib-toolbar { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: var(--space-3); }
 .lib-table { width: 100%; border-collapse: collapse; }

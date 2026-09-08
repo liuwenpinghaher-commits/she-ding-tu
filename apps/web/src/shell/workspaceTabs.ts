@@ -12,7 +12,7 @@ export const WORKSPACE_TABS = [
 export type WorkspaceTab = (typeof WORKSPACE_TABS)[number];
 
 /** 出场 / 进度不是页签栏上的主枚，但是同一套中栏看法。 */
-export const EXTRA_LOOKS = ["出场", "进度"] as const;
+export const EXTRA_LOOKS = ["出场", "进度", "连线"] as const;
 export type AnyLook = WorkspaceTab | (typeof EXTRA_LOOKS)[number];
 
 export const DEFAULT_TAB: WorkspaceTab = "分场条";

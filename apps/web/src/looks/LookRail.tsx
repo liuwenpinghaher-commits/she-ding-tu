@@ -6,6 +6,7 @@ import { SubwayLook } from "./SubwayLook";
 import { OccupancyLook } from "./OccupancyLook";
 import { ProgressLook } from "./ProgressLook";
 import { NarrativeLook } from "./NarrativeLook";
+import { GraphLook } from "./GraphLook";
 
 export function LookRail({ embedded, tab }: { embedded?: boolean; tab?: string }) {
   const s = useStore();
@@ -20,6 +21,7 @@ export function LookRail({ embedded, tab }: { embedded?: boolean; tab?: string }
       {look === "出场" && <OccupancyLook open embedded={!!embedded} />}
       {look === "关系" && <RelationLook />}
       {look === "讲述序" && <NarrativeLook />}
+      {look === "连线" && <GraphLook />}
       {look === "白板" && <Whiteboard open />}
     </div>
   );
@@ -42,6 +44,9 @@ function ListLook() {
               if (v !== sc.intent) void s.patchSceneField(sc.id, sc.draft, { intent: v });
             }}
           />
+          {!sc.draft && (
+            <button type="button" data-testid={`list-edit-${sc.id}`} onClick={() => void s.requestCanonEdit(sc.id)}>改这一场</button>
+          )}
         </li>
       ))}
     </ul>

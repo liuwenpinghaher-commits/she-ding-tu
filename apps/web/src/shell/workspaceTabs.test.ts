@@ -14,6 +14,12 @@ describe("工作区页签", () => {
 
   it("没地址栏时用这本书上次的页签", () => {
     assert.equal(readTab("渡口", "讲述序", null), "讲述序");
+    assert.equal(readTab("渡口", "时间轴", null), "时间轴");
+  });
+
+  it("无 stored 时默认分场条", () => {
+    assert.equal(readTab("新书", null, null), "分场条");
+    assert.equal(readTab("新书", "", null), "分场条");
   });
 
   it("不认识的值回落到分场条", () => {
@@ -24,6 +30,7 @@ describe("工作区页签", () => {
     assert.equal(readTab("渡口", "时间轴", "出场"), "时间轴");
     assert.equal(readTab("渡口", "分场条", "进度"), "分场条");
     assert.equal(readExtraLook("出场"), "出场");
+    assert.equal(readExtraLook("连线"), "连线");
     assert.equal(readExtraLook("时间轴"), null);
   });
 

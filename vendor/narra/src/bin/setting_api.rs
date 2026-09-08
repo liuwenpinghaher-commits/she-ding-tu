@@ -11,10 +11,15 @@ use narra::db::schema::apply_schema;
 use narra::services::canon::{BeatPatch, SettingBook};
 use narra::services::circumstances::{apply_person_lens, suggest_promise_op};
 use narra::services::constrain;
+use narra::services::chapter_compose::{
+    self, fact_check, hanzi_count, min_hanzi_for_beat, polish_system_prompt, polish_user_prompt,
+    source_blob, weave_beat, SourceBeat,
+};
 use narra::services::craft::{self, BookCraft, ExportBeat};
 use narra::services::fill::{
-    chat_completions_url, extract_chat_content, fill_system_prompt, fill_user_prompt, packet_facts,
-    parse_fill_content, parse_talk_content, talk_system_prompt, talk_user_prompt,
+    chat_completions_url, extract_chat_content, fill_cast_suffix, fill_system_prompt,
+    fill_user_prompt, packet_facts, parse_fill_content, parse_talk_content, scrub_thing_fields,
+    talk_system_prompt, talk_user_prompt,
 };
 use narra::services::materialize::invalidate_interval;
 use narra::services::relations;
@@ -738,6 +743,15 @@ fn plan_window(canon: &Canon, goal: &BeatDraft) -> Result<(i64, i64), String> {
 }
 
 async fn call_chat(system: &str, user: &str) -> Result<String, (StatusCode, String)> {
+    call_chat_ex(system, user, 180, 1200).await
+}
+
+async fn call_chat_ex(
+    system: &str,
+    user: &str,
+    timeout_secs: u64,
+    max_tokens: u32,
+) -> Result<String, (StatusCode, String)> {
     let key = std::env::var("SETTING_LLM_API_KEY").unwrap_or_default();
     if key.trim().is_empty() {
         return Err((
@@ -757,13 +771,13 @@ async fn call_chat(system: &str, user: &str) -> Result<String, (StatusCode, Stri
     let model = std::env::var("SETTING_LLM_MODEL").unwrap_or_else(|_| "qwen3.8-flash".into());
     let url = chat_completions_url(&base);
     let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(90))
+        .timeout(std::time::Duration::from_secs(timeout_secs))
         .build()
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     let sent = serde_json::json!({
         "model": model,
         "temperature": 0.4,
-        "max_tokens": 1200,
+        "max_tokens": max_tokens,
         "messages": [
             {"role": "system", "content": system},
             {"role": "user", "content": user},
@@ -869,6 +883,7 @@ async fn main() {
         .route("/api/knows", get(knows_list))
         .route("/api/telling", post(set_telling))
         .route("/api/fill-live", post(fill_live))
+        .route("/api/compose-chapter", post(compose_chapter))
         .route("/api/talk", get(get_talk).post(do_talk))
         .route("/api/plan-suggest", post(plan_suggest))
         .route("/api/plan-apply", post(plan_apply))
@@ -5162,10 +5177,43 @@ async fn fill_live(
         .given_circumstances(&draft0)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-    let user = fill_user_prompt(&draft0.intent, &pkt).map_err(|e| (StatusCode::BAD_REQUEST, e))?;
+    let canon = sess
+        .book
+        .load_canon()
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let mut thing_keys: HashSet<String> = HashSet::new();
+    let mut speakers: Vec<String> = Vec::new();
+    let mut props: Vec<String> = Vec::new();
+    for e in &canon.entities {
+        if e.kind == KIND_THING {
+            thing_keys.insert(e.id.clone());
+            thing_keys.insert(e.name.clone());
+        }
+    }
+    for p in draft0.presences.iter().filter(|p| p.role == ROLE_PRESENT) {
+        match canon.entity(&p.entity_id).map(|e| e.kind.as_str()) {
+            Some(KIND_PERSON) => speakers.push(p.entity_id.clone()),
+            Some(KIND_THING) => props.push(p.entity_id.clone()),
+            _ => {}
+        }
+    }
+    speakers.sort();
+    speakers.dedup();
+    props.sort();
+    props.dedup();
+    let mut user = fill_user_prompt(&draft0.intent, &pkt).map_err(|e| (StatusCode::BAD_REQUEST, e))?;
+    user.push_str(&fill_cast_suffix(&speakers, &props));
     drop(g);
     let content = call_chat(fill_system_prompt(), &user).await?;
-    let fields = parse_fill_content(&content).map_err(|e| (StatusCode::BAD_GATEWAY, e))?;
+    let mut fields = parse_fill_content(&content).map_err(|e| (StatusCode::BAD_GATEWAY, e))?;
+    scrub_thing_fields(&mut fields, &thing_keys);
+    if fields.is_empty() {
+        return Err((
+            StatusCode::BAD_GATEWAY,
+            "模型只给道具写了轨，已丢弃".into(),
+        ));
+    }
     let blob = format!(
         "{}{}{}{}",
         fields.do_text.as_deref().unwrap_or(""),
@@ -5220,6 +5268,164 @@ async fn fill_live(
         "model_input": pkt_json,
         "model_input_has_suggestion": false,
         "model_input_has_structure": false,
+    })))
+}
+
+async fn compose_chapter(
+    State(app): State<App>,
+    Json(body): Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    let chapter_q = body
+        .get("chapter")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .trim()
+        .to_string();
+    let polish = body
+        .get("polish")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(true);
+    let target_hanzi = body
+        .get("target_hanzi")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(0) as usize;
+    let g = app.inner.lock().await;
+    let name = g.current.clone().ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
+    let sess = g.books.get(&name).ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
+    let canon = sess
+        .book
+        .load_canon()
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let craft = sess.craft.clone();
+    let chs = craft::sorted_chapters(&craft, &canon.columns);
+    let picked = chs.iter().find(|(_, c)| {
+        if chapter_q.is_empty() {
+            return false;
+        }
+        c.id == chapter_q
+            || c.title == chapter_q
+            || c.title.contains(&chapter_q)
+            || (!c.title.is_empty() && chapter_q.contains(&c.title))
+    }).or_else(|| {
+        if chapter_q.is_empty() {
+            chs.last()
+        } else {
+            None
+        }
+    });
+    if !chapter_q.is_empty() && picked.is_none() && !chs.is_empty() {
+        return Err((StatusCode::BAD_REQUEST, "没有这一回".into()));
+    }
+    let chapter_title = if let Some((_, c)) = picked {
+        c.title.clone()
+    } else {
+        chapter_q.clone()
+    };
+    let col_set: Option<HashSet<String>> = if let Some(&(start_ord, _)) = picked {
+        let next_ord = chs
+            .iter()
+            .filter_map(|(o, _)| if *o > start_ord { Some(*o) } else { None })
+            .min();
+        Some(
+            canon
+                .columns
+                .iter()
+                .filter(|c| {
+                    c.display_ord >= start_ord && next_ord.map(|n| c.display_ord < n).unwrap_or(true)
+                })
+                .map(|c| c.id.clone())
+                .collect(),
+        )
+    } else {
+        None
+    };
+    let mut beats: Vec<SourceBeat> = canon
+        .beats
+        .iter()
+        .filter(|b| b.status == STATUS_COMMITTED)
+        .filter(|b| col_set.as_ref().map(|s| s.contains(&b.column_id)).unwrap_or(true))
+        .map(|b| SourceBeat {
+            id: b.id.clone(),
+            kind: b.kind.clone(),
+            intent: b.intent.clone(),
+            place: b.place_id.clone().unwrap_or_default(),
+            do_text: b.do_text.clone().unwrap_or_default(),
+            say_text: b.say_text.clone().unwrap_or_default(),
+            think_text: b.think_text.clone().unwrap_or_default(),
+            value_shift: b.value_shift.clone().unwrap_or_default(),
+        })
+        .collect();
+    beats.sort_by_key(|b| {
+        let ord = canon
+            .beats
+            .iter()
+            .find(|x| x.id == b.id)
+            .map(|x| (x.clock_from, x.commit_seq))
+            .unwrap_or((0, 0));
+        ord
+    });
+    if beats.is_empty() {
+        return Err((StatusCode::BAD_REQUEST, "这一回没有正史可拼".into()));
+    }
+    let entity_names: Vec<String> = canon
+        .entities
+        .iter()
+        .map(|e| e.name.clone())
+        .filter(|n| n.chars().count() >= 2)
+        .collect();
+    let premise = craft.premise.clone();
+    drop(g);
+
+    let chapter_source: usize = beats.iter().map(|b| hanzi_count(&source_blob(b))).sum();
+    let chapter_target = if target_hanzi > 0 {
+        target_hanzi
+    } else {
+        // 默认按 0.55 带宽的下限来铺，但产品自己不绑死某本书的锚。
+        (chapter_source as f64 * 1.4).ceil() as usize
+    };
+    let source_all: String = beats.iter().map(|b| source_blob(b)).collect();
+    let mut bodies: Vec<(SourceBeat, String)> = Vec::new();
+    let mut polished_n = 0usize;
+    for b in &beats {
+        let mut body = weave_beat(b);
+        if polish && b.kind != "ellipsis" {
+            let min_h = min_hanzi_for_beat(b, chapter_target, chapter_source.max(1));
+            let user = polish_user_prompt(b, min_h);
+            match call_chat_ex(polish_system_prompt(), &user, 180, 2048).await {
+                Ok(txt) => {
+                    let txt = txt.trim().to_string();
+                    let check = fact_check(&source_blob(b), &txt, &entity_names);
+                    if check.ok && hanzi_count(&txt) >= hanzi_count(&source_blob(b)) {
+                        body = txt;
+                        polished_n += 1;
+                    }
+                }
+                Err(_) => {}
+            }
+        }
+        bodies.push((b.clone(), body));
+    }
+    let export_md = chapter_compose::export_composed(&name, &premise, &chapter_title, &bodies);
+    let prose: String = bodies
+        .iter()
+        .map(|(_, body)| body.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .collect::<Vec<_>>()
+        .join("\n\n");
+    let check = fact_check(&source_all, &export_md, &entity_names);
+    let han = hanzi_count(&export_md);
+    Ok(Json(serde_json::json!({
+        "chapter": chapter_title,
+        "beats": beats.len(),
+        "polished_beats": polished_n,
+        "hanzi": han,
+        "source_hanzi": chapter_source,
+        "target_hanzi": chapter_target,
+        "fact_check": check,
+        "prose": prose,
+        "export_md": export_md,
+        "auto_canon": false,
     })))
 }
 

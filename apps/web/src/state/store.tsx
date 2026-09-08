@@ -223,6 +223,10 @@ export interface Store {
   saveDossier: (fields: Record<string, string>) => Promise<void>;
   addRel: (kind: string, target: string) => Promise<void>;
   saveCraft: (craft: BookCraft) => Promise<void>;
+  composeBusy: boolean;
+  composeOut: string;
+  composeMsg: string;
+  composeChapter: (chapter?: string, polish?: boolean) => Promise<void>;
   setTelling: () => Promise<void>;
   toggleReadingOrder: () => Promise<void>;
   loadExport: (includeDrafts: boolean) => Promise<void>;
@@ -314,6 +318,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [causedBy, setCausedBy] = useState("");
   const [reviseMsg, setReviseMsg] = useState("");
   const [craftMsg, setCraftMsg] = useState("");
+  const [composeBusy, setComposeBusy] = useState(false);
+  const [composeOut, setComposeOut] = useState("");
+  const [composeMsg, setComposeMsg] = useState("");
   const [mentionOpen, setMentionOpen] = useState(false);
   const [mentionQ, setMentionQ] = useState("");
   const [mentionField, setMentionField] = useState<string | null>(null);
@@ -1715,6 +1722,30 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     await refresh();
   }, [refresh]);
 
+  const composeChapter = useCallback(async (chapter?: string, polish = true) => {
+    setComposeBusy(true);
+    setComposeMsg("正在拼章…");
+    try {
+      const r = await api<{
+        export_md?: string;
+        hanzi?: number;
+        auto_canon?: boolean;
+        fact_check?: { ok?: boolean };
+      }>("/api/compose-chapter", {
+        method: "POST",
+        body: JSON.stringify({ chapter: chapter || "", polish }),
+      });
+      setComposeOut(r.export_md || "");
+      const ok = r.fact_check?.ok ? "事实集一致" : "事实集有出入，稿未写回正史";
+      setComposeMsg(`已拼 ${r.hanzi || 0} 字，${ok}。未写入正史。`);
+    } catch (e) {
+      failOp(e, "拼章失败");
+      setComposeMsg("拼章失败");
+    } finally {
+      setComposeBusy(false);
+    }
+  }, [failOp]);
+
   const setTelling = useCallback(async () => {
     const id = state?.selected_canon || state?.committed[0]?.id;
     const ord = Number(tellingOrd);
@@ -2137,6 +2168,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     saveDossier,
     addRel,
     saveCraft,
+    composeBusy,
+    composeOut,
+    composeMsg,
+    composeChapter,
     setTelling,
     toggleReadingOrder,
     loadExport,

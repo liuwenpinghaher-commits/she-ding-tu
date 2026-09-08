@@ -90,7 +90,18 @@ export function Dialogs() {
             ))}
             <button data-testid="craft-add-chapter" type="button" onClick={() => setChaps([...chaps, { title: "", start_column: s.state?.columns[0]?.id || "col0" }])}>加一回</button>
             <button data-testid="craft-save" className="primary" type="button" onClick={() => s.saveCraft({ ...s.state?.craft, premise: craftPremise, chapters: chaps })}>写入书页</button>
+            {chaps.map((ch, i) => (
+              <button
+                key={`compose-${i}`}
+                data-testid={`compose-chapter-${i}`}
+                type="button"
+                disabled={s.composeBusy || !ch.title}
+                onClick={() => s.composeChapter(ch.title)}
+              >{s.composeBusy ? "正在拼…" : `拼「${ch.title || "未名回"}」（不写回正史）`}</button>
+            ))}
             <div data-testid="craft-msg">{s.craftMsg}</div>
+            <div data-testid="compose-msg">{s.composeMsg}</div>
+            {s.composeOut ? <pre data-testid="compose-out">{s.composeOut}</pre> : null}
             <button data-testid="craft-close" type="button" onClick={() => s.setCraftOpen(false)}>关闭</button>
           </div>
         </div>

@@ -12,8 +12,8 @@ use narra::services::canon::{BeatPatch, SettingBook};
 use narra::services::circumstances::{apply_person_lens, suggest_promise_op};
 use narra::services::constrain;
 use narra::services::chapter_compose::{
-    self, fact_check, hanzi_count, min_hanzi_for_beat, polish_system_prompt, polish_user_prompt,
-    source_blob, weave_beat, SourceBeat,
+    self, beat_weight, fact_check, hanzi_count, min_hanzi_for_beat, polish_system_prompt,
+    polish_user_prompt, source_blob, weave_beat, FactReport, MinHanziMode, SourceBeat,
 };
 use narra::services::craft::{self, BookCraft, ExportBeat};
 use narra::services::fill::{
@@ -803,6 +803,54 @@ async fn call_chat_ex(
         ));
     }
     extract_chat_content(&body_json).map_err(|e| (StatusCode::BAD_GATEWAY, e))
+}
+
+fn polish_reject_reason(check: &FactReport, hanzi: usize, source_hanzi: usize, llm_err: Option<&str>) -> String {
+    if let Some(e) = llm_err {
+        return format!("llm_error:{e}");
+    }
+    let mut parts = Vec::new();
+    if !check.missing_quotes.is_empty() {
+        parts.push(format!("missing_quotes={}", check.missing_quotes.join("|")));
+    }
+    if !check.added_entities.is_empty() {
+        parts.push(format!("added_entities={}", check.added_entities.join("|")));
+    }
+    if !check.added_quotes.is_empty() {
+        parts.push(format!("added_quotes_n={}", check.added_quotes.len()));
+    }
+    if hanzi < source_hanzi {
+        parts.push(format!("hanzi {hanzi}<source {source_hanzi}"));
+    }
+    if parts.is_empty() {
+        "unknown".into()
+    } else {
+        parts.join("; ")
+    }
+}
+
+fn log_polish_event(
+    kind: &str,
+    beat_i: usize,
+    beat_n: usize,
+    id: &str,
+    attempt: u32,
+    reason: &str,
+    check: Option<&FactReport>,
+    hanzi: usize,
+    source_hanzi: usize,
+    min_hanzi: usize,
+) {
+    if let Some(c) = check {
+        eprintln!(
+            "compose-chapter polish {kind} beat={beat_i}/{beat_n} id={id} attempt={attempt} reason={reason} missing_quotes={:?} added_entities={:?} added_quotes={:?} hanzi={hanzi} source_hanzi={source_hanzi} min_hanzi={min_hanzi}",
+            c.missing_quotes, c.added_entities, c.added_quotes
+        );
+    } else {
+        eprintln!(
+            "compose-chapter polish {kind} beat={beat_i}/{beat_n} id={id} attempt={attempt} reason={reason} hanzi={hanzi} source_hanzi={source_hanzi} min_hanzi={min_hanzi}"
+        );
+    }
 }
 
 fn disk_books(root: &std::path::Path) -> Vec<String> {
@@ -5289,6 +5337,11 @@ async fn compose_chapter(
         .get("target_hanzi")
         .and_then(|v| v.as_u64())
         .unwrap_or(0) as usize;
+    let min_hanzi_mode = MinHanziMode::parse(
+        body.get("min_hanzi_mode")
+            .and_then(|v| v.as_str())
+            .unwrap_or("weighted"),
+    );
     let g = app.inner.lock().await;
     let name = g.current.clone().ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
     let sess = g.books.get(&name).ok_or((StatusCode::BAD_REQUEST, "未打开书".into()))?;
@@ -5385,25 +5438,114 @@ async fn compose_chapter(
         (chapter_source as f64 * 1.4).ceil() as usize
     };
     let source_all: String = beats.iter().map(|b| source_blob(b)).collect();
+    let surplus = chapter_target.saturating_sub(chapter_source);
+    let weight_sum: u64 = beats
+        .iter()
+        .filter(|b| b.kind != "ellipsis")
+        .map(|b| beat_weight(hanzi_count(&source_blob(b))))
+        .sum();
+    let beat_n = beats.len();
     let mut bodies: Vec<(SourceBeat, String)> = Vec::new();
     let mut polished_n = 0usize;
-    for b in &beats {
+    let mut fallback_n = 0usize;
+    let mut beat_reports: Vec<serde_json::Value> = Vec::new();
+    for (i, b) in beats.iter().enumerate() {
+        let src_blob = source_blob(b);
+        let src_h = hanzi_count(&src_blob);
         let mut body = weave_beat(b);
+        let mut used = "weave";
+        let mut attempts = 0u32;
+        let mut last_reason = String::new();
+        let mut last_check: Option<FactReport> = None;
+        let mut min_h = src_h;
         if polish && b.kind != "ellipsis" {
-            let min_h = min_hanzi_for_beat(b, chapter_target, chapter_source.max(1));
-            let user = polish_user_prompt(b, min_h);
-            match call_chat_ex(polish_system_prompt(), &user, 180, 2048).await {
-                Ok(txt) => {
-                    let txt = txt.trim().to_string();
-                    let check = fact_check(&source_blob(b), &txt, &entity_names);
-                    if check.ok && hanzi_count(&txt) >= hanzi_count(&source_blob(b)) {
-                        body = txt;
-                        polished_n += 1;
+            min_h = min_hanzi_for_beat(src_h, min_hanzi_mode, weight_sum, surplus);
+            let user0 = polish_user_prompt(b, min_h);
+            let mut prompt = user0.clone();
+            let mut accepted = false;
+            for attempt in 1u32..=2 {
+                attempts = attempt;
+                match call_chat_ex(polish_system_prompt(), &prompt, 180, 4096).await {
+                    Ok(txt) => {
+                        let txt = txt.trim().to_string();
+                        let check = fact_check(&src_blob, &txt, &entity_names);
+                        let h = hanzi_count(&txt);
+                        last_check = Some(check.clone());
+                        if check.polish_pass() {
+                            body = txt;
+                            used = "polish";
+                            polished_n += 1;
+                            accepted = true;
+                            break;
+                        }
+                        last_reason = polish_reject_reason(&check, h, src_h, None);
+                        log_polish_event(
+                            "REJECT",
+                            i + 1,
+                            beat_n,
+                            &b.id,
+                            attempt,
+                            &last_reason,
+                            Some(&check),
+                            h,
+                            src_h,
+                            min_h,
+                        );
+                        prompt = format!(
+                            "{user0}\n\n上一稿未过审：{last_reason}\n请只重排已给的正史句子。「」内原文必须出现，禁止新人物新地点。衔接不要引入未出现的人名。"
+                        );
+                    }
+                    Err(e) => {
+                        last_reason = polish_reject_reason(
+                            &FactReport::default(),
+                            0,
+                            src_h,
+                            Some(&e.1),
+                        );
+                        log_polish_event(
+                            "REJECT",
+                            i + 1,
+                            beat_n,
+                            &b.id,
+                            attempt,
+                            &last_reason,
+                            None,
+                            0,
+                            src_h,
+                            min_h,
+                        );
                     }
                 }
-                Err(_) => {}
+            }
+            if !accepted {
+                fallback_n += 1;
+                used = "fallback";
+                let h = hanzi_count(&body);
+                log_polish_event(
+                    "FALLBACK",
+                    i + 1,
+                    beat_n,
+                    &b.id,
+                    attempts,
+                    &last_reason,
+                    last_check.as_ref(),
+                    h,
+                    src_h,
+                    min_h,
+                );
             }
         }
+        beat_reports.push(serde_json::json!({
+            "index": i,
+            "id": b.id,
+            "kind": b.kind,
+            "used": used,
+            "attempts": attempts,
+            "source_hanzi": src_h,
+            "hanzi": hanzi_count(&body),
+            "min_hanzi": min_h,
+            "reject_reason": if used == "fallback" { last_reason } else { String::new() },
+        }));
         bodies.push((b.clone(), body));
     }
     let export_md = chapter_compose::export_composed(&name, &premise, &chapter_title, &bodies);
@@ -5415,14 +5557,19 @@ async fn compose_chapter(
         .join("\n\n");
     let check = fact_check(&source_all, &export_md, &entity_names);
     let han = hanzi_count(&export_md);
+    let gate_ok = check.polish_pass();
     Ok(Json(serde_json::json!({
         "chapter": chapter_title,
         "beats": beats.len(),
         "polished_beats": polished_n,
+        "fallback_beats": fallback_n,
         "hanzi": han,
         "source_hanzi": chapter_source,
         "target_hanzi": chapter_target,
+        "min_hanzi_mode": min_hanzi_mode.as_str(),
         "fact_check": check,
+        "gate_ok": gate_ok,
+        "beat_reports": beat_reports,
         "prose": prose,
         "export_md": export_md,
         "auto_canon": false,

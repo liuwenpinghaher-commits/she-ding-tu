@@ -4,6 +4,7 @@ pub mod canon;
 pub mod circumstances;
 pub mod constrain;
 pub mod craft;
+pub mod chapter_compose;
 pub mod fill;
 pub mod span;
 pub mod ferry;

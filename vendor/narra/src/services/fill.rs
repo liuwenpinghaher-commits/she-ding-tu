@@ -29,9 +29,91 @@ impl FillFields {
 pub fn fill_system_prompt() -> &'static str {
     "你在给一场戏填草稿，不是写入历史。\
 只根据本场任务和规定情境写这一场。按在场人物分轨：每个人自己的动作、对白、内心。\
+道具、器物（thing）不分轨：不要把它们写成 tracks 里的 person_id，不要给它们对白或内心；它们只可以出现在人物的动作里被拿、被看见。\
 稿子里要发生一件事：价值转折，或知情差被用上，或对伏笔做一件事。不要复述世界清单。\
 不要指定下一场。不要说已经写入正史。\
 只输出一个 JSON 对象，键为 tracks（数组，每项 person_id、do_text、say_text、think_text）、value_shift。也可附 do_text/say_text/think_text 整场摘要。不要Markdown围栏外的解释。"
+}
+
+/// 道具名/id（锡牌、铁尺、鼓罐等）命中则这条轨丢掉。
+pub fn is_thing_track_id(person_id: &str, thing_keys: &std::collections::HashSet<String>) -> bool {
+    let id = person_id.trim();
+    if id.is_empty() {
+        return false;
+    }
+    thing_keys.contains(id)
+}
+
+pub fn drop_thing_tracks(
+    tracks: Vec<PersonTrack>,
+    thing_keys: &std::collections::HashSet<String>,
+) -> Vec<PersonTrack> {
+    tracks
+        .into_iter()
+        .filter(|t| !is_thing_track_id(&t.person_id, thing_keys))
+        .collect()
+}
+
+pub fn strip_thing_prefixed_lines(
+    text: &str,
+    thing_keys: &std::collections::HashSet<String>,
+) -> Option<String> {
+    let kept: Vec<&str> = text
+        .lines()
+        .filter(|line| {
+            let prefix = line.split('：').next().unwrap_or("").trim();
+            prefix.is_empty() || !is_thing_track_id(prefix, thing_keys)
+        })
+        .collect();
+    let s = kept.join("\n");
+    if s.trim().is_empty() {
+        None
+    } else {
+        Some(s)
+    }
+}
+
+/// 丢掉道具分轨，并清掉已拍扁文本里「铁尺：…」这种行。
+pub fn scrub_thing_fields(fields: &mut FillFields, thing_keys: &std::collections::HashSet<String>) {
+    if thing_keys.is_empty() {
+        return;
+    }
+    fields.tracks = drop_thing_tracks(std::mem::take(&mut fields.tracks), thing_keys);
+    if let Some(t) = &fields.do_text {
+        fields.do_text = strip_thing_prefixed_lines(t, thing_keys);
+    }
+    if let Some(t) = &fields.say_text {
+        fields.say_text = strip_thing_prefixed_lines(t, thing_keys);
+    }
+    if let Some(t) = &fields.think_text {
+        fields.think_text = strip_thing_prefixed_lines(t, thing_keys);
+    }
+    if fields.do_text.is_none()
+        && fields.say_text.is_none()
+        && fields.think_text.is_none()
+        && !fields.tracks.is_empty()
+    {
+        let (d, s, th) = flatten_tracks(&fields.tracks);
+        fields.do_text = d;
+        fields.say_text = s;
+        fields.think_text = th;
+    }
+}
+
+pub fn fill_cast_suffix(speakers: &[String], props: &[String]) -> String {
+    let people = if speakers.is_empty() {
+        "（无）".to_string()
+    } else {
+        speakers.join("、")
+    };
+    let things = if props.is_empty() {
+        "（无）".to_string()
+    } else {
+        props.join("、")
+    };
+    format!(
+        "\n可分轨人物（只对这些人写 tracks.person_id）：{people}\n在场道具（可写进人物动作，禁止 person_id、禁止对白、禁止内心）：{things}\n"
+    )
 }
 
 pub fn fill_user_prompt(intent: &str, pkt: &ScenePacket) -> Result<String, String> {
@@ -283,5 +365,51 @@ mod tests {
         assert_eq!(f.say_text.as_deref(), Some("阿福：没有东西"));
         assert_eq!(f.value_shift.as_deref(), Some("把柄还在"));
         assert!(!f.is_empty());
+    }
+
+    #[test]
+    fn drop_thing_tracks_keeps_people() {
+        let mut keys = std::collections::HashSet::new();
+        keys.insert("铁尺".into());
+        keys.insert("锡牌".into());
+        keys.insert("赛子龙鼓罐".into());
+        let tracks = vec![
+            PersonTrack {
+                person_id: "吴定缘".into(),
+                do_text: Some("亮牌".into()),
+                say_text: Some("应天府的人".into()),
+                think_text: None,
+            },
+            PersonTrack {
+                person_id: "铁尺".into(),
+                do_text: Some("试探旗兵".into()),
+                say_text: Some("我是铁尺".into()),
+                think_text: Some("我能说话".into()),
+            },
+            PersonTrack {
+                person_id: "赛子龙鼓罐".into(),
+                do_text: Some("罐壁有水气".into()),
+                say_text: None,
+                think_text: Some("它听见两千料".into()),
+            },
+        ];
+        let kept = drop_thing_tracks(tracks, &keys);
+        assert_eq!(kept.len(), 1);
+        assert_eq!(kept[0].person_id, "吴定缘");
+        assert_eq!(
+            strip_thing_prefixed_lines("铁尺：我是铁尺\n吴定缘：应天府的人", &keys).as_deref(),
+            Some("吴定缘：应天府的人")
+        );
+        let mut f = parse_fill_content(
+            r#"{"tracks":[{"person_id":"朱瞻基","do_text":"扣虫","say_text":"拿住它"},{"person_id":"赛子龙鼓罐","do_text":"罐在案上","think_text":"它听见两千料"}],"value_shift":"玩兴"}"#,
+        )
+        .unwrap();
+        scrub_thing_fields(&mut f, &keys);
+        assert_eq!(f.tracks.len(), 1);
+        assert_eq!(f.tracks[0].person_id, "朱瞻基");
+        assert!(f.do_text.as_deref().unwrap().contains("朱瞻基"));
+        assert!(!f.do_text.as_deref().unwrap().contains("赛子龙鼓罐"));
+        assert!(f.think_text.is_none() || !f.think_text.as_deref().unwrap().contains("赛子龙鼓罐"));
+        assert!(fill_system_prompt().contains("道具、器物（thing）不分轨"));
     }
 }

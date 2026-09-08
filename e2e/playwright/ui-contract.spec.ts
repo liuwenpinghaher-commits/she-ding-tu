@@ -1,5 +1,5 @@
 import { expect, type Page } from "@playwright/test";
-import { test, selectDraftCard, openStripboard, waitBookLabel } from "./helpers";
+import { clickOpsAction, test, selectDraftCard, openStripboard, waitBookLabel } from "./helpers";
 
 async function openMore(page: Page) {
   await page.locator("#more-menu").evaluate((el: HTMLDetailsElement) => { el.open = true; });
@@ -423,14 +423,21 @@ test("5 改已正史、删正史补洞、导出", async ({ page }) => {
   expect(heard).toContain("不在这儿");
 
   await page.locator(`[data-testid="card-${b1.id}"]`).click();
+  await expect(page.getByTestId("telling-ord")).toBeVisible();
   await page.getByTestId("telling-ord").fill("2");
-  await page.getByTestId("set-telling").click();
+  await Promise.all([
+    page.waitForResponse((r) => r.url().includes("/api/telling") && r.request().method() === "POST"),
+    page.getByTestId("set-telling").click(),
+  ]);
   await page.locator(`[data-testid="card-${b2.id}"]`).click();
   await page.getByTestId("telling-ord").fill("1");
-  await page.getByTestId("set-telling").click();
+  await Promise.all([
+    page.waitForResponse((r) => r.url().includes("/api/telling") && r.request().method() === "POST"),
+    page.getByTestId("set-telling").click(),
+  ]);
 
   await openMore(page);
-  await page.getByTestId("export").click();
+  await clickOpsAction(page, "export");
   await closeMore(page);
   await expect(page.getByTestId("export-out")).toBeVisible();
   const mdStory = await page.getByTestId("export-out").innerText();
@@ -444,9 +451,12 @@ test("5 改已正史、删正史补洞、导出", async ({ page }) => {
   await closeMore(page);
   await expect(page.getByTestId("reading-order")).toHaveAttribute("aria-pressed", "true");
   await openMore(page);
-  await page.getByTestId("export").click();
+  await clickOpsAction(page, "export");
   await closeMore(page);
-  await page.getByTestId("export-run").click();
+  await Promise.all([
+    page.waitForResponse((r) => r.url().includes("/api/export")),
+    page.getByTestId("export-run").click(),
+  ]);
   const mdRead = await page.getByTestId("export-out").innerText();
   expect(mdRead.indexOf("阿莲来找")).toBeLessThan(mdRead.indexOf("阿福发现刀"));
   const worldRead = await page.evaluate(async (t) => (await (await fetch("/api/world?t=" + t)).json()), b1.clock_from);
@@ -458,7 +468,7 @@ test("5 改已正史、删正史补洞、导出", async ({ page }) => {
   await page.getByTestId("write-next").click();
   await page.locator(".card.draft").first().waitFor();
   await openMore(page);
-  await page.getByTestId("export").click();
+  await clickOpsAction(page, "export");
   await closeMore(page);
   await page.getByTestId("export-include-drafts").check();
   await page.getByTestId("export-run").click();

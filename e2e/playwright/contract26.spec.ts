@@ -1,5 +1,5 @@
 import { expect, type Page } from "@playwright/test";
-import { openStripboard, test, waitBookLabel } from "./helpers";
+import { clickOpsAction, openStripboard, test, waitBookLabel } from "./helpers";
 
 test.describe.configure({ timeout: 180000 });
 
@@ -478,7 +478,7 @@ test("19 伏笔不是线", async ({ page }) => {
   await expect(page.getByTestId("promise-ops")).toContainText("兑现");
   await page.getByTestId("thread-new-name").fill("铜牌");
   await page.getByTestId("thread-create").click();
-  await page.getByTestId("open-cmd").click();
+  await clickOpsAction(page, "open-cmd");
   await expect(page.getByTestId("cmd-palette")).toContainText("过滤「铜牌」");
   await expect(page.getByTestId("cmd-palette")).toContainText("伏笔「铜牌三日」");
 });
@@ -597,7 +597,7 @@ test("25 导出标清草稿", async ({ page }) => {
   await page.getByTestId("intent").fill("还是草稿");
   await page.getByTestId("write-next").click();
   await page.locator("#more-menu").evaluate((el: HTMLDetailsElement) => { el.open = true; });
-  await page.getByTestId("export").click();
+  await clickOpsAction(page, "export");
   await page.getByTestId("export-include-drafts").check();
   await page.getByTestId("export-run").click();
   await expect(page.getByTestId("export-out")).toContainText("状态：正史");

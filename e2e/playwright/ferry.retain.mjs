@@ -266,6 +266,7 @@ const hung = await page.getByTestId("sidebar").innerText();
 if (!hung.includes("已挂在场上")) throw new Error("在场设定应禁止删 " + hung);
 log("已挂不能删设定", hung);
 
+await page.getByTestId("ops-menu").evaluate((el) => { el.open = true; });
 await page.getByTestId("plant-promise").click();
 await page.waitForTimeout(200);
 const wPromise = await world(10);
@@ -431,6 +432,7 @@ if (!String(flyErr).includes("只读")) throw new Error("出场飞出层应拒�
 await page.getByTestId("flyout-close").click();
 log("出场只读", flyErr);
 
+await page.getByTestId("ops-menu").evaluate((el) => { el.open = true; });
 await page.getByTestId("export").click();
 await page.waitForFunction(() => (document.querySelector('[data-testid="export-out"]')?.textContent || "").includes("状态：正史"), null, { timeout: 10000 });
 const md = await page.getByTestId("export-out").evaluate((el) => el.textContent || "");
@@ -578,6 +580,7 @@ await page.evaluate(async (id) => {
 }, keepDraft.id);
 log("留下草稿场供导出", keepDraft.id);
 
+await page.getByTestId("ops-menu").evaluate((el) => { el.open = true; });
 await page.getByTestId("export").click();
 await page.waitForFunction(() => (document.querySelector('[data-testid="export-out"]')?.textContent || "").includes("状态：草稿"), null, { timeout: 10000 });
 const mdFinal = await page.getByTestId("export-out").evaluate((el) => el.textContent || "");

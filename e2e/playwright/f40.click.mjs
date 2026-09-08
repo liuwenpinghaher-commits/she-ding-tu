@@ -55,6 +55,11 @@ async function openMore() {
 async function closeMore() {
   await page.locator("#more-menu").evaluate((el) => { el.open = false; });
 }
+async function clickOps(id) {
+  await page.getByTestId("ops-menu").evaluate((el) => { el.open = true; });
+  await page.getByTestId(id).click();
+  await page.getByTestId("ops-menu").evaluate((el) => { el.open = false; });
+}
 async function dragHandle(testid, dx) {
   const box = await page.getByTestId(testid).boundingBox();
   if (!box) fail("no handle " + testid);
@@ -273,7 +278,9 @@ await page.getByTestId("do-text").fill("阿禾仍在城里等");
 await commitClick();
 note("17 伏笔铜牌进规定情境，不兑现仍可写入正史", debt.slice(0, 160));
 
-const lianCol = (await st()).committed.find((b) => String(b.intent).includes("阿莲来找")).column_id;
+const lianBeat = (await st()).committed.find((b) => String(b.intent).includes("阿莲来找"));
+if (!lianBeat) fail("无阿莲来找场 " + (await st()).committed.map((b) => b.intent).join(" | "));
+const lianCol = lianBeat.column_id;
 await page.getByTestId("intent").fill("阿莲同时在城里");
 await page.getByTestId("place-id").fill("城里");
 const [parReq] = await Promise.all([
@@ -418,9 +425,7 @@ const shouldKeep = seqBeforeDel.filter((s) => s !== del.commit_seq);
 if (shouldKeep.some((s) => !leftSeq.includes(s))) fail("不该删的场没了 " + JSON.stringify({ shouldKeep, leftSeq }));
 note("23 删已正史补洞，seq 不重编号", { impacts: impacts.slice(0, 120), leftSeq });
 
-await openMore();
-await page.getByTestId("export").click();
-await closeMore();
+await clickOps("export");
 await page.getByTestId("export-out").waitFor({ state: "visible" });
 const md = await page.getByTestId("export-out").innerText();
 if (!md.includes("状态：正史")) fail("导出无正史");

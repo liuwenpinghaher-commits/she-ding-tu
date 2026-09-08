@@ -1,5 +1,5 @@
 import { expect } from "@playwright/test";
-import { test, waitBookLabel } from "./helpers";
+import { clickOpsAction, openOpsMenu, test, waitBookLabel } from "./helpers";
 
 test.describe.configure({ timeout: 120000 });
 
@@ -51,7 +51,13 @@ test("K1 导出贴草稿伏笔命令常驻可见", async ({ page }) => {
   await page.getByTestId("book-name").fill(book);
   await page.getByTestId("create-book").click();
   await waitBookLabel(page, book);
-  for (const id of ["export", "paste", "plant-promise", "open-cmd"] as const) {
+  const paste = page.getByTestId("paste");
+  await expect(paste).toBeVisible();
+  const pasteBox = await paste.boundingBox();
+  expect(pasteBox).toBeTruthy();
+  expect(pasteBox!.width).toBeGreaterThan(20);
+  await openOpsMenu(page);
+  for (const id of ["export", "plant-promise", "open-cmd"] as const) {
     const loc = page.getByTestId(id);
     await expect(loc).toBeVisible();
     const box = await loc.boundingBox();
@@ -59,16 +65,16 @@ test("K1 导出贴草稿伏笔命令常驻可见", async ({ page }) => {
     expect(box!.width, id).toBeGreaterThan(20);
     expect(box!.height, id).toBeGreaterThan(12);
   }
-  await page.getByTestId("open-cmd").click();
+  await clickOpsAction(page, "open-cmd");
   await expect(page.getByTestId("cmd-palette")).toBeVisible();
   await page.keyboard.press("Escape");
-  await page.getByTestId("export").click();
+  await clickOpsAction(page, "export");
   await expect(page.getByTestId("export-out")).toBeVisible();
   await page.getByTestId("export-close").click();
   await page.getByTestId("paste").click();
   await expect(page.getByTestId("paste-dialog")).toBeVisible();
   await page.getByTestId("paste-close").click();
-  await page.getByTestId("plant-promise").click();
+  await clickOpsAction(page, "plant-promise");
   await expect(page.getByTestId("promise-ops")).toBeVisible();
 });
 

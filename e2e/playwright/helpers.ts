@@ -29,6 +29,30 @@ export async function openWorkspaceTab(page: Page, kind: string) {
   await page.getByTestId(`tab-add-${kind}`).click();
 }
 
+/** 打开顶栏 ⋯ 菜单（导出 / 命令 / 伏笔收在这里）。 */
+export async function openOpsMenu(page: Page) {
+  const menu = page.getByTestId("ops-menu");
+  await menu.waitFor();
+  const open = await menu.evaluate((el) => (el as HTMLDetailsElement).open);
+  if (!open) await menu.locator("summary").click();
+}
+
+export async function clickOpsAction(page: Page, id: string) {
+  const menu = page.getByTestId("ops-menu");
+  const shown = await menu.isVisible().catch(() => false);
+  if (!shown) {
+    if (id === "open-cmd") {
+      await page.keyboard.press("Control+k");
+      return;
+    }
+    await page.getByTestId(id).click({ force: true });
+    return;
+  }
+  await openOpsMenu(page);
+  await page.getByTestId(id).click();
+  await menu.evaluate((el) => { (el as HTMLDetailsElement).open = false; });
+}
+
 /** 切到分场条页签。写厚、列数、细条仍在这里。关掉了就从「+」再开一枚。 */
 export async function openStripboard(page: Page) {
   await openWorkspaceTab(page, "分场条");

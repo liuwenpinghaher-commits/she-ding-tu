@@ -1,5 +1,5 @@
 import { expect } from "@playwright/test";
-import { test } from "./helpers";
+import { clickOpsAction, test } from "./helpers";
 
 test.describe.configure({ timeout: 60000 });
 
@@ -26,7 +26,7 @@ test("地址栏 theme=light 盖过本地暗色记忆", async ({ page }) => {
 
 test("命令面板能搜到切换主题", async ({ page }) => {
   await page.goto("/");
-  await page.getByTestId("open-cmd").click();
+  await clickOpsAction(page, "open-cmd");
   await page.getByTestId("cmd-q").fill("暗色");
   await expect(page.getByTestId("cmd-palette")).toContainText("切到暗色");
   await page.getByTestId("cmd-active").click();

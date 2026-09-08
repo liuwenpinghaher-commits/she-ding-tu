@@ -1,5 +1,5 @@
 import { expect, type Page } from "@playwright/test";
-import { test, selectDraftCard, openStripboard, waitBookLabel } from "./helpers";
+import { clickOpsAction, test, selectDraftCard, openStripboard, waitBookLabel } from "./helpers";
 
 test.describe.configure({ timeout: 120000 });
 
@@ -14,7 +14,7 @@ async function boot(page: Page, book: string) {
 test("命令面板：空态、键盘走、回车", async ({ page }) => {
   const book = "bm-cmd-" + Date.now();
   await boot(page, book);
-  await page.getByTestId("open-cmd").click();
+  await clickOpsAction(page, "open-cmd");
   await expect(page.getByTestId("cmd-palette")).toBeVisible();
   await page.getByTestId("cmd-q").fill("zzzz-no-such-command");
   await expect(page.getByTestId("cmd-empty")).toHaveText("没有这条命令");
@@ -58,7 +58,7 @@ test("书架能搜、规定情境五块在、导出能下 md", async ({ page }) 
   await expect(page.locator(".book-card").filter({ hasText: book })).toBeVisible();
   await page.locator(".book-card").filter({ hasText: book }).click();
   await page.locator("#more-menu").evaluate((el: HTMLDetailsElement) => { el.open = true; });
-  await page.getByTestId("export").click();
+  await clickOpsAction(page, "export");
   await page.getByTestId("export-include-drafts").check();
   await page.getByTestId("export-run").click();
   await expect(page.getByTestId("export-out")).toBeVisible();

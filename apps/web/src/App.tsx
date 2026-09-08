@@ -16,11 +16,12 @@ function Shell() {
   const s = useStore();
   const r = s.route;
   const fullPage = r.kind === "shelf" || r.kind === "new" || r.kind === "library" || r.kind === "settings" || r.kind === "export";
+  const hall = r.kind === "shelf" || r.kind === "new" || r.kind === "library" || r.kind === "settings";
   const showBoard = r.kind === "board" || r.kind === "scene" || r.kind === "dossier" || (!fullPage && !!s.state?.book);
   const chrome = s.sceneChrome;
 
   return (
-    <div className={`app chrome-${chrome}`}>
+    <div className={`app chrome-${chrome}${hall ? " hall" : ""}`}>
       <Topbar />
       {s.banner && <div className="banner">{s.banner}</div>}
       {(r.kind === "shelf" || !s.state?.book) && r.kind !== "new" && r.kind !== "library" && r.kind !== "settings" && <ShelfPage />}

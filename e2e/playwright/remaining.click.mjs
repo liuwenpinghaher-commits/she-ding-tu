@@ -51,6 +51,7 @@ if (!commit1.ok()) {
   throw new Error("写入正史失败 " + commit1.status() + " " + (await commit1.text()));
 }
 await page.locator(".card.canon").first().waitFor({ timeout: 15000 });
+await page.getByTestId("ops-menu").evaluate((el) => { el.open = true; });
 await page.getByTestId("plant-promise").click();
 await page.waitForTimeout(200);
 
@@ -66,7 +67,9 @@ if (!side.includes("上场价值转折") && !side.includes("本场变化") && !s
   if (!side.includes("本场任务")) throw new Error("侧栏无规定情境 " + side);
 }
 if (!side.includes("阿莲来找东西")) throw new Error("侧栏不见本场任务 " + side);
-await page.getByTestId("ignore-suggest").click();
+if (await page.getByTestId("ignore-suggest").isVisible()) {
+  await page.getByTestId("ignore-suggest").click();
+}
 const ignored = await page.getByTestId("promise-suggest").innerText();
 const fillResp = await page.evaluate(async () => {
   const s = await (await fetch("/api/state")).json();

@@ -133,9 +133,18 @@ export function Dialogs() {
             <h3>丢一段草稿</h3>
             <textarea data-testid="paste-text" className="grow" value={s.pasteText} onChange={(e) => s.setPasteText(e.target.value)} />
             <button data-testid="paste-run" type="button" onClick={s.runPaste}>拆开看</button>
-            {(s.state?.paste_suggestions || []).map((p) => (
-              <button key={p.id} type="button" data-testid={`paste-apply-${p.id}`} onClick={() => s.applyPaste(p.id)}>放到这个格子（还没定稿）</button>
-            ))}
+            {(s.state?.paste_suggestions || []).map((p) => {
+              const field = p.field === "say_text" ? "对白" : p.field === "think_text" ? "内心" : p.field === "intent" ? "本场任务" : "动作";
+              const snippet = (p.text || "").replace(/\s+/g, " ").slice(0, 24);
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  data-testid={`paste-apply-${p.id}`}
+                  onClick={() => s.applyPaste(p.id)}
+                >放到{field}：{snippet}{p.text.length > 24 ? "…" : ""}</button>
+              );
+            })}
             <button data-testid="paste-close" type="button" onClick={() => s.setPasteOpen(false)}>关闭</button>
           </div>
         </div>

@@ -20,6 +20,20 @@ export function DossierPage({ mode = "dialog" }: { mode?: "dialog" | "side" | "f
   }, [payload?.id, payload?.profile]);
 
   if (!s.dossierOpen && mode === "dialog") return null;
+  if (s.dossierLoading && !payload) {
+    const loading = (
+      <div className={`dossier-body${mode === "full" ? " full" : ""}`} data-testid="dossier-loading">
+        <p>正在打开</p>
+      </div>
+    );
+    if (mode === "full") return <div className="page dossier-full">{loading}</div>;
+    if (mode === "side") return <div className="look-rail show dossier-side">{loading}</div>;
+    return (
+      <div className="dialog-back">
+        <div className="dialog">{loading}</div>
+      </div>
+    );
+  }
   const kind = payload?.kind || "person";
   const keys = keysFor(kind);
   const shown = keys.filter((k) => expand || k.always || (fields[k.key] || "").trim());

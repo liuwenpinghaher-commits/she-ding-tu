@@ -132,7 +132,10 @@ export function Stripboard() {
               key={c.id}
               className="ruler-col"
               data-testid={`ruler-col-${start + i}`}
-              onClick={() => s.setSidebar(`这一列故事时间 t=${c.clock_from}–${c.clock_to}`)}
+              onClick={() => {
+                s.setSidebar(`这一列故事时间 t=${c.clock_from}–${c.clock_to}`);
+                void s.selectColumn(c.id);
+              }}
             >
               <div>第 {start + i + 1} 列</div>
               <div className="muted">{formatClock(c.clock_from, craft?.clock_origin_label, craft?.clock_origin_minute, craft?.clock_format)}</div>
@@ -166,7 +169,7 @@ export function Stripboard() {
                   onSelect={() => s.selectScene(sc.id, sc.draft)}
                   onDrop={async (id) => {
                     if (id.startsWith("presence:")) return;
-                    await s.addPresence(id, sc.draft ? sc.id : undefined);
+                    await s.addPresence(id, sc.id);
                   }}
                 />
               ))}

@@ -8,7 +8,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { api, apiText } from "../api/client";
+import { api, apiText, humanizeError } from "../api/client";
 import type {
   Beat,
   BookCard,
@@ -37,7 +37,8 @@ export type SitPacket = {
   wrong_beliefs: string[];
   reader_knows: string[];
   reader_irony: string[];
-  open_promises: { name: string }[];
+  open_promises: { name: string; id?: string; deadline_clock?: number | null }[];
+  suggestion: { promise_id: string; op: string; name: string; due: boolean } | null;
 };
 
 const EMPTY_SIT: SitPacket = {
@@ -49,6 +50,7 @@ const EMPTY_SIT: SitPacket = {
   reader_knows: [],
   reader_irony: [],
   open_promises: [],
+  suggestion: null,
 };
 
 export interface Store {
@@ -107,6 +109,7 @@ export interface Store {
   exportOut: string;
   exportIncludeDrafts: boolean;
   dossierOpen: boolean;
+  dossierLoading: boolean;
   dossierName: string;
   dossierPayload: DossierPayload | null;
   dossierRels: SetupRel[];
@@ -185,6 +188,8 @@ export interface Store {
   swapColumns: () => Promise<void>;
   setWindow: (patch: { n?: number; start?: number; density?: string }) => Promise<void>;
   selectScene: (id: string, draft: boolean) => Promise<void>;
+  selectColumn: (columnId: string) => Promise<void>;
+  requestCanonEdit: (id: string) => Promise<void>;
   addEntity: (kind: string, name: string, profile?: Record<string, string>) => Promise<void>;
   addPresence: (entityId: string, sceneId?: string) => Promise<void>;
   removePresence: (entityId: string, sceneId?: string, draft?: boolean) => Promise<void>;
@@ -299,6 +304,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [exportOut, setExportOut] = useState("");
   const [exportIncludeDrafts, setExportIncludeDrafts] = useState(true);
   const [dossierOpen, setDossierOpen] = useState(false);
+  const [dossierLoading, setDossierLoading] = useState(false);
   const [dossierName, setDossierName] = useState("");
   const [dossierPayload, setDossierPayload] = useState<DossierPayload | null>(null);
   const [dossierRels, setDossierRels] = useState<SetupRel[]>([]);
@@ -327,6 +333,19 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [editingCanon, setEditingCanon] = useState(false);
   const [planBones, setPlanBones] = useState<Array<{ serial?: boolean; intent: string; presence?: string[]; necessity?: string }>>([]);
   const [planNotice, setPlanNotice] = useState("");
+  const pendingPlanRef = useRef<{
+    bones: Array<{ serial?: boolean; intent: string; presence?: string[]; necessity?: string }>;
+    goalId: string;
+  } | null>(null);
+
+  const failOp = useCallback((e: unknown, fallback: string) => {
+    const raw = e instanceof Error ? e.message : fallback;
+    const msg = humanizeError(raw || fallback);
+    setOpError(msg);
+    setNotice(msg);
+    setToast(msg);
+    return msg;
+  }, []);
   const [sit, setSit] = useState<SitPacket>(EMPTY_SIT);
   const [selectedChip, setSelectedChip] = useState<{ entityId: string; sceneId: string; draft: boolean } | null>(null);
   const refreshGen = useRef(0);
@@ -418,17 +437,23 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const loadSit = useCallback(async (st?: UiState | null) => {
     try {
       const r = await api<{
+        empty?: boolean;
         packet?: {
           intent?: string;
           last_value_shift?: string | null;
           knowledge_gaps?: string[];
           stakes?: string[];
-          open_promises?: { name: string }[];
+          open_promises?: { id?: string; name: string; deadline_clock?: number | null }[];
           wrong_beliefs?: string[];
           reader_knows?: string[];
           reader_irony?: string[];
         };
+        suggestion?: { promise_id?: string; op?: string } | null;
       }>("/api/circumstances");
+      if (r.empty && !r.packet) {
+        setSit(EMPTY_SIT);
+        return;
+      }
       const pkt = r.packet;
       const bits = ["本场规定情境"];
       const last = (st?.committed || []).slice(-1)[0];
@@ -441,6 +466,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       if ((st?.promises || []).length) bits.push((st?.promises || []).map((p) => p.name).join(" "));
       if (bits.length > 1) setSidebar(bits.join(" · "));
       const lastShift = pkt?.last_value_shift || [last?.value_shift, last?.intent].filter(Boolean).join(" ");
+      const opens = (pkt?.open_promises || []).slice(0, 5);
+      const sug = r.suggestion?.promise_id && r.suggestion.op
+        ? {
+            promise_id: r.suggestion.promise_id,
+            op: r.suggestion.op,
+            name: opens.find((p) => p.id === r.suggestion?.promise_id)?.name
+              || (st?.promises || []).find((p) => p.id === r.suggestion?.promise_id)?.name
+              || r.suggestion.promise_id,
+            due: r.suggestion.op === "payoff",
+          }
+        : null;
       setSit({
         intent: pkt?.intent || "",
         last_value_shift: lastShift || "",
@@ -449,10 +485,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         wrong_beliefs: pkt?.wrong_beliefs || [],
         reader_knows: pkt?.reader_knows || [],
         reader_irony: pkt?.reader_irony || [],
-        open_promises: (pkt?.open_promises || []).slice(0, 5),
+        open_promises: opens,
+        suggestion: sug,
       });
     } catch {
-      /* 未选草稿时接口可空 */
+      setSit(EMPTY_SIT);
     }
   }, []);
 
@@ -463,7 +500,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       if (mine !== refreshGen.current) return;
       applyState(st);
       setBanner("");
-      if (st.selected && !opts?.skipSit) {
+      if (!opts?.skipSit) {
         loadSit(st).catch(() => {});
       }
       if (st.book) {
@@ -715,15 +752,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const typed = (document.querySelector<HTMLInputElement>("[data-testid=intent]")?.value ?? intent).trim();
     if (!typed) return;
     setWriteBusy(true);
+    setOpError("");
     try {
-      if (state?.book) {
-        persistTab(state.book, "分场条");
-        writeHash(boardHash(state.book, { ...q, look: "分场条", n: state.n, start: state.window_start, s: q.s || state.selected || state.selected_canon }));
-      }
-      const r = await api<{ id?: string }>("/api/write-next", {
+      const r = await api<{ id?: string; new_column?: boolean }>("/api/write-next", {
         method: "POST",
         body: JSON.stringify({ intent: typed, place_id: placeId || undefined }),
       });
+      if (state?.book) {
+        persistTab(state.book, "分场条");
+        writeHash(boardHash(state.book, { ...q, look: "分场条", n: state.n, start: state.window_start, s: r.id || q.s }));
+      }
       await refresh();
       if (r.id) {
         lastDraftId.current = r.id;
@@ -740,13 +778,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         setPresencePicker("open");
         await refresh();
         setNotice("已写下这场草稿。任务、地点、人物可以直接改。");
-        setToast("已插一场草稿");
+        setToast(r.new_column ? "在最后加了一列草稿，还不是正史。" : "已插一场草稿");
         requestAnimationFrame(() => document.querySelector<HTMLInputElement>("[data-testid=intent]")?.focus());
       }
+    } catch (e) {
+      failOp(e, "写下失败");
     } finally {
       setWriteBusy(false);
     }
-  }, [intent, placeId, refresh, state, q]);
+  }, [intent, placeId, refresh, state, q, failOp]);
 
   const writeParallel = useCallback(async () => {
     const selectedId = state?.selected || state?.selected_canon;
@@ -754,16 +794,22 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const col = fromScene?.column_id || state?.selected_col || state?.columns[state.window_start]?.id;
     const c = (state?.columns || []).find((x) => x.id === col);
     const typed = (document.querySelector<HTMLInputElement>("[data-testid=intent]")?.value ?? intent).trim();
-    const r = await api<{ id?: string }>("/api/write-parallel", {
-      method: "POST",
-      body: JSON.stringify({
-        intent: typed || intent,
-        column_id: col,
-        place_id: placeId || undefined,
-        clock_from: c?.clock_from,
-        clock_to: c?.clock_to,
-      }),
-    });
+    let r: { id?: string };
+    try {
+      r = await api<{ id?: string }>("/api/write-parallel", {
+        method: "POST",
+        body: JSON.stringify({
+          intent: typed || intent,
+          column_id: col,
+          place_id: placeId || undefined,
+          clock_from: c?.clock_from,
+          clock_to: c?.clock_to,
+        }),
+      });
+    } catch (e) {
+      failOp(e, "本列再写一场失败");
+      return;
+    }
     if (state?.book) {
       persistTab(state.book, "分场条");
       writeHash(boardHash(state.book, { ...q, look: "分场条", n: state.n, start: state.window_start, s: q.s || state.selected || state.selected_canon }));
@@ -775,15 +821,22 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setNotice("已在本列再写一场草稿。");
       setToast("已插一场草稿");
     }
-  }, [intent, placeId, refresh, state, q]);
+  }, [intent, placeId, refresh, state, q, failOp]);
 
   const setWindow = useCallback(async (patch: { n?: number; start?: number; density?: string }) => {
-    await api("/api/window", { method: "POST", body: JSON.stringify(patch) });
-    await refresh();
-  }, [refresh]);
+    try {
+      await api("/api/window", { method: "POST", body: JSON.stringify(patch) });
+      await refresh();
+    } catch (e) {
+      failOp(e, "窗口没改成");
+    }
+  }, [refresh, failOp]);
 
   const selectScene = useCallback(async (id: string, draft: boolean) => {
     if (draft) lastDraftId.current = id;
+    if (state?.book) {
+      writeHash(boardHash(state.book, { ...q, s: id, n: state.n, start: state.window_start }));
+    }
     await api("/api/select", {
       method: "POST",
       body: JSON.stringify(draft ? { draft_id: id } : { canon_id: id }),
@@ -800,7 +853,28 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     } catch {
       setCausedBy("");
     }
-  }, [refresh]);
+  }, [refresh, state, q]);
+
+  const selectColumn = useCallback(async (columnId: string) => {
+    try {
+      if (state?.book) {
+        writeHash(boardHash(state.book, { ...q, s: null, n: state.n, start: state.window_start }));
+      }
+      await api("/api/select", {
+        method: "POST",
+        body: JSON.stringify({ column_id: columnId, draft_id: "", canon_id: "" }),
+      });
+      await refresh();
+    } catch (e) {
+      failOp(e, "选不了这一列");
+    }
+  }, [refresh, failOp, state, q]);
+
+  const requestCanonEdit = useCallback(async (id: string) => {
+    await selectScene(id, false);
+    setEditingCanon(true);
+    setNotice("这场已是正史。改完再点「写入这次改动」。第几次写入正史不变。");
+  }, [selectScene]);
 
   const addEntity = useCallback(async (kind: string, name: string, profile?: Record<string, string>) => {
     await api("/api/entities", {
@@ -814,14 +888,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const id = sceneId || state?.selected || state?.selected_canon;
     if (!id) return;
     const isDraft = !!state?.drafts?.some((d) => d.id === id);
-    await api("/api/presence", {
-      method: "POST",
-      body: JSON.stringify(isDraft
-        ? { draft_id: id, entity_id: entityId, action: "add" }
-        : { canon_id: id, entity_id: entityId, action: "add" }),
-    });
-    void refresh({ skipSit: true });
-  }, [refresh, state?.selected, state?.selected_canon, state?.drafts]);
+    try {
+      await api("/api/presence", {
+        method: "POST",
+        body: JSON.stringify(isDraft
+          ? { draft_id: id, entity_id: entityId, action: "add" }
+          : { canon_id: id, entity_id: entityId, action: "add" }),
+      });
+      void refresh({ skipSit: true });
+    } catch (e) {
+      failOp(e, "加不上在场");
+    }
+  }, [refresh, state?.selected, state?.selected_canon, state?.drafts, failOp]);
 
   const removePresence = useCallback(async (entityId: string, sceneId?: string, draft?: boolean) => {
     const id = sceneId || state?.selected || state?.selected_canon;
@@ -869,16 +947,28 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       }
       body = rest;
     }
-    if (draft) {
-      await api("/api/drafts/patch", { method: "POST", body: JSON.stringify({ id, ...body }) });
-    } else {
-      await api(`/api/beats/${encodeURIComponent(id)}/revise`, {
-        method: "POST",
-        body: JSON.stringify(body),
-      });
+    if (!draft) {
+      const lockedKeys = ["do_text", "say_text", "think_text", "place_id", "value_shift"];
+      if (Object.keys(body).some((k) => lockedKeys.includes(k)) && (!editingCanon || state?.selected_canon !== id)) {
+        setToast("这场已是正史。要点「改这一场」才动。");
+        setNotice("这场已是正史。要点「改这一场」才动。");
+        return;
+      }
     }
-    await refresh();
-  }, [refresh, state]);
+    try {
+      if (draft) {
+        await api("/api/drafts/patch", { method: "POST", body: JSON.stringify({ id, ...body }) });
+      } else {
+        await api(`/api/beats/${encodeURIComponent(id)}/revise`, {
+          method: "POST",
+          body: JSON.stringify(body),
+        });
+      }
+      await refresh();
+    } catch (e) {
+      failOp(e, "没改上");
+    }
+  }, [refresh, state, editingCanon, failOp]);
 
   const commit = useCallback(async () => {
     const id = state?.selected;
@@ -961,6 +1051,21 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const planApply = useCallback(async (mode: "tail" | "mid") => {
     const id = state?.selected || state?.selected_canon;
     if (!id || !planBones.length) return;
+    if (mode === "mid") {
+      pendingPlanRef.current = { bones: planBones, goalId: id };
+      try {
+        await api("/api/structure/preview", {
+          method: "POST",
+          body: JSON.stringify({ op: "plan_mid", beat_id: id }),
+        });
+        await refresh();
+        setPlanNotice("插在中间须先确认变更。确认后才会落成预场草稿。");
+      } catch (e) {
+        pendingPlanRef.current = null;
+        setPlanNotice(e instanceof Error ? e.message : "插在中间须先确认变更");
+      }
+      return;
+    }
     try {
       await api("/api/plan-apply", {
         method: "POST",
@@ -968,7 +1073,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           goal_id: id,
           mode,
           bones: planBones,
-          structure_confirmed: mode === "mid" ? false : undefined,
         }),
       });
       setToast("已落成预场草稿，须一场一场写入正史");
@@ -1042,6 +1146,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const cur = apply(d.draft.story_threads || []);
       await api("/api/drafts/patch", { method: "POST", body: JSON.stringify({ id, story_threads: cur }) });
     } else {
+      if (!editingCanon) {
+        setToast("这场已是正史。要点「改这一场」才动。");
+        setNotice("这场已是正史。要点「改这一场」才动。");
+        return;
+      }
       const b = state?.committed.find((x) => x.id === id);
       const cur = apply(b?.story_threads || []);
       await api(`/api/beats/${encodeURIComponent(id)}/revise`, {
@@ -1050,7 +1159,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       });
     }
     await refresh();
-  }, [state, refresh]);
+  }, [state, refresh, editingCanon]);
 
   const runTalk = useCallback(async (field: string, text: string) => {
     const fallback = "讨论稿：可再改";
@@ -1124,10 +1233,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setOpError("先写下这场草稿，再让模型填。");
       return;
     }
-    const r = await api<{ do_text?: string; say_text?: string; think_text?: string }>("/api/fill-fake", {
-      method: "POST",
-      body: JSON.stringify({ id }),
-    });
+    let r: { do_text?: string; say_text?: string; think_text?: string };
+    try {
+      r = await api<{ do_text?: string; say_text?: string; think_text?: string }>("/api/fill-fake", {
+        method: "POST",
+        body: JSON.stringify({ id }),
+      });
+    } catch (e) {
+      failOp(e, "模型没填成");
+      return;
+    }
     setFillChunks({ do_text: r.do_text, say_text: r.say_text, think_text: r.think_text });
     const lines = [
       r.do_text ? `动作：${r.do_text}` : "动作：",
@@ -1139,7 +1254,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setFillPending(true);
     setModelSuggest(true);
     setOpError("");
-  }, [state?.selected, state?.drafts, intent]);
+  }, [state?.selected, state?.drafts, intent, failOp]);
 
   const fillLive = useCallback(async () => {
     const id = state?.selected || lastDraftId.current || state?.drafts.at(-1)?.id;
@@ -1257,6 +1372,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         body: JSON.stringify({ id, deltas: [...(scene.draft.deltas || []), row] }),
       });
     } else if (canon) {
+      if (!editingCanon) {
+        setToast("这场已是正史。要点「改这一场」才动。");
+        setNotice("这场已是正史。要点「改这一场」才动。");
+        return;
+      }
       await api(`/api/beats/${encodeURIComponent(id)}/revise`, {
         method: "POST",
         body: JSON.stringify({ deltas: [...(canon.deltas || []), row] }),
@@ -1269,7 +1389,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     };
     leaveInputs();
     requestAnimationFrame(() => requestAnimationFrame(leaveInputs));
-  }, [state, refresh]);
+  }, [state, refresh, editingCanon]);
 
   const addKnow = useCallback(async (who: string, fact: string, cert = "knows", truth?: string, method?: string, source?: string) => {
     const id = state?.selected || state?.selected_canon;
@@ -1290,13 +1410,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         body: JSON.stringify({ id, knowledge_writes: [...(scene.draft.knowledge_writes || []), row] }),
       });
     } else if (canonRow) {
+      if (!editingCanon) {
+        setToast("这场已是正史。要点「改这一场」才动。");
+        setNotice("这场已是正史。要点「改这一场」才动。");
+        return;
+      }
       await api(`/api/beats/${encodeURIComponent(id)}/revise`, {
         method: "POST",
         body: JSON.stringify({ knowledge_writes: [...(canonRow.knowledge_writes || []), row] }),
       });
     }
     await refresh();
-  }, [state, refresh]);
+  }, [state, refresh, editingCanon]);
 
   const addPromiseOp = useCallback(async (promiseId: string, op: string) => {
     const id = state?.selected;
@@ -1310,17 +1435,47 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [state, refresh]);
 
   const preview = useCallback(async (op: string, extra?: Record<string, unknown>) => {
-    await api("/api/structure/preview", { method: "POST", body: JSON.stringify({ op, ...extra }) });
-    await refresh();
-  }, [refresh]);
+    try {
+      await api("/api/structure/preview", { method: "POST", body: JSON.stringify({ op, ...extra }) });
+      await refresh();
+    } catch (e) {
+      failOp(e, "预览失败");
+    }
+  }, [refresh, failOp]);
 
   const confirmChange = useCallback(async (choice: string) => {
-    await api("/api/structure/confirm", { method: "POST", body: JSON.stringify({ choice }) });
-    await refresh();
-    setToast("已改时间结构");
-  }, [refresh]);
+    try {
+      await api("/api/structure/confirm", { method: "POST", body: JSON.stringify({ choice }) });
+      const pendingPlan = pendingPlanRef.current;
+      pendingPlanRef.current = null;
+      await refresh();
+      if (pendingPlan && choice !== "cancel") {
+        try {
+          await api("/api/plan-apply", {
+            method: "POST",
+            body: JSON.stringify({
+              goal_id: pendingPlan.goalId,
+              mode: "mid",
+              bones: pendingPlan.bones,
+              structure_confirmed: true,
+            }),
+          });
+          setToast("已落成预场草稿，须一场一场写入正史");
+          setPlanBones([]);
+          await refresh();
+        } catch (e) {
+          setPlanNotice(e instanceof Error ? e.message : "落下失败");
+        }
+      } else {
+        setToast("已改时间结构");
+      }
+    } catch (e) {
+      failOp(e, "确认变更失败");
+    }
+  }, [refresh, failOp]);
 
   const cancelChange = useCallback(async () => {
+    pendingPlanRef.current = null;
     try {
       await api("/api/structure/cancel", { method: "POST", body: "{}" });
       await refresh();
@@ -1384,6 +1539,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const shiftSceneClock = useCallback(async (id: string, draft: boolean, clockFrom: number, clockTo: number) => {
+    if (!draft) {
+      await preview("set_clocks", {
+        beat_id: id,
+        clock_from: clockFrom,
+        clock_to: clockTo,
+        follow: followDependents,
+      });
+      return;
+    }
     const all = [...(state?.committed || []).map(asScene), ...(state?.drafts || []).map(asDraftScene)];
     const sc = all.find((x) => x.id === id);
     if (sc) {
@@ -1409,13 +1573,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         }
       }
     } catch (e) {
-      setBanner(e instanceof Error ? e.message : "改钟没写上");
+      failOp(e, "改钟没写上");
       return;
     }
     const moved = followDependents ? all.filter((x) => x.id !== id && x.clock_from >= (sc?.clock_to ?? 0)).length : 0;
     setToast(moved > 0 ? `已改钟，带着 ${moved} 场` : "已改钟");
     await refresh();
-  }, [refresh, state, followDependents, writeClock]);
+  }, [refresh, state, followDependents, writeClock, preview, failOp]);
 
   const createNear = useCallback(async (id: string, where: "copy" | "above" | "below") => {
     const all = [...(state?.committed || []).map(asScene), ...(state?.drafts || []).map(asDraftScene)];
@@ -1502,6 +1666,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const openDossier = useCallback(async (name: string) => {
     setDossierName(name);
+    setDossierPayload(null);
+    setDossierRels([]);
+    setDossierLoading(true);
     setDossierOpen(true);
     try {
       const d = await api<DossierPayload & {
@@ -1517,11 +1684,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         note: "",
       }));
       setDossierRels(setup.length ? setup : (d.relations || d.rels || []));
-    } catch {
+    } catch (e) {
       setDossierPayload(null);
       setDossierRels([]);
+      failOp(e, "档案打不开");
+    } finally {
+      setDossierLoading(false);
     }
-  }, []);
+  }, [failOp]);
 
   const saveDossier = useCallback(async (fields: Record<string, string>) => {
     await api(`/api/dossier/${encodeURIComponent(dossierName)}`, {
@@ -1828,6 +1998,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     exportOut,
     exportIncludeDrafts,
     dossierOpen,
+    dossierLoading,
     dossierName,
     dossierPayload,
     dossierRels,
@@ -1929,6 +2100,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     swapColumns: () => preview("swap_columns"),
     setWindow,
     selectScene,
+    selectColumn,
+    requestCanonEdit,
     addEntity,
     addPresence,
     removePresence,

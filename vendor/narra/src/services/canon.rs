@@ -744,10 +744,11 @@ impl SettingBook {
         let canon = self.load_canon().await?;
         if let Some(beat) = canon.beats.iter().find(|b| b.id == id) {
             let col = canon.columns.iter().find(|c| c.id == beat.column_id);
+            // 正史行已在事务里落库。官方表双写失败不当成没写入，避免草稿被插回造成双份。
             if let Some(c) = col {
-                narra_bridge::mirror_column(&self.db, c).await?;
+                let _ = narra_bridge::mirror_column(&self.db, c).await;
             }
-            narra_bridge::mirror_beat(&self.db, beat, col).await?;
+            let _ = narra_bridge::mirror_beat(&self.db, beat, col).await;
         }
         let canon = self.load_canon().await?;
         canon
@@ -978,6 +979,7 @@ impl SettingBook {
             .bind(("a", clock_from))
             .bind(("b", clock_to))
             .await?;
+        invalidate_interval(&self.db, clock_from).await?;
         self.remirror_beat_id(beat_id).await?;
         Ok(())
     }
@@ -1056,6 +1058,36 @@ impl SettingBook {
         let rid = RecordId::new("setting_entity", resolved.as_str());
         self.db.query("DELETE $rid").bind(("rid", rid)).await?;
         narra_bridge::delete_mirrored_entity(&self.db, &resolved).await?;
+        Ok(())
+    }
+
+    /// 给正史场加上在场边。不新分配 commit_seq。须人点确认变更后才调。
+    pub async fn add_presence(&self, beat_id: &str, entity_id: &str) -> Result<(), NarraError> {
+        let canon = self.load_canon().await?;
+        let beat = canon
+            .beats
+            .iter()
+            .find(|b| b.id == beat_id && b.status == STATUS_COMMITTED)
+            .ok_or_else(|| NarraError::NotFound {
+                entity_type: "setting_beat".into(),
+                id: beat_id.into(),
+            })?;
+        if beat
+            .presences
+            .iter()
+            .any(|p| p.entity_id == entity_id)
+        {
+            return Ok(());
+        }
+        let bid = RecordId::new("setting_beat", beat_id);
+        let eid = RecordId::new("setting_entity", entity_id);
+        self.db
+            .query("RELATE $eid->setting_present_in->$bid SET role = 'present'")
+            .bind(("eid", eid))
+            .bind(("bid", bid))
+            .await?;
+        invalidate_interval(&self.db, beat.clock_from).await?;
+        self.remirror_beat_id(beat_id).await?;
         Ok(())
     }
 

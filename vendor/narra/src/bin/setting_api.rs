@@ -92,7 +92,7 @@ struct Suggestion {
     label: String,
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Default)]
 struct Pending {
     op: String,
     suggestions: Vec<Suggestion>,
@@ -103,6 +103,10 @@ struct Pending {
     target_column: Option<String>,
     #[serde(default)]
     proposed_clock_to: Option<i64>,
+    #[serde(default)]
+    proposed_clock_from: Option<i64>,
+    #[serde(default)]
+    follow: bool,
     impacts: Vec<String>,
 }
 
@@ -250,15 +254,20 @@ struct TalkGetQ {
     id: Option<String>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Default)]
 struct StructPreview {
     op: String,
     column_id: Option<String>,
     beat_id: Option<String>,
+    entity_id: Option<String>,
     #[serde(default)]
     fail_refs: bool,
     #[serde(default)]
     clock_to: Option<i64>,
+    #[serde(default)]
+    clock_from: Option<i64>,
+    #[serde(default)]
+    follow: Option<bool>,
 }
 
 #[derive(Deserialize)]
@@ -731,13 +740,19 @@ fn plan_window(canon: &Canon, goal: &BeatDraft) -> Result<(i64, i64), String> {
 async fn call_chat(system: &str, user: &str) -> Result<String, (StatusCode, String)> {
     let key = std::env::var("SETTING_LLM_API_KEY").unwrap_or_default();
     if key.trim().is_empty() {
-        return Err((StatusCode::SERVICE_UNAVAILABLE, "缺 SETTING_LLM_API_KEY".into()));
+        return Err((
+            StatusCode::SERVICE_UNAVAILABLE,
+            "没配模型密钥，可以手写动作。".into(),
+        ));
     }
     let base = std::env::var("SETTING_LLM_BASE_URL").unwrap_or_else(|_| {
         "https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1".into()
     });
     if base.trim().is_empty() {
-        return Err((StatusCode::SERVICE_UNAVAILABLE, "缺 SETTING_LLM_BASE_URL".into()));
+        return Err((
+            StatusCode::SERVICE_UNAVAILABLE,
+            "没配模型服务，可以手写动作。".into(),
+        ));
     }
     let model = std::env::var("SETTING_LLM_MODEL").unwrap_or_else(|_| "qwen3.8-flash".into());
     let url = chat_completions_url(&base);
@@ -937,6 +952,58 @@ fn column_clock(
         .or_else(|| columns.first())
         .map(|c| c.clock_from)
         .unwrap_or(0)
+}
+
+fn beat_to_draft(b: &Beat) -> BeatDraft {
+    BeatDraft {
+        id: Some(b.id.clone()),
+        kind: b.kind.clone(),
+        column_id: b.column_id.clone(),
+        intent: b.intent.clone(),
+        value_shift: b.value_shift.clone(),
+        do_text: b.do_text.clone(),
+        say_text: b.say_text.clone(),
+        think_text: b.think_text.clone(),
+        clock_from: b.clock_from,
+        clock_to: b.clock_to,
+        place_id: b.place_id.clone(),
+        presences: b.presences.clone(),
+        ..BeatDraft::default()
+    }
+}
+
+fn column_moment_draft(canon: &Canon, col_id: &str, t: i64) -> BeatDraft {
+    let beats: Vec<&Beat> = canon
+        .beats
+        .iter()
+        .filter(|b| b.column_id == col_id && b.status == STATUS_COMMITTED)
+        .collect();
+    let mut presences: Vec<Presence> = vec![];
+    let mut place_id = None;
+    let mut intent = String::from("看这一刻");
+    for b in &beats {
+        if !b.intent.trim().is_empty() {
+            intent = b.intent.clone();
+        }
+        if b.place_id.is_some() {
+            place_id = b.place_id.clone();
+        }
+        for p in &b.presences {
+            if !presences.iter().any(|x| x.entity_id == p.entity_id) {
+                presences.push(p.clone());
+            }
+        }
+    }
+    let col = canon.columns.iter().find(|c| c.id == col_id);
+    BeatDraft {
+        intent,
+        column_id: col_id.into(),
+        clock_from: col.map(|c| c.clock_from).unwrap_or(t),
+        clock_to: col.map(|c| c.clock_to).unwrap_or(t + 1),
+        place_id,
+        presences,
+        ..BeatDraft::default()
+    }
 }
 
 fn entity_by_id<'a>(canon: &'a Canon, id: &str) -> Option<&'a Entity> {
@@ -1330,6 +1397,8 @@ fn resize_pending(
         target_entity: None,
         target_column: Some(id),
         proposed_clock_to: Some(new_to),
+        proposed_clock_from: None,
+        follow: false,
         impacts,
     })
 }
@@ -1928,7 +1997,7 @@ async fn set_window(
         };
     }
     if let Some(n) = body.n {
-        sess.n = n.clamp(1, 24);
+        sess.n = n.clamp(1, 6);
     }
     if let Some(s) = body.start {
         let canon = sess
@@ -2143,14 +2212,39 @@ async fn set_presence(
         ));
     }
     if let Some(canon_id) = &body.canon_id {
-        if body.action != "remove" {
-            return Err((StatusCode::BAD_REQUEST, "正史在场只能拿掉，须确认变更".into()));
-        }
         let beat = canon
             .beats
             .iter()
             .find(|b| b.id == *canon_id && b.status == STATUS_COMMITTED)
             .ok_or((StatusCode::BAD_REQUEST, "无此正史".into()))?;
+        if body.action == "add" {
+            sess.pending = Some(Pending {
+                op: "add_presence".into(),
+                suggestions: vec![
+                    Suggestion {
+                        id: "add".into(),
+                        label: format!("给本场加上 {}", body.entity_id),
+                    },
+                    Suggestion {
+                        id: "cancel".into(),
+                        label: "取消".into(),
+                    },
+                ],
+                original_columns: canon.columns.clone(),
+                proposed_columns: None,
+                target_beat: Some(canon_id.clone()),
+                target_entity: Some(body.entity_id.clone()),
+                target_column: None,
+                proposed_clock_to: None,
+                proposed_clock_from: None,
+                follow: false,
+                impacts: vec!["在场连续性".into(), "算出这一刻".into(), "第几次写入正史不变".into()],
+            });
+            return Ok(Json(serde_json::json!({"need_confirm": true, "op": "add_presence"})));
+        }
+        if body.action != "remove" {
+            return Err((StatusCode::BAD_REQUEST, "正史在场须确认变更".into()));
+        }
         refuse_empty_cast(
             &canon,
             &beat.presences,
@@ -2175,6 +2269,8 @@ async fn set_presence(
             target_entity: Some(body.entity_id.clone()),
             target_column: None,
             proposed_clock_to: None,
+            proposed_clock_from: None,
+            follow: false,
             impacts: vec!["在场连续性".into(), "算出这一刻".into()],
         });
         return Ok(Json(serde_json::json!({"need_confirm": true, "op": "remove_presence"})));
@@ -2277,6 +2373,29 @@ async fn do_commit(
         })))
         }
         Err(e) => {
+            let existed = match sess.book.load_canon().await {
+                Ok(canon) => canon.beats.into_iter().find(|b| {
+                    b.status == STATUS_COMMITTED
+                        && (b.id == ui.id || ui.draft.id.as_deref() == Some(b.id.as_str()))
+                }),
+                Err(_) => None,
+            };
+            if let Some(b) = existed {
+                persist_drafts(&app.data_root, &name, &sess.drafts);
+                set_last_intent(&app.data_root, &name, &b.intent);
+                return Ok(Json(serde_json::json!({
+                    "ok": true,
+                    "id": b.id,
+                    "seq": b.commit_seq,
+                    "column_id": b.column_id,
+                    "clock_from": b.clock_from,
+                    "clock_to": b.clock_to,
+                    "presences": b.presences,
+                    "warnings": warnings,
+                    "auto_canon": false,
+                    "idempotent": true,
+                })));
+            }
             sess.drafts.insert(pos, ui);
             Err((StatusCode::BAD_REQUEST, e.to_string()))
         }
@@ -2418,7 +2537,12 @@ async fn write_next(
     reveal_column(sess, col.display_ord);
     persist_drafts(&app.data_root, &name, &sess.drafts);
     set_last_intent(&app.data_root, &name, &intent);
-    Ok(Json(serde_json::json!({"id": id, "appended_last": true, "column_id": col.id})))
+    Ok(Json(serde_json::json!({
+        "id": id,
+        "appended_last": true,
+        "column_id": col.id,
+        "new_column": occupied,
+    })))
 }
 
 async fn write_parallel(
@@ -3287,6 +3411,8 @@ async fn structure_preview(
             target_entity: None,
             target_column: body.column_id.clone(),
             proposed_clock_to: None,
+            proposed_clock_from: None,
+            follow: false,
             impacts: vec![],
         },
         "invade" | "resize" | "shrink" | "extend" => {
@@ -3318,6 +3444,8 @@ async fn structure_preview(
                 target_entity: None,
                 target_column: Some(beat.column_id.clone()),
                 proposed_clock_to: None,
+                proposed_clock_from: None,
+                follow: false,
                 impacts,
             }
         }
@@ -3348,6 +3476,8 @@ async fn structure_preview(
                     target_entity: None,
                     target_column: Some(col),
                     proposed_clock_to: None,
+                    proposed_clock_from: None,
+                    follow: false,
                     impacts: vec!["禁止只减列丢掉历史".into()],
                 }
             } else if has_draft {
@@ -3364,6 +3494,8 @@ async fn structure_preview(
                     target_entity: None,
                     target_column: Some(col),
                     proposed_clock_to: None,
+                    proposed_clock_from: None,
+                    follow: false,
                     impacts: vec!["本列仅草稿".into()],
                 }
             } else {
@@ -3379,6 +3511,8 @@ async fn structure_preview(
                     target_entity: None,
                     target_column: Some(col),
                     proposed_clock_to: None,
+                    proposed_clock_from: None,
+                    follow: false,
                     impacts: vec!["空列".into()],
                 }
             }
@@ -3395,6 +3529,8 @@ async fn structure_preview(
             target_entity: None,
             target_column: body.column_id,
             proposed_clock_to: None,
+            proposed_clock_from: None,
+            follow: false,
             impacts: vec![],
         },
         "swap_columns" => Pending {
@@ -3410,6 +3546,8 @@ async fn structure_preview(
             target_entity: None,
             target_column: body.column_id,
             proposed_clock_to: None,
+            proposed_clock_from: None,
+            follow: false,
             impacts: vec![],
         },
         "move_beat" => Pending {
@@ -3424,8 +3562,84 @@ async fn structure_preview(
             target_entity: None,
             target_column: body.column_id,
             proposed_clock_to: None,
+            proposed_clock_from: None,
+            follow: false,
             impacts: vec!["算出这一刻".into(), "规定情境轴".into()],
         },
+        "set_clocks" => {
+            let beat_id = body
+                .beat_id
+                .clone()
+                .ok_or((StatusCode::BAD_REQUEST, "没有选中的正史".into()))?;
+            let beat = canon
+                .beats
+                .iter()
+                .find(|b| b.id == beat_id && b.status == STATUS_COMMITTED)
+                .ok_or((StatusCode::BAD_REQUEST, "无此正史场".into()))?;
+            let _ = beat;
+            Pending {
+                op: "set_clocks".into(),
+                suggestions: vec![
+                    Suggestion { id: "apply".into(), label: "改这场的钟".into() },
+                    Suggestion { id: "cancel".into(), label: "取消".into() },
+                ],
+                original_columns: original,
+                proposed_columns: None,
+                target_beat: Some(beat_id),
+                target_entity: None,
+                target_column: None,
+                proposed_clock_to: body.clock_to,
+                proposed_clock_from: body.clock_from,
+                follow: body.follow.unwrap_or(false),
+                impacts: vec![
+                    "故事时间轴".into(),
+                    "算出这一刻".into(),
+                    "第几次写入正史不变".into(),
+                ],
+            }
+        }
+        "plan_mid" => Pending {
+            op: "plan_mid".into(),
+            suggestions: vec![
+                Suggestion { id: "apply".into(), label: "确认后落成预场草稿（仍是草稿）".into() },
+                Suggestion { id: "cancel".into(), label: "取消".into() },
+            ],
+            original_columns: original,
+            proposed_columns: None,
+            target_beat: body.beat_id,
+            target_entity: None,
+            target_column: body.column_id,
+            proposed_clock_to: None,
+            proposed_clock_from: None,
+            follow: false,
+            impacts: vec!["会在中间加列".into(), "预场草稿不算正史".into(), "算出这一刻要等写入正史".into()],
+        },
+        "add_presence" => {
+            let beat_id = body
+                .beat_id
+                .clone()
+                .ok_or((StatusCode::BAD_REQUEST, "没有选中的正史".into()))?;
+            let entity_id = body
+                .entity_id
+                .clone()
+                .ok_or((StatusCode::BAD_REQUEST, "没有要加的人".into()))?;
+            Pending {
+                op: "add_presence".into(),
+                suggestions: vec![
+                    Suggestion { id: "add".into(), label: format!("给本场加上 {entity_id}") },
+                    Suggestion { id: "cancel".into(), label: "取消".into() },
+                ],
+                original_columns: original,
+                proposed_columns: None,
+                target_beat: Some(beat_id),
+                target_entity: Some(entity_id),
+                target_column: None,
+                proposed_clock_to: None,
+                proposed_clock_from: None,
+                follow: false,
+                impacts: vec!["在场连续性".into(), "算出这一刻".into(), "第几次写入正史不变".into()],
+            }
+        }
         _ => return Err((StatusCode::BAD_REQUEST, "未知结构操作".into())),
     };
     sess.pending = Some(pending.clone());
@@ -3895,6 +4109,72 @@ async fn structure_confirm(
                     .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
             }
         }
+        "add_presence" => {
+            if body.choice == "add" {
+                let beat = pending
+                    .target_beat
+                    .as_deref()
+                    .ok_or((StatusCode::BAD_REQUEST, "无场".into()))?;
+                let ent = pending
+                    .target_entity
+                    .as_deref()
+                    .ok_or((StatusCode::BAD_REQUEST, "无设定".into()))?;
+                sess.book
+                    .add_presence(beat, ent)
+                    .await
+                    .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+            }
+        }
+        "set_clocks" => {
+            if body.choice == "apply" {
+                let id = pending
+                    .target_beat
+                    .clone()
+                    .ok_or((StatusCode::BAD_REQUEST, "无此正史".into()))?;
+                let canon = sess
+                    .book
+                    .load_canon()
+                    .await
+                    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+                let beat = canon
+                    .beats
+                    .iter()
+                    .find(|b| b.id == id && b.status == STATUS_COMMITTED)
+                    .ok_or((StatusCode::BAD_REQUEST, "无此正史".into()))?;
+                let from = pending.proposed_clock_from.unwrap_or(beat.clock_from);
+                let to = pending.proposed_clock_to.unwrap_or(beat.clock_to);
+                let old_to = beat.clock_to;
+                let delta = from - beat.clock_from;
+                sess.book
+                    .set_beat_clocks(&id, from, to)
+                    .await
+                    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+                if pending.follow && delta != 0 {
+                    let later: Vec<(String, i64, i64)> = canon
+                        .beats
+                        .iter()
+                        .filter(|b| {
+                            b.id != id && b.status == STATUS_COMMITTED && b.clock_from >= old_to
+                        })
+                        .map(|b| (b.id.clone(), b.clock_from + delta, b.clock_to + delta))
+                        .collect();
+                    for (lid, a, b) in later {
+                        sess.book
+                            .set_beat_clocks(&lid, a, b)
+                            .await
+                            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+                    }
+                    for o in sess.drafts.iter_mut() {
+                        if o.draft.clock_from >= old_to {
+                            o.draft.clock_from += delta;
+                            o.draft.clock_to += delta;
+                        }
+                    }
+                    persist_drafts(&app.data_root, &name, &sess.drafts);
+                }
+            }
+        }
+        "plan_mid" => {}
         "remove_column" => {
             if body.choice == "refuse" {
                 return Err((
@@ -4241,10 +4521,9 @@ async fn delete_canon(
         State(app.clone()),
         Json(StructPreview {
             op: "delete_canon".into(),
-            column_id: None,
             beat_id: Some(id.to_string()),
             fail_refs: body.get("fail_refs").and_then(|v| v.as_bool()).unwrap_or(false),
-            clock_to: None,
+            ..Default::default()
         }),
     )
     .await?;
@@ -4573,26 +4852,40 @@ async fn circumstances(
     };
     let draft = if let Some(sel) = &sess.selected {
         sess.drafts.iter().find(|x| &x.id == sel).map(|d| d.draft.clone())
+    } else if let Some(cid) = &sess.selected_canon {
+        canon
+            .beats
+            .iter()
+            .find(|b| &b.id == cid && b.status == STATUS_COMMITTED)
+            .map(beat_to_draft)
     } else {
         None
     };
-    let Some(draft) = draft.or_else(|| {
-        lens.as_ref().map(|p| BeatDraft {
-            intent: "看这一刻".into(),
-            column_id: sess
-                .selected_col
-                .clone()
-                .unwrap_or_else(|| "col0".into()),
-            clock_from: t,
-            clock_to: t + 1,
-            presences: vec![Presence {
-                entity_id: p.clone(),
-                beat_id: String::new(),
-                role: ROLE_PRESENT.into(),
-            }],
-            ..BeatDraft::default()
+    let Some(draft) = draft
+        .or_else(|| {
+            lens.as_ref().map(|p| BeatDraft {
+                intent: "看这一刻".into(),
+                column_id: sess
+                    .selected_col
+                    .clone()
+                    .unwrap_or_else(|| "col0".into()),
+                clock_from: t,
+                clock_to: t + 1,
+                presences: vec![Presence {
+                    entity_id: p.clone(),
+                    beat_id: String::new(),
+                    role: ROLE_PRESENT.into(),
+                }],
+                ..BeatDraft::default()
+            })
         })
-    }) else {
+        .or_else(|| {
+            let col_id = sess.selected_col.clone().or_else(|| {
+                canon.columns.get(sess.window_start).map(|c| c.id.clone())
+            })?;
+            Some(column_moment_draft(&canon, &col_id, t))
+        })
+    else {
         return Ok(Json(serde_json::json!({"empty": true})));
     };
     let mut pkt = sess

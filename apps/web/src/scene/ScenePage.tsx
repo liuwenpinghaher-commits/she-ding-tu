@@ -11,6 +11,7 @@ import {
   methodStore,
   promiseIllegal,
   promiseLine,
+  promiseOpLabel,
 } from "./human";
 import { formatClock } from "../lenses/window";
 import { ageAtClock, parseBornClock } from "../board/ages";
@@ -47,6 +48,7 @@ export function ScenePage() {
   const blocking = warn.filter((w) => /strict|promise_/.test(w.code));
   const yellow = warn.length > 0 && !blocking.length;
 
+  const emptyWorld = draft && !(scene?.deltas || []).length && !s.valueShift.trim();
   const commitWhy = !draft
     ? "没有选中的草稿，不能写入正史"
     : !s.intent.trim()
@@ -55,7 +57,21 @@ export function ScenePage() {
         ? blocking.map((w) => w.message).join("；")
         : yellow
           ? `有 ${warn.length} 处标黄，仍然可以写入`
-          : "点了才进历史。不能撤销。";
+          : emptyWorld
+            ? "下一场的世界账还是空的。要让刀在抽屉成为世界上为真，写一条本场变化。"
+            : "点了才进历史。不能撤销。";
+  const desirePeople = (() => {
+    if (peopleHere.length) return peopleHere;
+    const colId = s.state?.selected_col || scene?.column_id;
+    const colScene = s.scenes.find((x) => x.column_id === colId && !x.draft) || null;
+    return presentOn(colScene, ents).filter((e) => e.kind === "person");
+  })();
+  const desireNotes = desirePeople
+    .map((p) => {
+      const d = (p.profile?.desire || "").trim();
+      return d ? `${p.name}想要${d}` : "";
+    })
+    .filter(Boolean);
 
   const commitDisabled = !draft || !s.intent.trim() || blocking.length > 0 || s.committing;
   const locked = canon && !s.editingCanon;
@@ -75,19 +91,33 @@ export function ScenePage() {
       <details className="acc" open>
         <summary>场页</summary>
       <section data-testid="sit-blocks" className="sit-blocks">
-        <div data-testid="sit-task"><strong>本场任务</strong> {s.intent || sit.intent || "还没有"}</div>
+        <div data-testid="sit-task">
+          <strong>本场任务</strong> {s.intent || sit.intent || "还没有"}
+          {desireNotes.length > 0 && (
+            <div data-testid="sit-desire" className="sit-note">{desireNotes.join("；")}</div>
+          )}
+        </div>
         <div data-testid="sit-shift"><strong>这场前后，什么变了</strong> {sit.last_value_shift || <span className="sit-empty">还没写变化</span>}</div>
         <div data-testid="sit-world"><strong>此刻还开着的事</strong> {sit.stakes.length ? sit.stakes.join("；") : <span className="sit-empty">此刻没有开着的账</span>}</div>
         <div data-testid="sit-people"><strong>谁知道、谁不知道、谁信错</strong> {[...sit.knowledge_gaps, ...sit.wrong_beliefs].join("；") || <span className="sit-empty">此刻没有开着的账</span>}</div>
         <div data-testid="sit-reader"><strong>你看见了、场上有人还不知道</strong> {[...sit.reader_knows, ...sit.reader_irony].slice(0, 8).join("；") || <span className="sit-empty">此刻没有开着的账</span>}</div>
         <div data-testid="sit-promises"><strong>未收伏笔</strong> {sit.open_promises.length ? sit.open_promises.map((p) => p.name).join("、") : "没有未收的"}</div>
       </section>
-      {!ignoreSug && (
-        <div data-testid="promise-suggest">
-          建议本场对伏笔做哪一件
-          <button type="button" data-testid="ignore-suggest" onClick={() => setIgnoreSug(true)}>忽略</button>
-        </div>
-      )}
+      <div
+        data-testid="promise-suggest"
+        className={!sit.suggestion || ignoreSug ? "probe" : undefined}
+        aria-hidden={!sit.suggestion || ignoreSug ? true : undefined}
+      >
+        {sit.suggestion && !ignoreSug ? (
+          <>
+            对「{sit.suggestion.name}」建议：{promiseOpLabel(sit.suggestion.op)}
+            {sit.suggestion.due ? "（期限已到）" : ""}
+            <button type="button" data-testid="ignore-suggest" onClick={() => setIgnoreSug(true)}>忽略</button>
+          </>
+        ) : (
+          "建议本场对伏笔做哪一件"
+        )}
+      </div>
       <div className="scene-open">
         <button type="button" data-testid="scene-dock" onClick={() => s.setOpen(null)}>就地</button>
         <button type="button" data-testid="scene-side" onClick={() => s.setOpen("side")}>侧开</button>
@@ -142,6 +172,9 @@ export function ScenePage() {
         onClick={s.fillLive}
       >{s.fillLiveBusy ? "正在填…" : "模型填这一场"}</button>
       {s.opError && <p className="err" data-testid="op-error">{s.opError}</p>}
+      {emptyWorld && draft && (
+        <p className="commit-gap" data-testid="commit-empty-world">下一场的世界账还是空的。要让刀在抽屉成为世界上为真，写一条本场变化。</p>
+      )}
       <p className="muted" data-testid="commit-why">{s.committing ? "正在写入…" : commitWhy}</p>
       <button
         data-testid="commit"
@@ -348,7 +381,7 @@ function PlanBlock() {
         <div>
           <button type="button" data-testid="plan-apply-tail" onClick={() => s.planApply("tail")}>落在最后（预场草稿）</button>
           <button type="button" data-testid="plan-apply-mid" onClick={() => s.planApply("mid")}>落在中间</button>
-          <p className="muted">插在中间须先确认变更。建议不进模型填下一场。</p>
+          <p className="muted" data-testid="plan-mid-why">插在中间须先确认变更，才会落成预场草稿。建议不进模型填下一场。</p>
         </div>
       )}
     </section>

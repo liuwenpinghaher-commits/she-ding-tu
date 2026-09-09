@@ -747,6 +747,58 @@ async fn call_chat(system: &str, user: &str) -> Result<String, (StatusCode, Stri
     call_chat_ex(system, user, 180, 1200).await
 }
 
+fn pin_ipv4_addr(
+    addrs: impl IntoIterator<Item = std::net::SocketAddr>,
+) -> Option<std::net::SocketAddr> {
+    addrs.into_iter().find(|a| a.ip().is_ipv4())
+}
+
+fn map_reqwest_err(e: reqwest::Error) -> (StatusCode, String) {
+    let mut msg = format!("模型请求失败：{e}");
+    let mut src = std::error::Error::source(&e);
+    while let Some(s) = src {
+        msg.push_str(" :: ");
+        msg.push_str(&s.to_string());
+        src = s.source();
+    }
+    (StatusCode::BAD_GATEWAY, msg)
+}
+
+/// 只走 A 记录，避开 AAAA ENETUNREACH 把 180s 读超时吃光。
+/// 禁止 `local_address(0.0.0.0)`：r4b 上 TCP ESTAB 但 HTTP 永不回；同机 curl -4 0.72s/200。
+async fn chat_http_client(
+    timeout_secs: u64,
+    url: &str,
+) -> Result<reqwest::Client, (StatusCode, String)> {
+    let parsed = reqwest::Url::parse(url).map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("模型地址读不了：{e}"),
+        )
+    })?;
+    let host = parsed.host_str().unwrap_or("").to_string();
+    let port = parsed.port_or_known_default().unwrap_or(443);
+    let pin = match tokio::net::lookup_host((host.as_str(), port)).await {
+        Ok(addrs) => pin_ipv4_addr(addrs),
+        Err(e) => {
+            eprintln!("call_chat dns_fail host={host} err={e}");
+            None
+        }
+    };
+    let mut builder = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(timeout_secs))
+        .connect_timeout(std::time::Duration::from_secs(10));
+    if let Some(addr) = pin {
+        builder = builder.resolve(&host, addr);
+        eprintln!("call_chat pin_ipv4 host={host} addr={}", addr.ip());
+    } else if !host.is_empty() {
+        eprintln!("call_chat pin_ipv4_miss host={host}");
+    }
+    builder
+        .build()
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))
+}
+
 async fn call_chat_ex(
     system: &str,
     user: &str,
@@ -771,15 +823,7 @@ async fn call_chat_ex(
     }
     let model = std::env::var("SETTING_LLM_MODEL").unwrap_or_else(|_| "qwen3.8-flash".into());
     let url = chat_completions_url(&base);
-    // 腾讯机无公网 IPv6（ENETUNREACH）。不绑 v4 时 rustls/reqwest 先试 AAAA，
-    // 会把 180s 整段超时吃掉，日志只剩 "error sending request for url"。
-    // 这不是改 T2 的 180s 读超时，只限制连接族。
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(timeout_secs))
-        .connect_timeout(std::time::Duration::from_secs(10))
-        .local_address(std::net::IpAddr::V4(std::net::Ipv4Addr::UNSPECIFIED))
-        .build()
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let client = chat_http_client(timeout_secs, &url).await?;
     let sent = serde_json::json!({
         "model": model,
         "temperature": 0.4,
@@ -796,16 +840,7 @@ async fn call_chat_ex(
         .json(&sent)
         .send()
         .await
-        .map_err(|e| {
-            let mut msg = format!("模型请求失败：{e}");
-            let mut src = std::error::Error::source(&e);
-            while let Some(s) = src {
-                msg.push_str(" :: ");
-                msg.push_str(&s.to_string());
-                src = s.source();
-            }
-            (StatusCode::BAD_GATEWAY, msg)
-        })?;
+        .map_err(map_reqwest_err)?;
     let status = resp.status();
     let body_json: serde_json::Value = resp
         .json()
@@ -6169,4 +6204,19 @@ async fn plan_apply(
         "column_id": place_col,
         "notice": "预场只到任务和在场，不是历史",
     })))
+}
+
+#[cfg(test)]
+mod ipv4_pin_tests {
+    use super::pin_ipv4_addr;
+    use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
+
+    #[test]
+    fn picks_v4_skips_v6() {
+        let v6 = SocketAddr::new(IpAddr::V6(Ipv6Addr::LOCALHOST), 443);
+        let v4 = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(39, 106, 104, 16)), 443);
+        assert_eq!(pin_ipv4_addr([v6, v4]), Some(v4));
+        assert_eq!(pin_ipv4_addr([v6]), None);
+        assert_eq!(pin_ipv4_addr([]), None);
+    }
 }

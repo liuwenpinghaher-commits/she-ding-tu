@@ -377,7 +377,8 @@ pub struct DlgBeatStat {
     pub dlg_pct: f64,
 }
 
-/// 挑最多 3 个拍做对白改写。优先 hanzi>1500 且 dlg<20%，再补其他长拍，仍不足 3 个按对白比从低到高补短场面。省略场与已过 35.8% 的拍不挑。
+/// 挑最多 3 个拍做对白改写。优先 hanzi>1500 且 dlg<20%，其余按对白比从低到高（短场面若更低也入选）。
+/// 省略场与已过 35.8% 的拍不挑。不跳过已改写但仍低的拍。
 pub fn pick_dialogue_rewrite_targets(stats: &[DlgBeatStat], max_n: usize) -> Vec<usize> {
     let max_n = max_n.clamp(1, DLG_REWRITE_MAX_BEATS);
     let scenes: Vec<&DlgBeatStat> = stats
@@ -399,21 +400,6 @@ pub fn pick_dialogue_rewrite_targets(stats: &[DlgBeatStat], max_n: usize) -> Vec
     preferred.sort_by(sort_low_dlg);
     let mut out: Vec<usize> = Vec::new();
     for s in preferred {
-        if out.len() >= max_n {
-            break;
-        }
-        out.push(s.index);
-    }
-    if out.len() >= max_n {
-        return out;
-    }
-    let mut long: Vec<&DlgBeatStat> = scenes
-        .iter()
-        .copied()
-        .filter(|s| s.hanzi > DLG_REWRITE_LONG_HANZI && !out.contains(&s.index))
-        .collect();
-    long.sort_by(sort_low_dlg);
-    for s in long {
         if out.len() >= max_n {
             break;
         }
@@ -445,6 +431,21 @@ pub fn dlg_rewrite_hanzi_floor(src_h: usize) -> usize {
 /// 弱改写：对白比仍低于 20% 且升幅不足 8pp。只用来触发同拍第二次 LLM，不是逐拍 35.8 硬闸。
 pub fn dlg_rewrite_is_weak(before: f64, after: f64) -> bool {
     after < DLG_REWRITE_LOW_PCT && after < before + 8.0
+}
+
+/// 章级 gate 才落盘的改写：升过章线、从 <20% 跨过 20%、或至少 +8pp。
+/// 13.5→14.9 / 17.9→18.1 / 33.4→33.9 这种弱跳不落盘，下一轮仍从原稿再试。
+pub fn dlg_rewrite_worth_keeping(before: f64, after: f64) -> bool {
+    if after <= before {
+        return false;
+    }
+    if after >= CHAPTER_DLG_MIN_PCT {
+        return true;
+    }
+    if before < DLG_REWRITE_LOW_PCT && after >= DLG_REWRITE_LOW_PCT {
+        return true;
+    }
+    after >= before + 8.0
 }
 
 /// 与 `~/notes/sdt-novel-score.py` `clean_export` 对齐。只供章级对白比自算，不改评分脚本。
@@ -493,17 +494,19 @@ pub fn dialogue_rewrite_system_prompt() -> &'static str {
 禁止增加新人物、新地点、新器物、新事件、新知情。\
 禁止删掉已给的对白原文：「」里的字必须原样出现。已给对白不得改写、不得删、不得换人说。\
 可以把叙述里已经发生的动作、判断、知情改成在场人物用嘴说出来；说的内容必须能从已给正史句子推出来，不得发明新事实。\
+删掉说明书式旁白，不要保持长叙述篇幅。对白比升到四成以上才算完成。\
 禁止把同一句或同一段原样重复。禁止短句连打。不得靠复读凑对白比。\
 禁止把旁白整段套进「」充对白。必须是在场人物轮流说话。\
-篇幅可以短于当前叙述稿，正史句子与已给「」原文必须保留。\
+篇幅应当短于当前叙述稿，正史句子与已给「」原文必须保留。\
 禁止套话：「淡淡道」「嘴角微微」。\
 不要分栏标题，不要 Markdown，不要说「正史」「格子」。不要输出 JSON。"
 }
 
 pub fn dialogue_rewrite_user_prompt(b: &SourceBeat, current: &str, min_hanzi: usize) -> String {
     let before = dialogue_ratio_pct(current);
+    let before_h = hanzi_count(current);
     format!(
-        "本场任务：{}\n地点：{}\n价值转折：{}\n种类：场面\n把下面这篇叙述场面改成人物开口推进。不增删事实，不动已给对白原文。「」内字必须原样出现。当前对白比 {before}%，本拍升到四成以上。汉字不少于 {min_hanzi}，篇幅可以短于当前叙述稿，不要为了凑字复读。禁止把旁白整段套进「」充对白。禁止套话「淡淡道」「嘴角微微」。\n\n正史句子（必须全部用上，对白原文不得改）：\n{}\n\n当前稿（叙述过多，请改成开口推进，保留已有「」原文）：\n{}",
+        "本场任务：{}\n地点：{}\n价值转折：{}\n种类：场面\n把下面这篇叙述场面改成人物开口推进。不增删事实，不动已给对白原文。「」内字必须原样出现。当前稿 {before_h} 字、对白比 {before}%。删掉说明书式旁白，把判断和知情改成在场人物开口。本拍必须升到四成以上。汉字不少于 {min_hanzi}（正史源的三分之二即可，鼓励短于当前叙述稿），不要为了凑字复读或保持篇幅。禁止把旁白整段套进「」充对白。禁止套话「淡淡道」「嘴角微微」。\n\n正史句子（必须全部用上，对白原文不得改）：\n{}\n\n当前稿（叙述过多，请改成开口推进，保留已有「」原文）：\n{}",
         b.intent,
         b.place,
         b.value_shift,
@@ -896,7 +899,7 @@ mod tests {
 
     #[test]
     fn dlg_pick_prefers_long_low_like_r5() {
-        // r5：白莲线 10.9% / 民为贵 20.4% / 看水路图类 21.8%；短拍与已过线拍不挑。
+        // r5：白莲线 10.9% 优先；其余按对白比从低到高，1464/15.2 比 1981/21.8 更该改。
         let stats = vec![
             dlg_stat(0, "ellipsis", 38, 0.0),
             dlg_stat(1, "ellipsis", 16, 0.0),
@@ -912,7 +915,7 @@ mod tests {
             dlg_stat(11, "scene", 513, 53.6),
         ];
         let got = pick_dialogue_rewrite_targets(&stats, 3);
-        assert_eq!(got, vec![7, 4, 6]);
+        assert_eq!(got, vec![7, 5, 4]);
         assert!(got.len() <= DLG_REWRITE_MAX_BEATS);
     }
 
@@ -959,7 +962,8 @@ mod tests {
         assert!(sys.contains("淡淡道"));
         assert!(sys.contains("嘴角微微"));
         assert!(sys.contains("禁止把旁白整段套进"));
-        assert!(sys.contains("篇幅可以短于当前叙述稿"));
+        assert!(sys.contains("删掉说明书式旁白"));
+        assert!(sys.contains("篇幅应当短于当前叙述稿"));
         let user = dialogue_rewrite_user_prompt(&b, "于谦把炭笔递给太子。舱里雨气很重。", 50);
         assert!(user.contains("把下面这篇叙述场面改成人物开口推进"));
         assert!(user.contains("不增删事实"));
@@ -969,7 +973,8 @@ mod tests {
         assert!(user.contains("舱里雨气很重"));
         assert!(user.contains("淡淡道"));
         assert!(user.contains("当前对白比"));
-        assert!(user.contains("篇幅可以短于当前叙述稿"));
+        assert!(user.contains("删掉说明书式旁白"));
+        assert!(user.contains("鼓励短于当前叙述稿"));
         assert!(user.contains("禁止把旁白整段套进"));
     }
 
@@ -1004,8 +1009,23 @@ mod tests {
     }
 
     #[test]
+    fn dlg_rewrite_worth_keeping_rejects_weak_lockin() {
+        assert!(!dlg_rewrite_worth_keeping(13.5, 14.9));
+        assert!(!dlg_rewrite_worth_keeping(17.9, 18.1));
+        assert!(!dlg_rewrite_worth_keeping(20.6, 21.2));
+        assert!(!dlg_rewrite_worth_keeping(33.4, 33.9));
+        assert!(!dlg_rewrite_worth_keeping(29.1, 33.1));
+        assert!(dlg_rewrite_worth_keeping(13.5, 22.0));
+        assert!(dlg_rewrite_worth_keeping(14.3, 24.4));
+        assert!(dlg_rewrite_worth_keeping(16.1, 47.6));
+        assert!(dlg_rewrite_worth_keeping(19.4, 40.5));
+        assert!(!dlg_rewrite_worth_keeping(18.1, 18.1));
+        assert!(!dlg_rewrite_worth_keeping(20.0, 19.0));
+    }
+
+    #[test]
     fn dlg_pick_round2_keeps_weak_rewritten_beat() {
-        // r6b round2 若跳过已改写拍，14.9% 那拍不再入选，全章停在 31.8%。
+        // r6b/r6c：14.9% 长拍仍最低；补 27.8% 短场面，不要去改 33.4% 的长拍。
         let stats = vec![
             dlg_stat(0, "ellipsis", 38, 0.0),
             dlg_stat(4, "scene", 1271, 47.6),
@@ -1018,10 +1038,10 @@ mod tests {
             dlg_stat(11, "scene", 930, 27.8),
         ];
         let got = pick_dialogue_rewrite_targets(&stats, 3);
-        assert_eq!(got[0], 5, "{got:?}");
-        assert!(got.contains(&5));
+        assert_eq!(got, vec![5, 11, 6], "{got:?}");
         assert!(!got.contains(&4));
         assert!(!got.contains(&7));
+        assert!(!got.contains(&8));
         assert!(!got.contains(&10));
     }
 

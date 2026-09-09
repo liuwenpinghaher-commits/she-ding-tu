@@ -14,7 +14,8 @@ use narra::services::constrain;
 use narra::services::chapter_compose::{
     self, approved_excerpt, ban_reject_reason, ban_scan, beat_weight, clean_export_md,
     dialogue_hanzi, dialogue_ratio_pct, dialogue_rewrite_system_prompt, dialogue_rewrite_user_prompt,
-    dlg_rewrite_hanzi_floor, dlg_rewrite_is_weak, expand_system_prompt, expand_user_prompt, fact_check,
+    dlg_rewrite_hanzi_floor, dlg_rewrite_is_weak, dlg_rewrite_worth_keeping, expand_system_prompt,
+    expand_user_prompt, fact_check,
     hanzi_count, has_ban_violation, has_repeat_violation, min_hanzi_for_beat,
     pick_dialogue_rewrite_targets, polish_system_prompt, polish_user_prompt, repeat_reject_reason,
     source_blob, weave_beat, CHAPTER_DLG_MIN_PCT, DLG_REWRITE_MAX_BEATS, DLG_REWRITE_MAX_ROUNDS,
@@ -5912,11 +5913,11 @@ async fn compose_chapter(
                 let outcome = try_llm_rewrite(
                     "dlg_rewrite",
                     dialogue_rewrite_system_prompt(),
-                    dialogue_rewrite_user_prompt(&beat, &body, src_h),
+                    dialogue_rewrite_user_prompt(&beat, &body, floor),
                     &src_blob,
                     &entity_names,
                     src_h,
-                    src_h,
+                    floor,
                     i + 1,
                     beat_n,
                     &id,
@@ -5947,7 +5948,8 @@ async fn compose_chapter(
                     after = dialogue_ratio_pct(&txt);
                     after_h = hanzi_count(&txt);
                     // 重写拍事实闸已在 try_llm_rewrite 用 polish_pass：只查 missing_quotes / added_entities，added_quotes 不计。
-                    if after_h >= floor && after > before {
+                    // 弱跳（13.5→14.9、17.9→18.1）不落盘，避免把长叙述锁死、下一轮改不到。
+                    if after_h >= floor && dlg_rewrite_worth_keeping(before, after) {
                         w.body = txt;
                         w.used = "expand";
                         w.dlg_rewritten = true;
@@ -5957,6 +5959,12 @@ async fn compose_chapter(
                             "compose-chapter dlg_gate REPLACE round={dlg_gate_rounds} beat={}/{beat_n} id={id} before_pct={before} after_pct={after} hanzi={before_h}->{after_h}",
                             i + 1
                         );
+                    } else if after_h < floor {
+                        reason = format!("short hanzi={after_h}<floor {floor}");
+                        eprintln!(
+                            "compose-chapter dlg_gate KEEP round={dlg_gate_rounds} beat={}/{beat_n} id={id} reason={reason}",
+                            i + 1
+                        );
                     } else if after <= before {
                         reason = format!("dlg_no_improve {before}->{after}");
                         eprintln!(
@@ -5964,7 +5972,7 @@ async fn compose_chapter(
                             i + 1
                         );
                     } else {
-                        reason = format!("short hanzi={after_h}<floor {floor}");
+                        reason = format!("dlg_not_worth {before}->{after}");
                         eprintln!(
                             "compose-chapter dlg_gate KEEP round={dlg_gate_rounds} beat={}/{beat_n} id={id} reason={reason}",
                             i + 1

@@ -368,6 +368,8 @@ pub const DLG_REWRITE_LONG_HANZI: usize = 1500;
 pub const DLG_REWRITE_LOW_PCT: f64 = 20.0;
 pub const DLG_REWRITE_MAX_BEATS: usize = 3;
 pub const DLG_REWRITE_MAX_ROUNDS: u32 = 2;
+/// 每轮最多试这么多拍（含硬失败换人）。仍最多收下 3 个。不逐拍定额。
+pub const DLG_REWRITE_MAX_TRIES_PER_ROUND: usize = 6;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct DlgBeatStat {
@@ -378,12 +380,25 @@ pub struct DlgBeatStat {
 }
 
 /// 挑最多 3 个拍做对白改写。优先 hanzi>1500 且 dlg<20%，其余按对白比从低到高（短场面若更低也入选）。
-/// 省略场与已过 35.8% 的拍不挑。不跳过已改写但仍低的拍。
+/// 省略场与已过 35.8% 的拍不挑。不跳过已改写但仍低的拍。`skip` 用于硬失败（无过审稿）换人。
 pub fn pick_dialogue_rewrite_targets(stats: &[DlgBeatStat], max_n: usize) -> Vec<usize> {
+    pick_dialogue_rewrite_targets_skipping(stats, max_n, &[])
+}
+
+pub fn pick_dialogue_rewrite_targets_skipping(
+    stats: &[DlgBeatStat],
+    max_n: usize,
+    skip: &[usize],
+) -> Vec<usize> {
     let max_n = max_n.clamp(1, DLG_REWRITE_MAX_BEATS);
     let scenes: Vec<&DlgBeatStat> = stats
         .iter()
-        .filter(|s| s.kind != "ellipsis" && s.hanzi > 0 && s.dlg_pct < CHAPTER_DLG_MIN_PCT)
+        .filter(|s| {
+            s.kind != "ellipsis"
+                && s.hanzi > 0
+                && s.dlg_pct < CHAPTER_DLG_MIN_PCT
+                && !skip.contains(&s.index)
+        })
         .collect();
     let sort_low_dlg = |a: &&DlgBeatStat, b: &&DlgBeatStat| {
         a.dlg_pct
@@ -488,16 +503,28 @@ pub fn clean_export_md(md: &str) -> String {
     format!("{}\n", lines.join("\n").trim())
 }
 
+pub fn required_quotes_block(b: &SourceBeat) -> String {
+    let qs = extract_quotes(&source_blob(b));
+    if qs.is_empty() {
+        "（本场正史没有「」对白。开口内容必须能从已给句子推出，禁止发明新事实。）".into()
+    } else {
+        qs.into_iter()
+            .map(|q| format!("「{q}」"))
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
+}
+
 pub fn dialogue_rewrite_system_prompt() -> &'static str {
     "你是设定图的章级拼写器（对白改写）。\
 本拍是长叙述拍。把叙述场面改成人物开口推进。\
 禁止增加新人物、新地点、新器物、新事件、新知情。\
 禁止删掉已给的对白原文：「」里的字必须原样出现。已给对白不得改写、不得删、不得换人说。\
 可以把叙述里已经发生的动作、判断、知情改成在场人物用嘴说出来；说的内容必须能从已给正史句子推出来，不得发明新事实。\
-删掉说明书式旁白，不要保持长叙述篇幅。对白比升到四成以上才算完成。\
+删掉说明书式旁白。把判断和知情改成开口，不要靠删场面抬对白比。对白比升到四成以上才算完成。\
 禁止把同一句或同一段原样重复。禁止短句连打。不得靠复读凑对白比。\
 禁止把旁白整段套进「」充对白。必须是在场人物轮流说话。\
-篇幅应当短于当前叙述稿，正史句子与已给「」原文必须保留。\
+正史句子与已给「」原文必须保留。篇幅可以短于当前叙述稿，但能改成对白的旁白不要删。\
 禁止套话：「淡淡道」「嘴角微微」。\
 不要分栏标题，不要 Markdown，不要说「正史」「格子」。不要输出 JSON。"
 }
@@ -506,10 +533,11 @@ pub fn dialogue_rewrite_user_prompt(b: &SourceBeat, current: &str, min_hanzi: us
     let before = dialogue_ratio_pct(current);
     let before_h = hanzi_count(current);
     format!(
-        "本场任务：{}\n地点：{}\n价值转折：{}\n种类：场面\n把下面这篇叙述场面改成人物开口推进。不增删事实，不动已给对白原文。「」内字必须原样出现。当前稿 {before_h} 字、对白比 {before}%。删掉说明书式旁白，把判断和知情改成在场人物开口。本拍必须升到四成以上。汉字不少于 {min_hanzi}（正史源的三分之二即可，鼓励短于当前叙述稿），不要为了凑字复读或保持篇幅。禁止把旁白整段套进「」充对白。禁止套话「淡淡道」「嘴角微微」。\n\n正史句子（必须全部用上，对白原文不得改）：\n{}\n\n当前稿（叙述过多，请改成开口推进，保留已有「」原文）：\n{}",
+        "本场任务：{}\n地点：{}\n价值转折：{}\n种类：场面\n把下面这篇叙述场面改成人物开口推进。不增删事实，不动已给对白原文。「」内字必须原样出现。当前稿 {before_h} 字、当前对白比 {before}%。删掉说明书式旁白，把判断和知情改成在场人物开口。本拍必须升到四成以上。汉字不少于 {min_hanzi}（正史源的三分之二即可）。不要为了凑字复读。不要靠删场面抬对白比；能改成对白的旁白不要删。禁止把旁白整段套进「」充对白。禁止套话「淡淡道」「嘴角微微」。\n\n必须原样出现的对白：\n{}\n\n正史句子（必须全部用上，对白原文不得改）：\n{}\n\n当前稿（叙述过多，请改成开口推进，保留已有「」原文）：\n{}",
         b.intent,
         b.place,
         b.value_shift,
+        required_quotes_block(b),
         numbered_sentences(b),
         current.trim()
     )
@@ -963,7 +991,8 @@ mod tests {
         assert!(sys.contains("嘴角微微"));
         assert!(sys.contains("禁止把旁白整段套进"));
         assert!(sys.contains("删掉说明书式旁白"));
-        assert!(sys.contains("篇幅应当短于当前叙述稿"));
+        assert!(sys.contains("能改成对白的旁白不要删"));
+        assert!(!sys.contains("篇幅应当短于当前叙述稿"));
         let user = dialogue_rewrite_user_prompt(&b, "于谦把炭笔递给太子。舱里雨气很重。", 50);
         assert!(user.contains("把下面这篇叙述场面改成人物开口推进"));
         assert!(user.contains("不增删事实"));
@@ -974,7 +1003,9 @@ mod tests {
         assert!(user.contains("淡淡道"));
         assert!(user.contains("当前对白比"));
         assert!(user.contains("删掉说明书式旁白"));
-        assert!(user.contains("鼓励短于当前叙述稿"));
+        assert!(user.contains("必须原样出现的对白"));
+        assert!(user.contains("不要靠删场面抬对白比"));
+        assert!(!user.contains("鼓励短于当前叙述稿"));
         assert!(user.contains("禁止把旁白整段套进"));
     }
 
@@ -1043,6 +1074,26 @@ mod tests {
         assert!(!got.contains(&7));
         assert!(!got.contains(&8));
         assert!(!got.contains(&10));
+    }
+
+    #[test]
+    fn dlg_pick_skips_hard_failed_r6d() {
+        // r6d：弃不弃他拍 17.6% 两轮硬失败。跳过后应改 16.5% 短场 + 20.8% + 1989 字 21.7% 长叙述。
+        let stats = vec![
+            dlg_stat(0, "ellipsis", 38, 0.0),
+            dlg_stat(4, "scene", 1989, 21.7),
+            dlg_stat(5, "scene", 1367, 16.5),
+            dlg_stat(6, "scene", 1613, 26.3),
+            dlg_stat(7, "scene", 1937, 17.6),
+            dlg_stat(8, "scene", 1576, 33.2),
+            dlg_stat(9, "scene", 796, 45.5),
+            dlg_stat(10, "scene", 1604, 20.8),
+            dlg_stat(11, "scene", 814, 36.5),
+        ];
+        assert_eq!(pick_dialogue_rewrite_targets(&stats, 3), vec![7, 5, 10]);
+        let got = pick_dialogue_rewrite_targets_skipping(&stats, 3, &[7]);
+        assert_eq!(got, vec![5, 10, 4], "{got:?}");
+        assert!(!got.contains(&7));
     }
 
     #[test]

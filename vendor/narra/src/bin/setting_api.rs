@@ -14,11 +14,11 @@ use narra::services::constrain;
 use narra::services::chapter_compose::{
     self, approved_excerpt, ban_reject_reason, ban_scan, beat_weight, clean_export_md,
     dialogue_hanzi, dialogue_ratio_pct, dialogue_rewrite_system_prompt, dialogue_rewrite_user_prompt,
-    dlg_rewrite_hanzi_floor, expand_system_prompt, expand_user_prompt, fact_check, hanzi_count,
-    has_ban_violation, has_repeat_violation, min_hanzi_for_beat, pick_dialogue_rewrite_targets,
-    polish_system_prompt,
-    polish_user_prompt, repeat_reject_reason, source_blob, weave_beat, CHAPTER_DLG_MIN_PCT,
-    DLG_REWRITE_MAX_BEATS, DLG_REWRITE_MAX_ROUNDS, DlgBeatStat, FactReport, MinHanziMode, SourceBeat,
+    dlg_rewrite_hanzi_floor, dlg_rewrite_is_weak, expand_system_prompt, expand_user_prompt, fact_check,
+    hanzi_count, has_ban_violation, has_repeat_violation, min_hanzi_for_beat,
+    pick_dialogue_rewrite_targets, polish_system_prompt, polish_user_prompt, repeat_reject_reason,
+    source_blob, weave_beat, CHAPTER_DLG_MIN_PCT, DLG_REWRITE_MAX_BEATS, DLG_REWRITE_MAX_ROUNDS,
+    DlgBeatStat, FactReport, MinHanziMode, SourceBeat,
 };
 use narra::services::craft::{self, BookCraft, ExportBeat};
 use narra::services::fill::{
@@ -932,6 +932,7 @@ async fn try_llm_rewrite(
     beat_n: usize,
     id: &str,
     max_attempts: u32,
+    dlg_before: Option<f64>,
 ) -> RewriteOutcome {
     let mut out = RewriteOutcome {
         text: None,
@@ -953,6 +954,37 @@ async fn try_llm_rewrite(
                 let repeat_bad = has_repeat_violation(&txt);
                 let ban_bad = has_ban_violation(&txt);
                 if check.polish_pass() && !repeat_bad && !ban_bad {
+                    let after_dlg = dialogue_ratio_pct(&txt);
+                    let weak = path == "dlg_rewrite"
+                        && dlg_before
+                            .map(|b| dlg_rewrite_is_weak(b, after_dlg))
+                            .unwrap_or(false);
+                    if weak && attempt < max_attempts {
+                        let reason = format!(
+                            "dlg_weak {}->{after_dlg}",
+                            dlg_before.unwrap_or(0.0)
+                        );
+                        out.last_reason = reason.clone();
+                        // 弱稿先留着：第二稿若事实闸失败，章级 gate 仍可用这一版。
+                        out.text = Some(txt);
+                        log_compose_event(
+                            path,
+                            "REJECT",
+                            beat_i,
+                            beat_n,
+                            id,
+                            attempt,
+                            &reason,
+                            Some(&check),
+                            h,
+                            src_h,
+                            min_h,
+                        );
+                        prompt = format!(
+                            "{user0}\n\n上一稿未过审：{reason}\n把叙述场面改成人物开口推进。不增删事实，不动已给对白原文。「」内原文必须出现。对白比仍低于两成，继续把旁白改成在场人物轮流说话，禁止把旁白整段套进「」，禁止复读凑数，禁止套话「淡淡道」「嘴角微微」。"
+                        );
+                        continue;
+                    }
                     log_compose_event(
                         path,
                         "ACCEPT",
@@ -966,6 +998,7 @@ async fn try_llm_rewrite(
                         src_h,
                         min_h,
                     );
+                    out.last_reason.clear();
                     out.text = Some(txt);
                     return out;
                 }
@@ -5651,6 +5684,7 @@ async fn compose_chapter(
                 beat_n,
                 &b.id,
                 2,
+                None,
             )
             .await;
             attempts = outcome.attempts;
@@ -5719,6 +5753,7 @@ async fn compose_chapter(
                 beat_n,
                 &w.beat.id,
                 2,
+                None,
             )
             .await;
             let w = &mut works[i];
@@ -5799,6 +5834,7 @@ async fn compose_chapter(
                     beat_n,
                     &w.beat.id,
                     1,
+                    None,
                 )
                 .await;
                 let w = &mut works[i];
@@ -5836,16 +5872,11 @@ async fn compose_chapter(
                 );
                 break;
             }
-            let has_fresh = works.iter().any(|w| {
-                w.beat.kind != "ellipsis"
-                    && !w.dlg_rewritten
-                    && hanzi_count(&w.body) > 0
-                    && dialogue_ratio_pct(&w.body) < CHAPTER_DLG_MIN_PCT
-            });
+            // 每轮按当前对白比再挑。已改写但仍 <35.8% 的拍不让位——r6b 把 14.9% 拍锁掉后全章停在 31.8%。
+            // 已过 35.8% 的拍由 pick_dialogue_rewrite_targets 排除。不逐拍定额。
             let stats: Vec<DlgBeatStat> = works
                 .iter()
                 .enumerate()
-                .filter(|(_, w)| !has_fresh || !w.dlg_rewritten)
                 .map(|(i, w)| DlgBeatStat {
                     index: i,
                     kind: w.beat.kind.clone(),
@@ -5856,7 +5887,7 @@ async fn compose_chapter(
             let picks = pick_dialogue_rewrite_targets(&stats, DLG_REWRITE_MAX_BEATS);
             dlg_gate_rounds += 1;
             eprintln!(
-                "compose-chapter dlg_gate START round={dlg_gate_rounds} ratio={ratio_now} target={CHAPTER_DLG_MIN_PCT} picks={picks:?} skip_rewritten={has_fresh}"
+                "compose-chapter dlg_gate START round={dlg_gate_rounds} ratio={ratio_now} target={CHAPTER_DLG_MIN_PCT} picks={picks:?}"
             );
             if picks.is_empty() {
                 eprintln!(
@@ -5890,6 +5921,7 @@ async fn compose_chapter(
                     beat_n,
                     &id,
                     2,
+                    Some(before),
                 )
                 .await;
                 let w = &mut works[i];

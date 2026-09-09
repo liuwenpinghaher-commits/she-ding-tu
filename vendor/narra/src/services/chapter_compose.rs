@@ -442,6 +442,11 @@ pub fn dlg_rewrite_hanzi_floor(src_h: usize) -> usize {
     src_h.saturating_mul(2).saturating_div(3).max(1)
 }
 
+/// 弱改写：对白比仍低于 20% 且升幅不足 8pp。只用来触发同拍第二次 LLM，不是逐拍 35.8 硬闸。
+pub fn dlg_rewrite_is_weak(before: f64, after: f64) -> bool {
+    after < DLG_REWRITE_LOW_PCT && after < before + 8.0
+}
+
 /// 与 `~/notes/sdt-novel-score.py` `clean_export` 对齐。只供章级对白比自算，不改评分脚本。
 pub fn clean_export_md(md: &str) -> String {
     let mut lines: Vec<String> = Vec::new();
@@ -986,6 +991,38 @@ mod tests {
         assert!(540 >= dlg_rewrite_hanzi_floor(554));
         assert!(678 >= dlg_rewrite_hanzi_floor(554));
         assert!(540 < 554.max(1522 * 2 / 3), "r6a 旧 floor 会误拒 540");
+    }
+
+    #[test]
+    fn dlg_rewrite_weak_retries_r6b_lowest_not_quota() {
+        // r6b 最低拍 13.5→14.9 仍是长叙述，应再要一稿；16.1→47.6 已过线，不因逐拍定额重来。
+        assert!(dlg_rewrite_is_weak(13.5, 14.9));
+        assert!(!dlg_rewrite_is_weak(13.5, 22.0));
+        assert!(!dlg_rewrite_is_weak(16.1, 47.6));
+        assert!(!dlg_rewrite_is_weak(29.1, 33.1));
+        assert!(!dlg_rewrite_is_weak(17.1, 43.3));
+    }
+
+    #[test]
+    fn dlg_pick_round2_keeps_weak_rewritten_beat() {
+        // r6b round2 若跳过已改写拍，14.9% 那拍不再入选，全章停在 31.8%。
+        let stats = vec![
+            dlg_stat(0, "ellipsis", 38, 0.0),
+            dlg_stat(4, "scene", 1271, 47.6),
+            dlg_stat(5, "scene", 1513, 14.9),
+            dlg_stat(6, "scene", 1538, 29.1),
+            dlg_stat(7, "scene", 1239, 43.3),
+            dlg_stat(8, "scene", 1560, 33.4),
+            dlg_stat(9, "scene", 941, 33.3),
+            dlg_stat(10, "scene", 927, 35.9),
+            dlg_stat(11, "scene", 930, 27.8),
+        ];
+        let got = pick_dialogue_rewrite_targets(&stats, 3);
+        assert_eq!(got[0], 5, "{got:?}");
+        assert!(got.contains(&5));
+        assert!(!got.contains(&4));
+        assert!(!got.contains(&7));
+        assert!(!got.contains(&10));
     }
 
     #[test]

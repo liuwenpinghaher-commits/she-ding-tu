@@ -14,8 +14,9 @@ use narra::services::constrain;
 use narra::services::chapter_compose::{
     self, approved_excerpt, ban_reject_reason, ban_scan, beat_weight, clean_export_md,
     dialogue_hanzi, dialogue_ratio_pct, dialogue_rewrite_system_prompt, dialogue_rewrite_user_prompt,
-    expand_system_prompt, expand_user_prompt, fact_check, hanzi_count, has_ban_violation,
-    has_repeat_violation, min_hanzi_for_beat, pick_dialogue_rewrite_targets, polish_system_prompt,
+    dlg_rewrite_hanzi_floor, expand_system_prompt, expand_user_prompt, fact_check, hanzi_count,
+    has_ban_violation, has_repeat_violation, min_hanzi_for_beat, pick_dialogue_rewrite_targets,
+    polish_system_prompt,
     polish_user_prompt, repeat_reject_reason, source_blob, weave_beat, CHAPTER_DLG_MIN_PCT,
     DLG_REWRITE_MAX_BEATS, DLG_REWRITE_MAX_ROUNDS, DlgBeatStat, FactReport, MinHanziMode, SourceBeat,
 };
@@ -5835,9 +5836,16 @@ async fn compose_chapter(
                 );
                 break;
             }
+            let has_fresh = works.iter().any(|w| {
+                w.beat.kind != "ellipsis"
+                    && !w.dlg_rewritten
+                    && hanzi_count(&w.body) > 0
+                    && dialogue_ratio_pct(&w.body) < CHAPTER_DLG_MIN_PCT
+            });
             let stats: Vec<DlgBeatStat> = works
                 .iter()
                 .enumerate()
+                .filter(|(_, w)| !has_fresh || !w.dlg_rewritten)
                 .map(|(i, w)| DlgBeatStat {
                     index: i,
                     kind: w.beat.kind.clone(),
@@ -5848,7 +5856,7 @@ async fn compose_chapter(
             let picks = pick_dialogue_rewrite_targets(&stats, DLG_REWRITE_MAX_BEATS);
             dlg_gate_rounds += 1;
             eprintln!(
-                "compose-chapter dlg_gate START round={dlg_gate_rounds} ratio={ratio_now} target={CHAPTER_DLG_MIN_PCT} picks={picks:?}"
+                "compose-chapter dlg_gate START round={dlg_gate_rounds} ratio={ratio_now} target={CHAPTER_DLG_MIN_PCT} picks={picks:?} skip_rewritten={has_fresh}"
             );
             if picks.is_empty() {
                 eprintln!(
@@ -5864,7 +5872,8 @@ async fn compose_chapter(
                 let id = beat.id.clone();
                 let before = dialogue_ratio_pct(&body);
                 let before_h = hanzi_count(&body);
-                let floor = src_h.max(before_h * 2 / 3);
+                // 下限绑正史源，不绑润色后篇幅。r6a 把 14.7%→38.9% 的改写因短于旧叙述拒掉。
+                let floor = dlg_rewrite_hanzi_floor(src_h);
                 eprintln!(
                     "compose-chapter dlg_gate TRY round={dlg_gate_rounds} beat={}/{beat_n} id={id} before_pct={before} hanzi={before_h} floor={floor}",
                     i + 1

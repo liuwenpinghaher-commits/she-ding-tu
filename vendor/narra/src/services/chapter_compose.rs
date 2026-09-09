@@ -377,7 +377,7 @@ pub struct DlgBeatStat {
     pub dlg_pct: f64,
 }
 
-/// 挑 1–3 个长叙述拍做对白改写。优先 hanzi>1500 且 dlg<20%；不足再按对白比从低到高补长拍；仍空才落短场面。省略场与已过 35.8% 的拍不挑。
+/// 挑最多 3 个拍做对白改写。优先 hanzi>1500 且 dlg<20%，再补其他长拍，仍不足 3 个按对白比从低到高补短场面。省略场与已过 35.8% 的拍不挑。
 pub fn pick_dialogue_rewrite_targets(stats: &[DlgBeatStat], max_n: usize) -> Vec<usize> {
     let max_n = max_n.clamp(1, DLG_REWRITE_MAX_BEATS);
     let scenes: Vec<&DlgBeatStat> = stats
@@ -419,7 +419,7 @@ pub fn pick_dialogue_rewrite_targets(stats: &[DlgBeatStat], max_n: usize) -> Vec
         }
         out.push(s.index);
     }
-    if !out.is_empty() {
+    if out.len() >= max_n {
         return out;
     }
     let mut rest: Vec<&DlgBeatStat> = scenes
@@ -435,6 +435,11 @@ pub fn pick_dialogue_rewrite_targets(stats: &[DlgBeatStat], max_n: usize) -> Vec
         out.push(s.index);
     }
     out
+}
+
+/// 重写拍字数下限：正史源的 2/3。不要拿润色后的长叙述当下限——改成开口常会短。
+pub fn dlg_rewrite_hanzi_floor(src_h: usize) -> usize {
+    src_h.saturating_mul(2).saturating_div(3).max(1)
 }
 
 /// 与 `~/notes/sdt-novel-score.py` `clean_export` 对齐。只供章级对白比自算，不改评分脚本。
@@ -484,13 +489,16 @@ pub fn dialogue_rewrite_system_prompt() -> &'static str {
 禁止删掉已给的对白原文：「」里的字必须原样出现。已给对白不得改写、不得删、不得换人说。\
 可以把叙述里已经发生的动作、判断、知情改成在场人物用嘴说出来；说的内容必须能从已给正史句子推出来，不得发明新事实。\
 禁止把同一句或同一段原样重复。禁止短句连打。不得靠复读凑对白比。\
+禁止把旁白整段套进「」充对白。必须是在场人物轮流说话。\
+篇幅可以短于当前叙述稿，正史句子与已给「」原文必须保留。\
 禁止套话：「淡淡道」「嘴角微微」。\
 不要分栏标题，不要 Markdown，不要说「正史」「格子」。不要输出 JSON。"
 }
 
 pub fn dialogue_rewrite_user_prompt(b: &SourceBeat, current: &str, min_hanzi: usize) -> String {
+    let before = dialogue_ratio_pct(current);
     format!(
-        "本场任务：{}\n地点：{}\n价值转折：{}\n种类：场面\n把下面这篇叙述场面改成人物开口推进。不增删事实，不动已给对白原文。「」内字必须原样出现。汉字不少于 {min_hanzi}。禁止复读凑数。禁止套话「淡淡道」「嘴角微微」。\n\n正史句子（必须全部用上，对白原文不得改）：\n{}\n\n当前稿（叙述过多，请改成开口推进，保留已有「」原文）：\n{}",
+        "本场任务：{}\n地点：{}\n价值转折：{}\n种类：场面\n把下面这篇叙述场面改成人物开口推进。不增删事实，不动已给对白原文。「」内字必须原样出现。当前对白比 {before}%，本拍升到四成以上。汉字不少于 {min_hanzi}，篇幅可以短于当前叙述稿，不要为了凑字复读。禁止把旁白整段套进「」充对白。禁止套话「淡淡道」「嘴角微微」。\n\n正史句子（必须全部用上，对白原文不得改）：\n{}\n\n当前稿（叙述过多，请改成开口推进，保留已有「」原文）：\n{}",
         b.intent,
         b.place,
         b.value_shift,
@@ -945,6 +953,8 @@ mod tests {
         assert!(sys.contains("不得靠复读凑对白比"));
         assert!(sys.contains("淡淡道"));
         assert!(sys.contains("嘴角微微"));
+        assert!(sys.contains("禁止把旁白整段套进"));
+        assert!(sys.contains("篇幅可以短于当前叙述稿"));
         let user = dialogue_rewrite_user_prompt(&b, "于谦把炭笔递给太子。舱里雨气很重。", 50);
         assert!(user.contains("把下面这篇叙述场面改成人物开口推进"));
         assert!(user.contains("不增删事实"));
@@ -953,6 +963,29 @@ mod tests {
         assert!(user.contains("当前稿"));
         assert!(user.contains("舱里雨气很重"));
         assert!(user.contains("淡淡道"));
+        assert!(user.contains("当前对白比"));
+        assert!(user.contains("篇幅可以短于当前叙述稿"));
+        assert!(user.contains("禁止把旁白整段套进"));
+    }
+
+    #[test]
+    fn dlg_pick_fills_to_three_with_short_scenes() {
+        let stats = vec![
+            dlg_stat(0, "ellipsis", 40, 0.0),
+            dlg_stat(1, "scene", 2000, 14.7),
+            dlg_stat(2, "scene", 1487, 22.9),
+            dlg_stat(3, "scene", 1478, 21.4),
+            dlg_stat(4, "scene", 513, 53.6),
+        ];
+        assert_eq!(pick_dialogue_rewrite_targets(&stats, 3), vec![1, 3, 2]);
+    }
+
+    #[test]
+    fn dlg_rewrite_floor_uses_source_not_polished_body() {
+        assert_eq!(dlg_rewrite_hanzi_floor(554), 369);
+        assert!(540 >= dlg_rewrite_hanzi_floor(554));
+        assert!(678 >= dlg_rewrite_hanzi_floor(554));
+        assert!(540 < 554.max(1522 * 2 / 3), "r6a 旧 floor 会误拒 540");
     }
 
     #[test]

@@ -824,10 +824,14 @@ async fn call_chat_ex(
     let model = std::env::var("SETTING_LLM_MODEL").unwrap_or_else(|_| "qwen3.8-flash".into());
     let url = chat_completions_url(&base);
     let client = chat_http_client(timeout_secs, &url).await?;
+    // qwen3.8-flash 默认开思考。长 polish 会把 180s 读超时吃光：
+    // 同机 curl 对照（r4c 拍 5 两次 timeout 之后）：同长 prompt max_tokens=512
+    // 无此字段 → 45s 0 字节；enable_thinking=false → 0.56s/200。不是改 T2 的 180s。
     let sent = serde_json::json!({
         "model": model,
         "temperature": 0.4,
         "max_tokens": max_tokens,
+        "enable_thinking": false,
         "messages": [
             {"role": "system", "content": system},
             {"role": "user", "content": user},

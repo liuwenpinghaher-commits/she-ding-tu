@@ -51,6 +51,16 @@ pub fn dialogue_hanzi(s: &str) -> usize {
     n
 }
 
+/// 对白汉字 / 全汉字，百分数一位小数。汉字为 0 时返回 0.0。
+pub fn dialogue_ratio_pct(s: &str) -> f64 {
+    let h = hanzi_count(s);
+    if h == 0 {
+        0.0
+    } else {
+        ((dialogue_hanzi(s) as f64 / h as f64) * 1000.0).round() / 10.0
+    }
+}
+
 pub fn extract_quotes(s: &str) -> Vec<String> {
     let pairs = [('「', '」'), ('“', '”'), ('『', '』')];
     let mut out = Vec::new();
@@ -176,17 +186,20 @@ pub fn numbered_sentences(b: &SourceBeat) -> String {
 pub fn polish_system_prompt() -> &'static str {
     "你是设定图的章级拼写器。\
 只重排已给的正史句子，写成可当小说读的连贯段落。\
-禁止增加新人物、新地点、新器物、新事件、新对白、新知情。\
+禁止增加新人物、新地点、新器物、新事件、新知情。\
 禁止删掉已给的对白原文：「」里的字必须原样出现。\
+场面靠对白推进，过场才用叙述；字数不够时把本场已开口的人把话说开，不要用说明书式旁白铺字。\
+全章对白比锚定四成五左右（带宽约正负十个百分点，下限约三成六），不要写成每拍定额。\
 可以把动作、对白、内心按时间织在一起；衔接只能用这些句子里已经出现过的词。\
 禁止把同一句或同一段原样重复。禁止短句连打。字数不够时换一种说法写开，不得靠复读凑字。\
+禁止套话：「淡淡道」「嘴角微微」。\
 不要分栏标题，不要 Markdown，不要说「正史」「格子」。\
 不要指定下一场。不要输出 JSON。"
 }
 
 pub fn polish_user_prompt(b: &SourceBeat, min_hanzi: usize) -> String {
     format!(
-        "本场任务：{}\n地点：{}\n价值转折：{}\n种类：{}\n目标汉字不少于 {min_hanzi}（用已有感官词衔接，禁止新事实，禁止复读）。\n\n正史句子（必须全部用上）：\n{}",
+        "本场任务：{}\n地点：{}\n价值转折：{}\n种类：{}\n目标汉字不少于 {min_hanzi}（用已有感官词衔接，禁止新事实，禁止复读；场面靠对白推进，过场才用叙述）。\n\n正史句子（必须全部用上）：\n{}",
         b.intent,
         b.place,
         b.value_shift,
@@ -272,6 +285,30 @@ pub fn has_repeat_violation(s: &str) -> bool {
     !repeat_scan(s).ok()
 }
 
+/// 评测禁用套话。仓内无现成 BAN 表；与 `~/notes/sdt-novel-score.py` 对齐，本轮只拦这两条。
+pub const BAN_PHRASES: &[&str] = &["淡淡道", "嘴角微微"];
+
+pub fn ban_scan(s: &str) -> Vec<String> {
+    BAN_PHRASES
+        .iter()
+        .filter(|p| s.contains(*p))
+        .map(|p| (*p).to_string())
+        .collect()
+}
+
+pub fn has_ban_violation(s: &str) -> bool {
+    !ban_scan(s).is_empty()
+}
+
+pub fn ban_reject_reason(s: &str) -> String {
+    let hits = ban_scan(s);
+    if hits.is_empty() {
+        "ban".into()
+    } else {
+        format!("ban:{}", hits.join("|"))
+    }
+}
+
 pub fn repeat_reject_reason(s: &str) -> String {
     let r = repeat_scan(s);
     let mut parts = Vec::new();
@@ -292,11 +329,14 @@ pub fn repeat_reject_reason(s: &str) -> String {
 pub fn expand_system_prompt() -> &'static str {
     "你是设定图的章级拼写器（兜底扩写）。\
 只重排、扩展已给的正史句子的措辞，写成可当小说读的连贯段落。\
-禁止增加新人物、新地点、新器物、新事件、新对白、新知情。\
+禁止增加新人物、新地点、新器物、新事件、新知情。\
 禁止删掉已给的对白原文：「」里的字必须原样出现。\
+场面靠对白推进，过场才用叙述；字数不够时把本场已开口的人把话说开，不要用说明书式旁白铺字。\
+全章对白比锚定四成五左右（带宽约正负十个百分点，下限约三成六），不要写成每拍定额。\
 禁止把同一句或同一段原样重复两遍以上。禁止短句连打。\
 字数不够时，把本场已给句子里出现过的感官、动作、关系换成另一种说法写开，不得靠复读凑字，不得引入未编号句子里没有的事实。\
 可以参考「章内已过审」段落的织法，但不得抄那些段落的句子，也不得把本场正史里没有的实体写进来。\
+禁止套话：「淡淡道」「嘴角微微」。\
 不要分栏标题，不要 Markdown，不要说「正史」「格子」。不要输出 JSON。"
 }
 
@@ -307,7 +347,7 @@ pub fn expand_user_prompt(b: &SourceBeat, min_hanzi: usize, approved: &str) -> S
         approved.to_string()
     };
     format!(
-        "本场任务：{}\n地点：{}\n价值转折：{}\n种类：{}\n目标汉字不少于 {min_hanzi}（只扩写已有句子的措辞，禁止新事实，禁止复读）。\n\n正史句子（必须全部用上）：\n{}\n\n章内已过审段落（只可学织法，不可抄句、不可借实体）：\n{approved_block}",
+        "本场任务：{}\n地点：{}\n价值转折：{}\n种类：{}\n目标汉字不少于 {min_hanzi}（只扩写已有句子的措辞，禁止新事实，禁止复读；场面靠对白推进，过场才用叙述）。\n\n正史句子（必须全部用上）：\n{}\n\n章内已过审段落（只可学织法，不可抄句、不可借实体）：\n{approved_block}",
         b.intent,
         b.place,
         b.value_shift,
@@ -487,6 +527,8 @@ mod tests {
     fn hanzi_matches_plan_a() {
         assert_eq!(hanzi_count("朱瞻基看图"), 5);
         assert_eq!(dialogue_hanzi("朱瞻基：「何时可以不必拉纤？」"), 8);
+        assert_eq!(dialogue_ratio_pct("朱瞻基：「何时可以不必拉纤？」"), 72.7);
+        assert_eq!(dialogue_ratio_pct(""), 0.0);
     }
 
     #[test]
@@ -644,10 +686,43 @@ mod tests {
         let sys = expand_system_prompt();
         assert!(sys.contains("兜底扩写"));
         assert!(sys.contains("禁止把同一句或同一段原样重复"));
+        assert!(sys.contains("场面靠对白推进"));
+        assert!(sys.contains("不要写成每拍定额"));
+        assert!(sys.contains("淡淡道"));
+        assert!(sys.contains("嘴角微微"));
+        assert!(!sys.contains("新对白"));
         let user = expand_user_prompt(&b, 200, "【已过审1】\n雨打在油纸边。\n");
         assert!(user.contains("章内已过审"));
         assert!(user.contains("不可抄句"));
         assert!(user.contains("何时可以不必拉纤"));
+        assert!(user.contains("场面靠对白推进"));
+    }
+
+    #[test]
+    fn polish_prompt_asks_dialogue_not_quota() {
+        let b = beat();
+        let sys = polish_system_prompt();
+        assert!(sys.contains("场面靠对白推进"));
+        assert!(sys.contains("过场才用叙述"));
+        assert!(sys.contains("不要写成每拍定额"));
+        assert!(sys.contains("淡淡道"));
+        assert!(sys.contains("嘴角微微"));
+        assert!(!sys.contains("新对白"));
+        let user = polish_user_prompt(&b, 200);
+        assert!(user.contains("场面靠对白推进"));
+        assert!(user.contains("何时可以不必拉纤"));
+    }
+
+    #[test]
+    fn ban_scan_hits_stock_phrases() {
+        let clean = "苏荆溪：「臣在舱外听雨。」唐赛儿点头。";
+        assert!(ban_scan(clean).is_empty());
+        assert!(!has_ban_violation(clean));
+        let bad = "苏荆溪没有反驳，只是淡淡道：「臣在舱外听雨。」唐赛儿嘴角微微上扬。";
+        let hits = ban_scan(bad);
+        assert_eq!(hits, vec!["淡淡道".to_string(), "嘴角微微".to_string()]);
+        assert!(has_ban_violation(bad));
+        assert_eq!(ban_reject_reason(bad), "ban:淡淡道|嘴角微微");
     }
 
     #[test]

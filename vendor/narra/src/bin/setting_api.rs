@@ -12,9 +12,11 @@ use narra::services::canon::{BeatPatch, SettingBook};
 use narra::services::circumstances::{apply_person_lens, suggest_promise_op};
 use narra::services::constrain;
 use narra::services::chapter_compose::{
-    self, approved_excerpt, beat_weight, expand_system_prompt, expand_user_prompt, fact_check,
-    hanzi_count, has_repeat_violation, min_hanzi_for_beat, polish_system_prompt, polish_user_prompt,
-    repeat_reject_reason, source_blob, weave_beat, FactReport, MinHanziMode, SourceBeat,
+    self, approved_excerpt, ban_reject_reason, ban_scan, beat_weight, dialogue_hanzi,
+    dialogue_ratio_pct, expand_system_prompt, expand_user_prompt, fact_check, hanzi_count,
+    has_ban_violation, has_repeat_violation, min_hanzi_for_beat, polish_system_prompt,
+    polish_user_prompt, repeat_reject_reason, source_blob, weave_beat, FactReport, MinHanziMode,
+    SourceBeat,
 };
 use narra::services::craft::{self, BookCraft, ExportBeat};
 use narra::services::fill::{
@@ -947,7 +949,8 @@ async fn try_llm_rewrite(
                 out.last_check = Some(check.clone());
                 out.last_hanzi = h;
                 let repeat_bad = has_repeat_violation(&txt);
-                if check.polish_pass() && !repeat_bad {
+                let ban_bad = has_ban_violation(&txt);
+                if check.polish_pass() && !repeat_bad && !ban_bad {
                     log_compose_event(
                         path,
                         "ACCEPT",
@@ -964,7 +967,9 @@ async fn try_llm_rewrite(
                     out.text = Some(txt);
                     return out;
                 }
-                let reason = if repeat_bad && check.polish_pass() {
+                let reason = if ban_bad && check.polish_pass() && !repeat_bad {
+                    ban_reject_reason(&txt)
+                } else if repeat_bad && check.polish_pass() {
                     repeat_reject_reason(&txt)
                 } else {
                     polish_reject_reason(&check, h, src_h, None)
@@ -984,7 +989,7 @@ async fn try_llm_rewrite(
                     min_h,
                 );
                 prompt = format!(
-                    "{user0}\n\n上一稿未过审：{reason}\n请只重排已给的正史句子。「」内原文必须出现，禁止新人物新地点，禁止复读同一句或同一段。"
+                    "{user0}\n\n上一稿未过审：{reason}\n请只重排已给的正史句子。「」内原文必须出现，禁止新人物新地点，禁止复读同一句或同一段。场面靠对白推进。禁止套话「淡淡道」「嘴角微微」。"
                 );
             }
             Err(e) => {
@@ -5824,6 +5829,8 @@ async fn compose_chapter(
             "expand_attempts": w.expand_attempts,
             "source_hanzi": w.src_h,
             "hanzi": hanzi_count(&w.body),
+            "dialogue_hanzi": dialogue_hanzi(&w.body),
+            "dialogue_ratio": dialogue_ratio_pct(&w.body),
             "min_hanzi": w.min_h,
             "reject_reason": if w.used == "polish" { String::new() } else { w.last_reason.clone() },
         }));
@@ -5838,6 +5845,10 @@ async fn compose_chapter(
         .join("\n\n");
     let check = fact_check(&source_all, &export_md, &entity_names);
     let han = hanzi_count(&export_md);
+    let dlg_h = dialogue_hanzi(&prose);
+    let dlg_pct = dialogue_ratio_pct(&prose);
+    let ban_hits = ban_scan(&export_md);
+    let ban_ok = ban_hits.is_empty();
     let gate_ok = check.polish_pass() && !has_repeat_violation(&prose);
     let payload = serde_json::json!({
         "chapter": chapter_title,
@@ -5849,9 +5860,13 @@ async fn compose_chapter(
         "source_hanzi": chapter_source,
         "target_hanzi": chapter_target,
         "min_hanzi_mode": min_hanzi_mode.as_str(),
+        "dialogue_hanzi": dlg_h,
+        "dialogue_ratio": dlg_pct,
         "fact_check": check,
         "gate_ok": gate_ok,
         "repeat_ok": !has_repeat_violation(&prose),
+        "ban_ok": ban_ok,
+        "ban_hits": ban_hits,
         "beat_reports": beat_reports,
         "prose": prose,
         "export_md": export_md,

@@ -771,8 +771,13 @@ async fn call_chat_ex(
     }
     let model = std::env::var("SETTING_LLM_MODEL").unwrap_or_else(|_| "qwen3.8-flash".into());
     let url = chat_completions_url(&base);
+    // 腾讯机无公网 IPv6（ENETUNREACH）。不绑 v4 时 rustls/reqwest 先试 AAAA，
+    // 会把 180s 整段超时吃掉，日志只剩 "error sending request for url"。
+    // 这不是改 T2 的 180s 读超时，只限制连接族。
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(timeout_secs))
+        .connect_timeout(std::time::Duration::from_secs(10))
+        .local_address(std::net::IpAddr::V4(std::net::Ipv4Addr::UNSPECIFIED))
         .build()
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     let sent = serde_json::json!({
@@ -791,7 +796,16 @@ async fn call_chat_ex(
         .json(&sent)
         .send()
         .await
-        .map_err(|e| (StatusCode::BAD_GATEWAY, format!("模型请求失败：{e}")))?;
+        .map_err(|e| {
+            let mut msg = format!("模型请求失败：{e}");
+            let mut src = std::error::Error::source(&e);
+            while let Some(s) = src {
+                msg.push_str(" :: ");
+                msg.push_str(&s.to_string());
+                src = s.source();
+            }
+            (StatusCode::BAD_GATEWAY, msg)
+        })?;
     let status = resp.status();
     let body_json: serde_json::Value = resp
         .json()
@@ -5786,7 +5800,7 @@ async fn compose_chapter(
     let check = fact_check(&source_all, &export_md, &entity_names);
     let han = hanzi_count(&export_md);
     let gate_ok = check.polish_pass() && !has_repeat_violation(&prose);
-    Ok(Json(serde_json::json!({
+    let payload = serde_json::json!({
         "chapter": chapter_title,
         "beats": beats.len(),
         "polished_beats": polished_n,
@@ -5803,7 +5817,24 @@ async fn compose_chapter(
         "prose": prose,
         "export_md": export_md,
         "auto_canon": false,
-    })))
+    });
+    // 客户端 curl 超时会丢响应；落盘一份供验收。
+    if let Ok(bytes) = serde_json::to_vec(&payload) {
+        let dump = std::path::Path::new("logs/compose-last.json");
+        if let Some(parent) = dump.parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+        if let Err(e) = std::fs::write(dump, &bytes) {
+            eprintln!("compose-chapter dump_fail path={} err={e}", dump.display());
+        } else {
+            eprintln!(
+                "compose-chapter dump_ok path={} bytes={} hanzi={han} polished={polished_n} expand={expand_n} fallback={fallback_n}",
+                dump.display(),
+                bytes.len()
+            );
+        }
+    }
+    Ok(Json(payload))
 }
 
 async fn get_talk(

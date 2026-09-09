@@ -1,7 +1,7 @@
 //! 章级拼写器：只重排已入正史的句子，不增事实、不删事实、不写回正史。
 
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct SourceBeat {
@@ -179,13 +179,14 @@ pub fn polish_system_prompt() -> &'static str {
 禁止增加新人物、新地点、新器物、新事件、新对白、新知情。\
 禁止删掉已给的对白原文：「」里的字必须原样出现。\
 可以把动作、对白、内心按时间织在一起；衔接只能用这些句子里已经出现过的词。\
+禁止把同一句或同一段原样重复。禁止短句连打。字数不够时换一种说法写开，不得靠复读凑字。\
 不要分栏标题，不要 Markdown，不要说「正史」「格子」。\
 不要指定下一场。不要输出 JSON。"
 }
 
 pub fn polish_user_prompt(b: &SourceBeat, min_hanzi: usize) -> String {
     format!(
-        "本场任务：{}\n地点：{}\n价值转折：{}\n种类：{}\n目标汉字不少于 {min_hanzi}（用已有感官词衔接，禁止新事实）。\n\n正史句子（必须全部用上）：\n{}",
+        "本场任务：{}\n地点：{}\n价值转折：{}\n种类：{}\n目标汉字不少于 {min_hanzi}（用已有感官词衔接，禁止新事实，禁止复读）。\n\n正史句子（必须全部用上）：\n{}",
         b.intent,
         b.place,
         b.value_shift,
@@ -196,6 +197,143 @@ pub fn polish_user_prompt(b: &SourceBeat, min_hanzi: usize) -> String {
         },
         numbered_sentences(b)
     )
+}
+
+/// 整段（≥20 汉字、空行分段）出现次数 >2，或短句（≤20 汉字）连打 ≥3。
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct RepeatReport {
+    pub para_over_2: Vec<(String, usize)>,
+    pub consec_short_ge_3: Vec<(String, usize)>,
+}
+
+impl RepeatReport {
+    pub fn ok(&self) -> bool {
+        self.para_over_2.is_empty() && self.consec_short_ge_3.is_empty()
+    }
+}
+
+pub fn split_paragraphs(s: &str) -> Vec<String> {
+    s.split("\n\n")
+        .map(|p| p.trim().to_string())
+        .filter(|p| !p.is_empty() && hanzi_count(p) >= 20)
+        .collect()
+}
+
+pub fn split_sentences(s: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut cur = String::new();
+    for ch in s.chars() {
+        cur.push(ch);
+        if matches!(ch, '。' | '！' | '？') {
+            let t = cur.trim().to_string();
+            if !t.is_empty() {
+                out.push(t);
+            }
+            cur.clear();
+        }
+    }
+    let t = cur.trim().to_string();
+    if !t.is_empty() {
+        out.push(t);
+    }
+    out
+}
+
+pub fn repeat_scan(s: &str) -> RepeatReport {
+    let mut para_counts: BTreeMap<String, usize> = BTreeMap::new();
+    for p in split_paragraphs(s) {
+        *para_counts.entry(p).or_default() += 1;
+    }
+    let para_over_2: Vec<(String, usize)> = para_counts.into_iter().filter(|(_, c)| *c > 2).collect();
+
+    let sents = split_sentences(s);
+    let mut consec_short_ge_3 = Vec::new();
+    let mut i = 0;
+    while i < sents.len() {
+        let t = sents[i].trim();
+        let mut j = i + 1;
+        while j < sents.len() && sents[j].trim() == t && !t.is_empty() {
+            j += 1;
+        }
+        let run = j - i;
+        let h = hanzi_count(t);
+        if run >= 3 && (1..=20).contains(&h) {
+            consec_short_ge_3.push((t.to_string(), run));
+        }
+        i = j;
+    }
+    RepeatReport {
+        para_over_2,
+        consec_short_ge_3,
+    }
+}
+
+pub fn has_repeat_violation(s: &str) -> bool {
+    !repeat_scan(s).ok()
+}
+
+pub fn repeat_reject_reason(s: &str) -> String {
+    let r = repeat_scan(s);
+    let mut parts = Vec::new();
+    if let Some((p, c)) = r.para_over_2.iter().max_by_key(|(_, c)| *c) {
+        let clip: String = p.chars().take(24).collect();
+        parts.push(format!("para_repeat {c}x:{clip}"));
+    }
+    if let Some((p, c)) = r.consec_short_ge_3.iter().max_by_key(|(_, c)| *c) {
+        parts.push(format!("consec_short {c}x:{p}"));
+    }
+    if parts.is_empty() {
+        "repeat".into()
+    } else {
+        parts.join("; ")
+    }
+}
+
+pub fn expand_system_prompt() -> &'static str {
+    "你是设定图的章级拼写器（兜底扩写）。\
+只重排、扩展已给的正史句子的措辞，写成可当小说读的连贯段落。\
+禁止增加新人物、新地点、新器物、新事件、新对白、新知情。\
+禁止删掉已给的对白原文：「」里的字必须原样出现。\
+禁止把同一句或同一段原样重复两遍以上。禁止短句连打。\
+字数不够时，把本场已给句子里出现过的感官、动作、关系换成另一种说法写开，不得靠复读凑字，不得引入未编号句子里没有的事实。\
+可以参考「章内已过审」段落的织法，但不得抄那些段落的句子，也不得把本场正史里没有的实体写进来。\
+不要分栏标题，不要 Markdown，不要说「正史」「格子」。不要输出 JSON。"
+}
+
+pub fn expand_user_prompt(b: &SourceBeat, min_hanzi: usize, approved: &str) -> String {
+    let approved_block = if approved.trim().is_empty() {
+        "（本章尚无已过审段落，只扩写本场正史句子。）".to_string()
+    } else {
+        approved.to_string()
+    };
+    format!(
+        "本场任务：{}\n地点：{}\n价值转折：{}\n种类：{}\n目标汉字不少于 {min_hanzi}（只扩写已有句子的措辞，禁止新事实，禁止复读）。\n\n正史句子（必须全部用上）：\n{}\n\n章内已过审段落（只可学织法，不可抄句、不可借实体）：\n{approved_block}",
+        b.intent,
+        b.place,
+        b.value_shift,
+        if b.kind == "ellipsis" {
+            "省略场"
+        } else {
+            "场面"
+        },
+        numbered_sentences(b)
+    )
+}
+
+/// 章内已过审正文摘录，供兜底扩写学织法。总长约 `limit` 字。
+pub fn approved_excerpt(bodies: &[String], limit: usize) -> String {
+    if bodies.is_empty() {
+        return String::new();
+    }
+    let mut out = String::new();
+    for (i, b) in bodies.iter().enumerate() {
+        if out.chars().count() >= limit {
+            break;
+        }
+        let clip: String = b.chars().take(360).collect();
+        out.push_str(&format!("【已过审{}】\n{}\n\n", i + 1, clip));
+    }
+    out
 }
 
 pub fn scene_heading(b: &SourceBeat) -> String {
@@ -467,5 +605,56 @@ mod tests {
         assert!(l_min > s_min);
         // 短拍不应再背 1.39× 均摊
         assert!(s_ratio < 1.39, "short ratio {s_ratio}");
+    }
+
+    #[test]
+    fn repeat_scan_allows_para_twice_rejects_thrice() {
+        let p = "铅云压在篷上。雨不是洗尘的雨，是把漕河一线蒸熟的雨。朱瞻基负手看舷外闸关倒退。\n\n";
+        let twice = format!("{p}{p}对白另起。");
+        assert!(repeat_scan(&twice).ok(), "{:?}", repeat_scan(&twice));
+        let thrice = format!("{p}{p}{p}对白另起。");
+        let r = repeat_scan(&thrice);
+        assert!(!r.ok(), "{r:?}");
+        assert_eq!(r.para_over_2[0].1, 3);
+    }
+
+    #[test]
+    fn repeat_scan_catches_consecutive_short() {
+        let ok = "孝服雪白。吴定缘摸到发髻。不照不等于没有。";
+        assert!(repeat_scan(ok).ok(), "{:?}", repeat_scan(ok));
+        let bad = "孝服雪白。孝服雪白。孝服雪白。吴定缘摸到发髻。";
+        let r = repeat_scan(bad);
+        assert!(!r.ok(), "{r:?}");
+        assert!(
+            r.consec_short_ge_3.iter().any(|(s, c)| s.contains("孝服雪白") && *c == 3),
+            "{r:?}"
+        );
+    }
+
+    #[test]
+    fn weave_beat_without_echo_is_clean() {
+        let b = beat();
+        let body = weave_beat(&b);
+        assert!(repeat_scan(&body).ok(), "{:?}", repeat_scan(&body));
+    }
+
+    #[test]
+    fn expand_prompt_forbids_echo_and_mentions_approved() {
+        let b = beat();
+        let sys = expand_system_prompt();
+        assert!(sys.contains("兜底扩写"));
+        assert!(sys.contains("禁止把同一句或同一段原样重复"));
+        let user = expand_user_prompt(&b, 200, "【已过审1】\n雨打在油纸边。\n");
+        assert!(user.contains("章内已过审"));
+        assert!(user.contains("不可抄句"));
+        assert!(user.contains("何时可以不必拉纤"));
+    }
+
+    #[test]
+    fn approved_excerpt_clips() {
+        let bodies = vec!["甲。".repeat(20), "乙。".repeat(20)];
+        let s = approved_excerpt(&bodies, 80);
+        assert!(s.contains("【已过审1】"));
+        assert!(s.chars().count() < 500);
     }
 }

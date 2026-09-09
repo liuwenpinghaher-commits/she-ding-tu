@@ -360,6 +360,145 @@ pub fn expand_user_prompt(b: &SourceBeat, min_hanzi: usize, approved: &str) -> S
     )
 }
 
+/// 章级对白比硬 gate 线。与评测 B 锚 45.8%−10pp 对齐。只在章级触发，不逐拍定额。
+pub const CHAPTER_DLG_MIN_PCT: f64 = 35.8;
+/// 长叙述拍：正文汉字多于该值。
+pub const DLG_REWRITE_LONG_HANZI: usize = 1500;
+/// 优先改写：对白比低于该值。
+pub const DLG_REWRITE_LOW_PCT: f64 = 20.0;
+pub const DLG_REWRITE_MAX_BEATS: usize = 3;
+pub const DLG_REWRITE_MAX_ROUNDS: u32 = 2;
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct DlgBeatStat {
+    pub index: usize,
+    pub kind: String,
+    pub hanzi: usize,
+    pub dlg_pct: f64,
+}
+
+/// 挑 1–3 个长叙述拍做对白改写。优先 hanzi>1500 且 dlg<20%；不足再按对白比从低到高补长拍；仍空才落短场面。省略场与已过 35.8% 的拍不挑。
+pub fn pick_dialogue_rewrite_targets(stats: &[DlgBeatStat], max_n: usize) -> Vec<usize> {
+    let max_n = max_n.clamp(1, DLG_REWRITE_MAX_BEATS);
+    let scenes: Vec<&DlgBeatStat> = stats
+        .iter()
+        .filter(|s| s.kind != "ellipsis" && s.hanzi > 0 && s.dlg_pct < CHAPTER_DLG_MIN_PCT)
+        .collect();
+    let sort_low_dlg = |a: &&DlgBeatStat, b: &&DlgBeatStat| {
+        a.dlg_pct
+            .partial_cmp(&b.dlg_pct)
+            .unwrap_or(std::cmp::Ordering::Equal)
+            .then_with(|| b.hanzi.cmp(&a.hanzi))
+            .then_with(|| a.index.cmp(&b.index))
+    };
+    let mut preferred: Vec<&DlgBeatStat> = scenes
+        .iter()
+        .copied()
+        .filter(|s| s.hanzi > DLG_REWRITE_LONG_HANZI && s.dlg_pct < DLG_REWRITE_LOW_PCT)
+        .collect();
+    preferred.sort_by(sort_low_dlg);
+    let mut out: Vec<usize> = Vec::new();
+    for s in preferred {
+        if out.len() >= max_n {
+            break;
+        }
+        out.push(s.index);
+    }
+    if out.len() >= max_n {
+        return out;
+    }
+    let mut long: Vec<&DlgBeatStat> = scenes
+        .iter()
+        .copied()
+        .filter(|s| s.hanzi > DLG_REWRITE_LONG_HANZI && !out.contains(&s.index))
+        .collect();
+    long.sort_by(sort_low_dlg);
+    for s in long {
+        if out.len() >= max_n {
+            break;
+        }
+        out.push(s.index);
+    }
+    if !out.is_empty() {
+        return out;
+    }
+    let mut rest: Vec<&DlgBeatStat> = scenes
+        .iter()
+        .copied()
+        .filter(|s| !out.contains(&s.index))
+        .collect();
+    rest.sort_by(sort_low_dlg);
+    for s in rest {
+        if out.len() >= max_n {
+            break;
+        }
+        out.push(s.index);
+    }
+    out
+}
+
+/// 与 `~/notes/sdt-novel-score.py` `clean_export` 对齐。只供章级对白比自算，不改评分脚本。
+pub fn clean_export_md(md: &str) -> String {
+    let mut lines: Vec<String> = Vec::new();
+    for raw in md.lines() {
+        let line = raw.trim_end();
+        if line.starts_with("状态：") || line.starts_with("本场任务：") {
+            continue;
+        }
+        if let Some(rest) = line.strip_prefix("地点：") {
+            let loc = rest.trim();
+            if !loc.is_empty() && loc != "（未标）" {
+                lines.push(loc.to_string());
+            }
+            continue;
+        }
+        if let Some(rest) = line.strip_prefix("价值转折：") {
+            let vs = rest.trim();
+            if !vs.is_empty() && vs != "（无）" {
+                lines.push(vs.to_string());
+            }
+            continue;
+        }
+        let mut stripped = false;
+        for prefix in ["动作：", "对白：", "内心："] {
+            if let Some(rest) = line.strip_prefix(prefix) {
+                if !rest.is_empty() {
+                    lines.push(rest.to_string());
+                }
+                stripped = true;
+                break;
+            }
+        }
+        if stripped {
+            continue;
+        }
+        lines.push(line.to_string());
+    }
+    format!("{}\n", lines.join("\n").trim())
+}
+
+pub fn dialogue_rewrite_system_prompt() -> &'static str {
+    "你是设定图的章级拼写器（对白改写）。\
+本拍是长叙述拍。把叙述场面改成人物开口推进。\
+禁止增加新人物、新地点、新器物、新事件、新知情。\
+禁止删掉已给的对白原文：「」里的字必须原样出现。已给对白不得改写、不得删、不得换人说。\
+可以把叙述里已经发生的动作、判断、知情改成在场人物用嘴说出来；说的内容必须能从已给正史句子推出来，不得发明新事实。\
+禁止把同一句或同一段原样重复。禁止短句连打。不得靠复读凑对白比。\
+禁止套话：「淡淡道」「嘴角微微」。\
+不要分栏标题，不要 Markdown，不要说「正史」「格子」。不要输出 JSON。"
+}
+
+pub fn dialogue_rewrite_user_prompt(b: &SourceBeat, current: &str, min_hanzi: usize) -> String {
+    format!(
+        "本场任务：{}\n地点：{}\n价值转折：{}\n种类：场面\n把下面这篇叙述场面改成人物开口推进。不增删事实，不动已给对白原文。「」内字必须原样出现。汉字不少于 {min_hanzi}。禁止复读凑数。禁止套话「淡淡道」「嘴角微微」。\n\n正史句子（必须全部用上，对白原文不得改）：\n{}\n\n当前稿（叙述过多，请改成开口推进，保留已有「」原文）：\n{}",
+        b.intent,
+        b.place,
+        b.value_shift,
+        numbered_sentences(b),
+        current.trim()
+    )
+}
+
 /// 章内已过审正文摘录，供兜底扩写学织法。总长约 `limit` 字。
 pub fn approved_excerpt(bodies: &[String], limit: usize) -> String {
     if bodies.is_empty() {
@@ -731,5 +870,120 @@ mod tests {
         let s = approved_excerpt(&bodies, 80);
         assert!(s.contains("【已过审1】"));
         assert!(s.chars().count() < 500);
+    }
+
+    fn dlg_stat(index: usize, kind: &str, hanzi: usize, dlg_pct: f64) -> DlgBeatStat {
+        DlgBeatStat {
+            index,
+            kind: kind.into(),
+            hanzi,
+            dlg_pct,
+        }
+    }
+
+    #[test]
+    fn dlg_pick_prefers_long_low_like_r5() {
+        // r5：白莲线 10.9% / 民为贵 20.4% / 看水路图类 21.8%；短拍与已过线拍不挑。
+        let stats = vec![
+            dlg_stat(0, "ellipsis", 38, 0.0),
+            dlg_stat(1, "ellipsis", 16, 0.0),
+            dlg_stat(2, "ellipsis", 47, 0.0),
+            dlg_stat(3, "ellipsis", 35, 0.0),
+            dlg_stat(4, "scene", 2161, 20.4),
+            dlg_stat(5, "scene", 1464, 15.2),
+            dlg_stat(6, "scene", 1981, 21.8),
+            dlg_stat(7, "scene", 3248, 10.9),
+            dlg_stat(8, "scene", 1722, 30.3),
+            dlg_stat(9, "scene", 1363, 23.0),
+            dlg_stat(10, "scene", 956, 34.8),
+            dlg_stat(11, "scene", 513, 53.6),
+        ];
+        let got = pick_dialogue_rewrite_targets(&stats, 3);
+        assert_eq!(got, vec![7, 4, 6]);
+        assert!(got.len() <= DLG_REWRITE_MAX_BEATS);
+    }
+
+    #[test]
+    fn dlg_pick_caps_at_three_preferred() {
+        let stats = vec![
+            dlg_stat(0, "scene", 2000, 10.0),
+            dlg_stat(1, "scene", 2100, 11.0),
+            dlg_stat(2, "scene", 2200, 12.0),
+            dlg_stat(3, "scene", 2300, 13.0),
+        ];
+        assert_eq!(pick_dialogue_rewrite_targets(&stats, 3), vec![0, 1, 2]);
+    }
+
+    #[test]
+    fn dlg_pick_skips_over_line_and_ellipsis() {
+        let stats = vec![
+            dlg_stat(0, "ellipsis", 2000, 5.0),
+            dlg_stat(1, "scene", 800, 53.6),
+            dlg_stat(2, "scene", 900, 40.0),
+        ];
+        assert!(pick_dialogue_rewrite_targets(&stats, 3).is_empty());
+    }
+
+    #[test]
+    fn dlg_pick_falls_to_short_when_no_long() {
+        let stats = vec![
+            dlg_stat(0, "scene", 800, 10.0),
+            dlg_stat(1, "scene", 700, 5.0),
+            dlg_stat(2, "scene", 900, 12.0),
+        ];
+        assert_eq!(pick_dialogue_rewrite_targets(&stats, 3), vec![1, 0, 2]);
+    }
+
+    #[test]
+    fn dialogue_rewrite_prompt_converts_narrative_keeps_quotes_and_ban() {
+        let b = beat();
+        let sys = dialogue_rewrite_system_prompt();
+        assert!(sys.contains("对白改写"));
+        assert!(sys.contains("把叙述场面改成人物开口推进"));
+        assert!(sys.contains("不得发明新事实"));
+        assert!(sys.contains("已给对白不得改写"));
+        assert!(sys.contains("不得靠复读凑对白比"));
+        assert!(sys.contains("淡淡道"));
+        assert!(sys.contains("嘴角微微"));
+        let user = dialogue_rewrite_user_prompt(&b, "于谦把炭笔递给太子。舱里雨气很重。", 50);
+        assert!(user.contains("把下面这篇叙述场面改成人物开口推进"));
+        assert!(user.contains("不增删事实"));
+        assert!(user.contains("不动已给对白原文"));
+        assert!(user.contains("何时可以不必拉纤"));
+        assert!(user.contains("当前稿"));
+        assert!(user.contains("舱里雨气很重"));
+        assert!(user.contains("淡淡道"));
+    }
+
+    #[test]
+    fn clean_export_md_strips_markers_keeps_place_and_shift() {
+        let b = beat();
+        let md = export_composed("两京对标", "人与消息", "济南水程", &[(b.clone(), weave_beat(&b))]);
+        let clean = clean_export_md(&md);
+        assert!(!clean.contains("状态："));
+        assert!(!clean.contains("本场任务："));
+        assert!(!clean.contains("地点："));
+        assert!(!clean.contains("价值转折："));
+        assert!(clean.contains("漕河船舱"));
+        assert!(clean.contains("嫌慢 → 看懂河脊"));
+        assert!(clean.contains("何时可以不必拉纤"));
+        let dlg = dialogue_ratio_pct(&clean);
+        assert!(dlg > 0.0, "{dlg}");
+        assert_eq!(CHAPTER_DLG_MIN_PCT, 35.8);
+    }
+
+    #[test]
+    fn dlg_rewrite_fact_gate_ignores_added_quotes() {
+        let b = beat();
+        let src = source_blob(&b);
+        let r = fact_check(
+            &src,
+            "于谦把炭笔递给太子。朱瞻基：「何时可以不必拉纤？」于谦：「殿下勿急。」朱瞻基：「雨还在下。」",
+            &[],
+        );
+        assert!(r.polish_pass(), "{r:?}");
+        assert!(!r.added_quotes.is_empty());
+        assert!(r.missing_quotes.is_empty());
+        assert!(r.added_entities.is_empty());
     }
 }

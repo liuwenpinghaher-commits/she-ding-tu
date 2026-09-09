@@ -12,11 +12,12 @@ use narra::services::canon::{BeatPatch, SettingBook};
 use narra::services::circumstances::{apply_person_lens, suggest_promise_op};
 use narra::services::constrain;
 use narra::services::chapter_compose::{
-    self, approved_excerpt, ban_reject_reason, ban_scan, beat_weight, dialogue_hanzi,
-    dialogue_ratio_pct, expand_system_prompt, expand_user_prompt, fact_check, hanzi_count,
-    has_ban_violation, has_repeat_violation, min_hanzi_for_beat, polish_system_prompt,
-    polish_user_prompt, repeat_reject_reason, source_blob, weave_beat, FactReport, MinHanziMode,
-    SourceBeat,
+    self, approved_excerpt, ban_reject_reason, ban_scan, beat_weight, clean_export_md,
+    dialogue_hanzi, dialogue_ratio_pct, dialogue_rewrite_system_prompt, dialogue_rewrite_user_prompt,
+    expand_system_prompt, expand_user_prompt, fact_check, hanzi_count, has_ban_violation,
+    has_repeat_violation, min_hanzi_for_beat, pick_dialogue_rewrite_targets, polish_system_prompt,
+    polish_user_prompt, repeat_reject_reason, source_blob, weave_beat, CHAPTER_DLG_MIN_PCT,
+    DLG_REWRITE_MAX_BEATS, DLG_REWRITE_MAX_ROUNDS, DlgBeatStat, FactReport, MinHanziMode, SourceBeat,
 };
 use narra::services::craft::{self, BookCraft, ExportBeat};
 use narra::services::fill::{
@@ -988,9 +989,15 @@ async fn try_llm_rewrite(
                     src_h,
                     min_h,
                 );
-                prompt = format!(
-                    "{user0}\n\n上一稿未过审：{reason}\n请只重排已给的正史句子。「」内原文必须出现，禁止新人物新地点，禁止复读同一句或同一段。场面靠对白推进。禁止套话「淡淡道」「嘴角微微」。"
-                );
+                prompt = if path == "dlg_rewrite" {
+                    format!(
+                        "{user0}\n\n上一稿未过审：{reason}\n把叙述场面改成人物开口推进。不增删事实，不动已给对白原文。「」内原文必须出现，禁止新人物新地点，禁止复读凑数。禁止套话「淡淡道」「嘴角微微」。"
+                    )
+                } else {
+                    format!(
+                        "{user0}\n\n上一稿未过审：{reason}\n请只重排已给的正史句子。「」内原文必须出现，禁止新人物新地点，禁止复读同一句或同一段。场面靠对白推进。禁止套话「淡淡道」「嘴角微微」。"
+                    )
+                };
             }
             Err(e) => {
                 out.last_reason = polish_reject_reason(&FactReport::default(), 0, src_h, Some(&e.1));
@@ -5616,6 +5623,8 @@ async fn compose_chapter(
         expand_attempts: u32,
         last_reason: String,
         last_check: Option<FactReport>,
+        dlg_rewritten: bool,
+        dlg_rewrite_attempts: u32,
     }
     let mut works: Vec<BeatWork> = Vec::with_capacity(beats.len());
     for (i, b) in beats.iter().enumerate() {
@@ -5662,6 +5671,8 @@ async fn compose_chapter(
             expand_attempts: 0,
             last_reason,
             last_check,
+            dlg_rewritten: false,
+            dlg_rewrite_attempts: 0,
         });
     }
 
@@ -5674,6 +5685,8 @@ async fn compose_chapter(
         approved_excerpt(&bodies, 1800)
     };
 
+    let mut dlg_gate_rounds = 0u32;
+    let mut dlg_rewrites: Vec<serde_json::Value> = Vec::new();
     if polish {
         for i in 0..works.len() {
             if works[i].beat.kind == "ellipsis" {
@@ -5797,6 +5810,144 @@ async fn compose_chapter(
                 }
             }
         }
+
+        // 章级对白比硬 gate：出稿后自算，低于 35.8% 才挑 1–3 个长叙述拍走 expand 改写。
+        // 不逐拍定额。重写失败保留原拍，禁止回退 weave、禁止复读凑数。最多两轮。
+        let chapter_clean_dlg = |works: &[BeatWork]| -> f64 {
+            let bodies: Vec<(SourceBeat, String)> = works
+                .iter()
+                .map(|w| (w.beat.clone(), w.body.clone()))
+                .collect();
+            let export = chapter_compose::export_composed(&name, &premise, &chapter_title, &bodies);
+            dialogue_ratio_pct(&clean_export_md(&export))
+        };
+        loop {
+            let ratio_now = chapter_clean_dlg(&works);
+            if ratio_now >= CHAPTER_DLG_MIN_PCT {
+                eprintln!(
+                    "compose-chapter dlg_gate PASS ratio={ratio_now} target={CHAPTER_DLG_MIN_PCT} rounds={dlg_gate_rounds}"
+                );
+                break;
+            }
+            if dlg_gate_rounds >= DLG_REWRITE_MAX_ROUNDS {
+                eprintln!(
+                    "compose-chapter dlg_gate STOP ratio={ratio_now} target={CHAPTER_DLG_MIN_PCT} rounds={dlg_gate_rounds}"
+                );
+                break;
+            }
+            let stats: Vec<DlgBeatStat> = works
+                .iter()
+                .enumerate()
+                .map(|(i, w)| DlgBeatStat {
+                    index: i,
+                    kind: w.beat.kind.clone(),
+                    hanzi: hanzi_count(&w.body),
+                    dlg_pct: dialogue_ratio_pct(&w.body),
+                })
+                .collect();
+            let picks = pick_dialogue_rewrite_targets(&stats, DLG_REWRITE_MAX_BEATS);
+            dlg_gate_rounds += 1;
+            eprintln!(
+                "compose-chapter dlg_gate START round={dlg_gate_rounds} ratio={ratio_now} target={CHAPTER_DLG_MIN_PCT} picks={picks:?}"
+            );
+            if picks.is_empty() {
+                eprintln!(
+                    "compose-chapter dlg_gate NO_PICKS ratio={ratio_now} round={dlg_gate_rounds}"
+                );
+                break;
+            }
+            for i in picks {
+                let beat = works[i].beat.clone();
+                let src_blob = works[i].src_blob.clone();
+                let src_h = works[i].src_h;
+                let body = works[i].body.clone();
+                let id = beat.id.clone();
+                let before = dialogue_ratio_pct(&body);
+                let before_h = hanzi_count(&body);
+                let floor = src_h.max(before_h * 2 / 3);
+                eprintln!(
+                    "compose-chapter dlg_gate TRY round={dlg_gate_rounds} beat={}/{beat_n} id={id} before_pct={before} hanzi={before_h} floor={floor}",
+                    i + 1
+                );
+                let outcome = try_llm_rewrite(
+                    "dlg_rewrite",
+                    dialogue_rewrite_system_prompt(),
+                    dialogue_rewrite_user_prompt(&beat, &body, src_h),
+                    &src_blob,
+                    &entity_names,
+                    src_h,
+                    src_h,
+                    i + 1,
+                    beat_n,
+                    &id,
+                    2,
+                )
+                .await;
+                let w = &mut works[i];
+                w.dlg_rewrite_attempts = w
+                    .dlg_rewrite_attempts
+                    .saturating_add(outcome.attempts);
+                w.expand_attempts = w.expand_attempts.saturating_add(outcome.attempts);
+                if !outcome.last_reason.is_empty() {
+                    w.last_reason = outcome.last_reason.clone();
+                }
+                if outcome.last_check.is_some() {
+                    w.last_check = outcome.last_check.clone();
+                }
+                let mut accepted = false;
+                let mut after = before;
+                let mut after_h = before_h;
+                let mut reason = if outcome.last_reason.is_empty() {
+                    "no_text".into()
+                } else {
+                    outcome.last_reason.clone()
+                };
+                if let Some(txt) = outcome.text {
+                    after = dialogue_ratio_pct(&txt);
+                    after_h = hanzi_count(&txt);
+                    // 重写拍事实闸已在 try_llm_rewrite 用 polish_pass：只查 missing_quotes / added_entities，added_quotes 不计。
+                    if after_h >= floor && after > before {
+                        w.body = txt;
+                        w.used = "expand";
+                        w.dlg_rewritten = true;
+                        accepted = true;
+                        reason = "ok".into();
+                        eprintln!(
+                            "compose-chapter dlg_gate REPLACE round={dlg_gate_rounds} beat={}/{beat_n} id={id} before_pct={before} after_pct={after} hanzi={before_h}->{after_h}",
+                            i + 1
+                        );
+                    } else if after <= before {
+                        reason = format!("dlg_no_improve {before}->{after}");
+                        eprintln!(
+                            "compose-chapter dlg_gate KEEP round={dlg_gate_rounds} beat={}/{beat_n} id={id} reason={reason}",
+                            i + 1
+                        );
+                    } else {
+                        reason = format!("short hanzi={after_h}<floor {floor}");
+                        eprintln!(
+                            "compose-chapter dlg_gate KEEP round={dlg_gate_rounds} beat={}/{beat_n} id={id} reason={reason}",
+                            i + 1
+                        );
+                    }
+                } else {
+                    eprintln!(
+                        "compose-chapter dlg_gate KEEP round={dlg_gate_rounds} beat={}/{beat_n} id={id} reason={reason}",
+                        i + 1
+                    );
+                }
+                dlg_rewrites.push(serde_json::json!({
+                    "round": dlg_gate_rounds,
+                    "index": i,
+                    "id": id,
+                    "before_pct": before,
+                    "after_pct": after,
+                    "before_hanzi": before_h,
+                    "after_hanzi": after_h,
+                    "accepted": accepted,
+                    "reason": reason,
+                }));
+            }
+        }
     }
 
     let mut polished_n = 0usize;
@@ -5814,7 +5965,9 @@ async fn compose_chapter(
                 }
             }
         }
-        let path = if w.used == "weave" && polish && w.beat.kind != "ellipsis" {
+        let path = if w.dlg_rewritten {
+            "dlg_rewrite"
+        } else if w.used == "weave" && polish && w.beat.kind != "ellipsis" {
             "weave"
         } else {
             w.used
@@ -5827,6 +5980,8 @@ async fn compose_chapter(
             "path": path,
             "attempts": w.attempts,
             "expand_attempts": w.expand_attempts,
+            "dlg_rewrite_attempts": w.dlg_rewrite_attempts,
+            "dialogue_rewritten": w.dlg_rewritten,
             "source_hanzi": w.src_h,
             "hanzi": hanzi_count(&w.body),
             "dialogue_hanzi": dialogue_hanzi(&w.body),
@@ -5847,6 +6002,10 @@ async fn compose_chapter(
     let han = hanzi_count(&export_md);
     let dlg_h = dialogue_hanzi(&prose);
     let dlg_pct = dialogue_ratio_pct(&prose);
+    let clean_md = clean_export_md(&export_md);
+    let dlg_clean_h = dialogue_hanzi(&clean_md);
+    let dlg_clean_pct = dialogue_ratio_pct(&clean_md);
+    let dlg_gate_ok = dlg_clean_pct >= CHAPTER_DLG_MIN_PCT;
     let ban_hits = ban_scan(&export_md);
     let ban_ok = ban_hits.is_empty();
     let gate_ok = check.polish_pass() && !has_repeat_violation(&prose);
@@ -5862,6 +6021,15 @@ async fn compose_chapter(
         "min_hanzi_mode": min_hanzi_mode.as_str(),
         "dialogue_hanzi": dlg_h,
         "dialogue_ratio": dlg_pct,
+        "dialogue_ratio_clean": dlg_clean_pct,
+        "dialogue_hanzi_clean": dlg_clean_h,
+        "dialogue_gate": {
+            "target_pct": CHAPTER_DLG_MIN_PCT,
+            "rounds": dlg_gate_rounds,
+            "ok": dlg_gate_ok,
+            "final_pct": dlg_clean_pct,
+            "rewrites": dlg_rewrites,
+        },
         "fact_check": check,
         "gate_ok": gate_ok,
         "repeat_ok": !has_repeat_violation(&prose),
@@ -5882,7 +6050,7 @@ async fn compose_chapter(
             eprintln!("compose-chapter dump_fail path={} err={e}", dump.display());
         } else {
             eprintln!(
-                "compose-chapter dump_ok path={} bytes={} hanzi={han} polished={polished_n} expand={expand_n} fallback={fallback_n}",
+                "compose-chapter dump_ok path={} bytes={} hanzi={han} polished={polished_n} expand={expand_n} fallback={fallback_n} dlg={dlg_pct} dlg_clean={dlg_clean_pct} dlg_gate_ok={dlg_gate_ok} dlg_gate_rounds={dlg_gate_rounds}",
                 dump.display(),
                 bytes.len()
             );

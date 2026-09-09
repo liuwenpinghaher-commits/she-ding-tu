@@ -12,8 +12,9 @@ use narra::services::canon::{BeatPatch, SettingBook};
 use narra::services::circumstances::{apply_person_lens, suggest_promise_op};
 use narra::services::constrain;
 use narra::services::chapter_compose::{
-    self, beat_weight, fact_check, hanzi_count, min_hanzi_for_beat, polish_system_prompt,
-    polish_user_prompt, source_blob, weave_beat, FactReport, MinHanziMode, SourceBeat,
+    self, approved_excerpt, beat_weight, expand_system_prompt, expand_user_prompt, fact_check,
+    hanzi_count, has_repeat_violation, min_hanzi_for_beat, polish_system_prompt, polish_user_prompt,
+    repeat_reject_reason, source_blob, weave_beat, FactReport, MinHanziMode, SourceBeat,
 };
 use narra::services::craft::{self, BookCraft, ExportBeat};
 use narra::services::fill::{
@@ -829,7 +830,8 @@ fn polish_reject_reason(check: &FactReport, hanzi: usize, source_hanzi: usize, l
     }
 }
 
-fn log_polish_event(
+fn log_compose_event(
+    path: &str,
     kind: &str,
     beat_i: usize,
     beat_n: usize,
@@ -843,14 +845,114 @@ fn log_polish_event(
 ) {
     if let Some(c) = check {
         eprintln!(
-            "compose-chapter polish {kind} beat={beat_i}/{beat_n} id={id} attempt={attempt} reason={reason} missing_quotes={:?} added_entities={:?} added_quotes={:?} hanzi={hanzi} source_hanzi={source_hanzi} min_hanzi={min_hanzi}",
+            "compose-chapter {path} {kind} beat={beat_i}/{beat_n} id={id} attempt={attempt} reason={reason} missing_quotes={:?} added_entities={:?} added_quotes={:?} hanzi={hanzi} source_hanzi={source_hanzi} min_hanzi={min_hanzi}",
             c.missing_quotes, c.added_entities, c.added_quotes
         );
     } else {
         eprintln!(
-            "compose-chapter polish {kind} beat={beat_i}/{beat_n} id={id} attempt={attempt} reason={reason} hanzi={hanzi} source_hanzi={source_hanzi} min_hanzi={min_hanzi}"
+            "compose-chapter {path} {kind} beat={beat_i}/{beat_n} id={id} attempt={attempt} reason={reason} hanzi={hanzi} source_hanzi={source_hanzi} min_hanzi={min_hanzi}"
         );
     }
+}
+
+struct RewriteOutcome {
+    text: Option<String>,
+    attempts: u32,
+    last_reason: String,
+    last_check: Option<FactReport>,
+    last_hanzi: usize,
+}
+
+async fn try_llm_rewrite(
+    path: &str,
+    system: &str,
+    user0: String,
+    src_blob: &str,
+    entity_names: &[String],
+    src_h: usize,
+    min_h: usize,
+    beat_i: usize,
+    beat_n: usize,
+    id: &str,
+    max_attempts: u32,
+) -> RewriteOutcome {
+    let mut out = RewriteOutcome {
+        text: None,
+        attempts: 0,
+        last_reason: String::new(),
+        last_check: None,
+        last_hanzi: 0,
+    };
+    let mut prompt = user0.clone();
+    for attempt in 1u32..=max_attempts {
+        out.attempts = attempt;
+        match call_chat_ex(system, &prompt, 180, 4096).await {
+            Ok(txt) => {
+                let txt = txt.trim().to_string();
+                let check = fact_check(src_blob, &txt, entity_names);
+                let h = hanzi_count(&txt);
+                out.last_check = Some(check.clone());
+                out.last_hanzi = h;
+                let repeat_bad = has_repeat_violation(&txt);
+                if check.polish_pass() && !repeat_bad {
+                    log_compose_event(
+                        path,
+                        "ACCEPT",
+                        beat_i,
+                        beat_n,
+                        id,
+                        attempt,
+                        "ok",
+                        Some(&check),
+                        h,
+                        src_h,
+                        min_h,
+                    );
+                    out.text = Some(txt);
+                    return out;
+                }
+                let reason = if repeat_bad && check.polish_pass() {
+                    repeat_reject_reason(&txt)
+                } else {
+                    polish_reject_reason(&check, h, src_h, None)
+                };
+                out.last_reason = reason.clone();
+                log_compose_event(
+                    path,
+                    "REJECT",
+                    beat_i,
+                    beat_n,
+                    id,
+                    attempt,
+                    &reason,
+                    Some(&check),
+                    h,
+                    src_h,
+                    min_h,
+                );
+                prompt = format!(
+                    "{user0}\n\n上一稿未过审：{reason}\n请只重排已给的正史句子。「」内原文必须出现，禁止新人物新地点，禁止复读同一句或同一段。"
+                );
+            }
+            Err(e) => {
+                out.last_reason = polish_reject_reason(&FactReport::default(), 0, src_h, Some(&e.1));
+                log_compose_event(
+                    path,
+                    "REJECT",
+                    beat_i,
+                    beat_n,
+                    id,
+                    attempt,
+                    &out.last_reason,
+                    None,
+                    0,
+                    src_h,
+                    min_h,
+                );
+            }
+        }
+    }
+    out
 }
 
 fn disk_books(root: &std::path::Path) -> Vec<String> {
@@ -5445,108 +5547,234 @@ async fn compose_chapter(
         .map(|b| beat_weight(hanzi_count(&source_blob(b))))
         .sum();
     let beat_n = beats.len();
-    let mut bodies: Vec<(SourceBeat, String)> = Vec::new();
-    let mut polished_n = 0usize;
-    let mut fallback_n = 0usize;
-    let mut beat_reports: Vec<serde_json::Value> = Vec::new();
+    struct BeatWork {
+        beat: SourceBeat,
+        src_blob: String,
+        src_h: usize,
+        min_h: usize,
+        body: String,
+        used: &'static str,
+        attempts: u32,
+        expand_attempts: u32,
+        last_reason: String,
+        last_check: Option<FactReport>,
+    }
+    let mut works: Vec<BeatWork> = Vec::with_capacity(beats.len());
     for (i, b) in beats.iter().enumerate() {
         let src_blob = source_blob(b);
         let src_h = hanzi_count(&src_blob);
+        let mut min_h = src_h;
         let mut body = weave_beat(b);
         let mut used = "weave";
         let mut attempts = 0u32;
         let mut last_reason = String::new();
         let mut last_check: Option<FactReport> = None;
-        let mut min_h = src_h;
         if polish && b.kind != "ellipsis" {
             min_h = min_hanzi_for_beat(src_h, min_hanzi_mode, weight_sum, surplus);
-            let user0 = polish_user_prompt(b, min_h);
-            let mut prompt = user0.clone();
-            let mut accepted = false;
-            for attempt in 1u32..=2 {
-                attempts = attempt;
-                match call_chat_ex(polish_system_prompt(), &prompt, 180, 4096).await {
-                    Ok(txt) => {
-                        let txt = txt.trim().to_string();
-                        let check = fact_check(&src_blob, &txt, &entity_names);
-                        let h = hanzi_count(&txt);
-                        last_check = Some(check.clone());
-                        if check.polish_pass() {
-                            body = txt;
-                            used = "polish";
-                            polished_n += 1;
-                            accepted = true;
-                            break;
-                        }
-                        last_reason = polish_reject_reason(&check, h, src_h, None);
-                        log_polish_event(
-                            "REJECT",
-                            i + 1,
-                            beat_n,
-                            &b.id,
-                            attempt,
-                            &last_reason,
-                            Some(&check),
-                            h,
-                            src_h,
-                            min_h,
-                        );
-                        prompt = format!(
-                            "{user0}\n\n上一稿未过审：{last_reason}\n请只重排已给的正史句子。「」内原文必须出现，禁止新人物新地点。衔接不要引入未出现的人名。"
-                        );
-                    }
-                    Err(e) => {
-                        last_reason = polish_reject_reason(
-                            &FactReport::default(),
-                            0,
-                            src_h,
-                            Some(&e.1),
-                        );
-                        log_polish_event(
-                            "REJECT",
-                            i + 1,
-                            beat_n,
-                            &b.id,
-                            attempt,
-                            &last_reason,
-                            None,
-                            0,
-                            src_h,
-                            min_h,
-                        );
-                    }
+            let outcome = try_llm_rewrite(
+                "polish",
+                polish_system_prompt(),
+                polish_user_prompt(b, min_h),
+                &src_blob,
+                &entity_names,
+                src_h,
+                min_h,
+                i + 1,
+                beat_n,
+                &b.id,
+                2,
+            )
+            .await;
+            attempts = outcome.attempts;
+            last_reason = outcome.last_reason.clone();
+            last_check = outcome.last_check.clone();
+            if let Some(txt) = outcome.text {
+                body = txt;
+                used = "polish";
+            }
+        }
+        works.push(BeatWork {
+            beat: b.clone(),
+            src_blob,
+            src_h,
+            min_h,
+            body,
+            used,
+            attempts,
+            expand_attempts: 0,
+            last_reason,
+            last_check,
+        });
+    }
+
+    let approved_now = |works: &[BeatWork]| -> String {
+        let bodies: Vec<String> = works
+            .iter()
+            .filter(|w| w.used == "polish" || w.used == "expand")
+            .map(|w| w.body.clone())
+            .collect();
+        approved_excerpt(&bodies, 1800)
+    };
+
+    if polish {
+        for i in 0..works.len() {
+            if works[i].beat.kind == "ellipsis" {
+                continue;
+            }
+            let need = works[i].used != "polish" || hanzi_count(&works[i].body) < works[i].min_h;
+            if !need {
+                continue;
+            }
+            let approved = approved_now(&works);
+            let w = &works[i];
+            eprintln!(
+                "compose-chapter expand TRY beat={}/{beat_n} id={} reason=polish_{} approved_n={} min_hanzi={}",
+                i + 1,
+                w.beat.id,
+                if w.used == "polish" { "short" } else { "rejected" },
+                approved.matches("【已过审").count(),
+                w.min_h
+            );
+            let outcome = try_llm_rewrite(
+                "expand",
+                expand_system_prompt(),
+                expand_user_prompt(&w.beat, w.min_h, &approved),
+                &w.src_blob,
+                &entity_names,
+                w.src_h,
+                w.min_h,
+                i + 1,
+                beat_n,
+                &w.beat.id,
+                2,
+            )
+            .await;
+            let w = &mut works[i];
+            w.expand_attempts = outcome.attempts;
+            if !outcome.last_reason.is_empty() {
+                w.last_reason = outcome.last_reason.clone();
+            }
+            if outcome.last_check.is_some() {
+                w.last_check = outcome.last_check.clone();
+            }
+            if let Some(txt) = outcome.text {
+                let h = hanzi_count(&txt);
+                if h >= hanzi_count(&w.body) {
+                    w.body = txt;
+                    w.used = "expand";
+                } else {
+                    eprintln!(
+                        "compose-chapter expand SKIP_SHORTER beat={}/{beat_n} id={} hanzi={h} keep={} keep_hanzi={}",
+                        i + 1,
+                        w.beat.id,
+                        w.used,
+                        hanzi_count(&w.body)
+                    );
                 }
             }
-            if !accepted {
-                fallback_n += 1;
-                used = "fallback";
-                let h = hanzi_count(&body);
-                log_polish_event(
-                    "FALLBACK",
+            if w.used == "weave" {
+                eprintln!(
+                    "compose-chapter FALLBACK beat={}/{beat_n} id={} path=weave reason={} hanzi={} source_hanzi={} min_hanzi={}",
                     i + 1,
-                    beat_n,
-                    &b.id,
-                    attempts,
-                    &last_reason,
-                    last_check.as_ref(),
-                    h,
-                    src_h,
-                    min_h,
+                    w.beat.id,
+                    w.last_reason,
+                    hanzi_count(&w.body),
+                    w.src_h,
+                    w.min_h
+                );
+            } else if w.used == "polish" && hanzi_count(&w.body) < w.min_h {
+                eprintln!(
+                    "compose-chapter FALLBACK beat={}/{beat_n} id={} path=keep_polish reason=expand_failed:{} hanzi={} min_hanzi={}",
+                    i + 1,
+                    w.beat.id,
+                    w.last_reason,
+                    hanzi_count(&w.body),
+                    w.min_h
                 );
             }
         }
+
+        let prose_now: usize = works.iter().map(|w| hanzi_count(&w.body)).sum();
+        if prose_now < chapter_target {
+            eprintln!(
+                "compose-chapter expand CHAPTER_SHORT prose_hanzi={prose_now} target={chapter_target}"
+            );
+            for i in 0..works.len() {
+                if works[i].beat.kind == "ellipsis" {
+                    continue;
+                }
+                if hanzi_count(&works[i].body) >= works[i].min_h {
+                    continue;
+                }
+                let approved = approved_now(&works);
+                let w = &works[i];
+                eprintln!(
+                    "compose-chapter expand CHAPTER_RETRY beat={}/{beat_n} id={} hanzi={} min_hanzi={}",
+                    i + 1,
+                    w.beat.id,
+                    hanzi_count(&w.body),
+                    w.min_h
+                );
+                let outcome = try_llm_rewrite(
+                    "expand",
+                    expand_system_prompt(),
+                    expand_user_prompt(&w.beat, w.min_h, &approved),
+                    &w.src_blob,
+                    &entity_names,
+                    w.src_h,
+                    w.min_h,
+                    i + 1,
+                    beat_n,
+                    &w.beat.id,
+                    1,
+                )
+                .await;
+                let w = &mut works[i];
+                w.expand_attempts = w.expand_attempts.saturating_add(outcome.attempts);
+                if let Some(txt) = outcome.text {
+                    if hanzi_count(&txt) > hanzi_count(&w.body) {
+                        w.body = txt;
+                        w.used = "expand";
+                    }
+                }
+            }
+        }
+    }
+
+    let mut polished_n = 0usize;
+    let mut expand_n = 0usize;
+    let mut fallback_n = 0usize;
+    let mut beat_reports: Vec<serde_json::Value> = Vec::new();
+    let mut bodies: Vec<(SourceBeat, String)> = Vec::new();
+    for (i, w) in works.iter().enumerate() {
+        match w.used {
+            "polish" => polished_n += 1,
+            "expand" => expand_n += 1,
+            _ => {
+                if polish && w.beat.kind != "ellipsis" {
+                    fallback_n += 1;
+                }
+            }
+        }
+        let path = if w.used == "weave" && polish && w.beat.kind != "ellipsis" {
+            "weave"
+        } else {
+            w.used
+        };
         beat_reports.push(serde_json::json!({
             "index": i,
-            "id": b.id,
-            "kind": b.kind,
-            "used": used,
-            "attempts": attempts,
-            "source_hanzi": src_h,
-            "hanzi": hanzi_count(&body),
-            "min_hanzi": min_h,
-            "reject_reason": if used == "fallback" { last_reason } else { String::new() },
+            "id": w.beat.id,
+            "kind": w.beat.kind,
+            "used": w.used,
+            "path": path,
+            "attempts": w.attempts,
+            "expand_attempts": w.expand_attempts,
+            "source_hanzi": w.src_h,
+            "hanzi": hanzi_count(&w.body),
+            "min_hanzi": w.min_h,
+            "reject_reason": if w.used == "polish" { String::new() } else { w.last_reason.clone() },
         }));
-        bodies.push((b.clone(), body));
+        bodies.push((w.beat.clone(), w.body.clone()));
     }
     let export_md = chapter_compose::export_composed(&name, &premise, &chapter_title, &bodies);
     let prose: String = bodies
@@ -5557,11 +5785,12 @@ async fn compose_chapter(
         .join("\n\n");
     let check = fact_check(&source_all, &export_md, &entity_names);
     let han = hanzi_count(&export_md);
-    let gate_ok = check.polish_pass();
+    let gate_ok = check.polish_pass() && !has_repeat_violation(&prose);
     Ok(Json(serde_json::json!({
         "chapter": chapter_title,
         "beats": beats.len(),
         "polished_beats": polished_n,
+        "expand_beats": expand_n,
         "fallback_beats": fallback_n,
         "hanzi": han,
         "source_hanzi": chapter_source,
@@ -5569,6 +5798,7 @@ async fn compose_chapter(
         "min_hanzi_mode": min_hanzi_mode.as_str(),
         "fact_check": check,
         "gate_ok": gate_ok,
+        "repeat_ok": !has_repeat_violation(&prose),
         "beat_reports": beat_reports,
         "prose": prose,
         "export_md": export_md,

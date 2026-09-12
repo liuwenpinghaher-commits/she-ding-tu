@@ -9,7 +9,7 @@
   --bg-hover: #E8ECF1;
   --bg-selected: #E8EEFC;
   --text: #1C2024;
-  --text-aux: #6B7178;
+  --text-aux: #686e74;
   --line: #E6E8EC;
   --line-strong: #C9CED6;
   --brand: #4665E1;
@@ -51,7 +51,7 @@
   --panel: #F7F8FA;
   --panel-2: #EEF1F4;
   --cream: #1C2024;
-  --mute: #6B7178;
+  --mute: #686e74;
   --accent: #4665E1;
   --accent-fill: #E8EEFC;
   --brass: #6B7178;
@@ -69,7 +69,7 @@ html[data-theme="dark"] {
   --bg-hover: #42484F;
   --bg-selected: #1E2A4A;
   --text: #E8EAED;
-  --text-aux: #9AA0A6;
+  --text-aux: #a5abb2;
   --line: #4A5058;
   --line-strong: #5A616A;
   --brand: #4665E1;
@@ -97,7 +97,7 @@ html[data-theme="dark"] {
   --panel: #32363C;
   --panel-2: #3A4048;
   --cream: #E8EAED;
-  --mute: #9AA0A6;
+  --mute: #a5abb2;
   --accent: #4665E1;
   --accent-fill: #1E2A4A;
   --brass: #9AA0A6;
@@ -670,7 +670,7 @@ dialog[open] {
   border-radius: var(--radius-1);
   border: none;
 }
-.sit-blocks strong { margin-right: 6px; color: var(--text-aux); font-weight: 600; }
+.sit-blocks strong { margin-right: 6px; color: var(--text); font-weight: 600; }
 button.ghost.on { background: var(--bg-selected); color: var(--text); }
 .track-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--line); display: inline-block; margin-right: 4px; }
 .track-dot.on { background: var(--text); }

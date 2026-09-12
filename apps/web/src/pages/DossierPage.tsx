@@ -42,6 +42,10 @@ export function DossierPage({ mode = "dialog" }: { mode?: "dialog" | "side" | "f
 
   const body = (
     <div className={`dossier-body${mode === "full" ? " full" : ""}`} data-testid="dossier">
+      <button data-testid="dossier-close" type="button" onClick={() => {
+        s.setDossierOpen(false);
+        if (mode !== "dialog") s.goBoard();
+      }}>关闭</button>
       <h2>{s.dossierName || payload?.name}</h2>
       <p className="muted">{KIND_LABEL[kind] || kind} · 改这一场去分场条。不能在档案写入正史。</p>
       <div className="scene-open">
@@ -160,10 +164,6 @@ export function DossierPage({ mode = "dialog" }: { mode?: "dialog" | "side" | "f
         {(payload?.wrong_beliefs_readonly || []).map((k) => <p key={k}>{k}</p>)}
         {(payload?.promises_readonly || []).map((p) => <p key={p.id || p.name}>{p.name} · {p.status}</p>)}
       </section>
-      <button data-testid="dossier-close" type="button" onClick={() => {
-        s.setDossierOpen(false);
-        if (mode !== "dialog") s.goBoard();
-      }}>关闭</button>
     </div>
   );
 

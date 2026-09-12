@@ -633,18 +633,21 @@ html[data-theme="dark"] .tooth.on-line { filter: brightness(1.35); }
 .hidden { display: none !important; }
 dialog {
   background: var(--bg-canvas); color: var(--text); border: none;
-  padding: var(--space-4); max-width: 720px;
+  padding: var(--space-4);
+  width: min(720px, calc(100vw - 2rem));
+  max-height: min(80vh, 40rem);
+  overflow: auto;
   border-radius: var(--radius-2);
   box-shadow: var(--shadow-2);
 }
 dialog[open] {
   position: fixed;
-  z-index: 50;
-  left: 50%;
-  top: 18%;
-  transform: translateX(-50%);
-  margin: 0;
+  inset: 0;
+  margin: auto;
+  transform: none;
+  height: fit-content;
 }
+dialog::backdrop { background: var(--scrim); }
 .dialog-back {
   position: fixed; inset: 0; background: var(--scrim); display: flex; align-items: center; justify-content: center; z-index: 20;
 }

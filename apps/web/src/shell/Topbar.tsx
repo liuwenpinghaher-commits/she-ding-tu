@@ -42,35 +42,35 @@ export function Topbar() {
   return (
     <header className="topbar">
       <span className="qa-tray" aria-hidden="true">
-        <input className="qa-hook" data-testid="book-name" placeholder="书名" value={name} onChange={(e) => setBookName(e.target.value)} />
-        <button className="qa-hook" data-testid="create-book" type="button" onClick={createBook}>创建书</button>
-        <button className="qa-hook" data-testid="open-book" type="button" onClick={openTyped}>打开书</button>
-        <button className="qa-hook" data-testid="open-shelf" type="button" onClick={s.goShelf}>书架</button>
-        <button className="qa-hook" data-testid="open-craft" type="button" disabled={!book} onClick={() => s.setCraftOpen(true)}>书页</button>
-        <button className="qa-hook" data-testid="open-settings" type="button" disabled={!book} onClick={s.goSettings}>书的设定</button>
+        <input className="qa-hook" tabIndex={-1} data-testid="book-name" placeholder="书名" value={name} onChange={(e) => setBookName(e.target.value)} />
+        <button className="qa-hook" tabIndex={-1} data-testid="create-book" type="button" onClick={createBook}>创建书</button>
+        <button className="qa-hook" tabIndex={-1} data-testid="open-book" type="button" onClick={openTyped}>打开书</button>
+        <button className="qa-hook" tabIndex={-1} data-testid="open-shelf" type="button" onClick={s.goShelf}>书架</button>
+        <button className="qa-hook" tabIndex={-1} data-testid="open-craft" type="button" disabled={!book} onClick={() => s.setCraftOpen(true)}>书页</button>
+        <button className="qa-hook" tabIndex={-1} data-testid="open-settings" type="button" disabled={!book} onClick={s.goSettings}>书的设定</button>
         <span className="qa-hook" data-testid="book-label">{book}</span>
-        <button className="qa-hook" data-testid="add-parallel" type="button" onClick={s.writeParallel}>在本列再写一场</button>
-        <button className="qa-hook" data-testid="add-column" type="button" onClick={s.addColumn}>加列</button>
-        <button className="qa-hook" data-testid="open-library" type="button" onClick={s.goLibrary}>设定库</button>
-        <select className="qa-hook" data-testid="person-lens" aria-label="只看谁" value={s.q.who || ""} onChange={(e) => s.setWho(e.target.value || null)}>
+        <button className="qa-hook" tabIndex={-1} data-testid="add-parallel" type="button" onClick={s.writeParallel}>在本列再写一场</button>
+        <button className="qa-hook" tabIndex={-1} data-testid="add-column" type="button" onClick={s.addColumn}>加列</button>
+        <button className="qa-hook" tabIndex={-1} data-testid="open-library" type="button" onClick={s.goLibrary}>设定库</button>
+        <select className="qa-hook" tabIndex={-1} data-testid="person-lens" aria-label="只看谁" value={s.q.who || ""} onChange={(e) => s.setWho(e.target.value || null)}>
           <option value="">只看某人</option>
           {(s.state?.people || []).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
         </select>
-        <details className="qa-hook" id="look-menu" data-testid="look-menu"><summary>看法</summary></details>
-        <button className="qa-hook" type="button" data-look="进度" data-testid="open-progress" onClick={() => s.setLook("进度")}>支线进度</button>
-        <button className="qa-hook" type="button" data-look="轨迹" data-testid="open-track" onClick={() => s.setLook("轨迹")}>支线轨迹</button>
-        <button className="qa-hook" type="button" data-look="出场" data-testid="look-occupancy" onClick={() => s.setLook("出场")}>出场</button>
-        <button className="qa-hook" type="button" data-look="关系" data-testid="look-relations" onClick={() => s.setLook("关系")}>关系</button>
-        <button className="qa-hook" type="button" data-testid="open-whiteboard" onClick={() => s.setLook("白板")}>白板</button>
-        <details className="qa-hook" id="more-menu" data-testid="more-menu"><summary>更多</summary></details>
-        <button className="qa-hook" data-testid="remove-column" type="button" onClick={s.removeColumn}>减列</button>
-        <button className="qa-hook" data-testid="merge-columns" type="button" onClick={s.mergeColumns}>合并列</button>
-        <button className="qa-hook" data-testid="swap-columns" type="button" onClick={s.swapColumns}>换列位置</button>
-        <button className="qa-hook" data-testid="ellipsis" type="button" onClick={s.makeEllipsis}>省略场</button>
-        <button className="qa-hook" data-testid="occupancy" type="button" onClick={() => s.setLook("出场")}>出场</button>
-        <button className="qa-hook" data-testid="open-table" type="button" onClick={() => s.setLook("总表")}>总表</button>
-        <button className="qa-hook" data-testid="relations" type="button" onClick={() => s.setLook("关系")}>关系</button>
-        <button className="qa-hook" data-testid="reading-order" type="button" aria-pressed={s.state?.reading_order ? "true" : "false"} onClick={s.toggleReadingOrder}>按读序排</button>
+        <details className="qa-hook" id="look-menu" data-testid="look-menu"><summary tabIndex={-1}>看法</summary></details>
+        <button className="qa-hook" tabIndex={-1} type="button" data-look="进度" data-testid="open-progress" onClick={() => s.setLook("进度")}>支线进度</button>
+        <button className="qa-hook" tabIndex={-1} type="button" data-look="轨迹" data-testid="open-track" onClick={() => s.setLook("轨迹")}>支线轨迹</button>
+        <button className="qa-hook" tabIndex={-1} type="button" data-look="出场" data-testid="look-occupancy" onClick={() => s.setLook("出场")}>出场</button>
+        <button className="qa-hook" tabIndex={-1} type="button" data-look="关系" data-testid="look-relations" onClick={() => s.setLook("关系")}>关系</button>
+        <button className="qa-hook" tabIndex={-1} type="button" data-testid="open-whiteboard" onClick={() => s.setLook("白板")}>白板</button>
+        <details className="qa-hook" id="more-menu" data-testid="more-menu"><summary tabIndex={-1}>更多</summary></details>
+        <button className="qa-hook" tabIndex={-1} data-testid="remove-column" type="button" onClick={s.removeColumn}>减列</button>
+        <button className="qa-hook" tabIndex={-1} data-testid="merge-columns" type="button" onClick={s.mergeColumns}>合并列</button>
+        <button className="qa-hook" tabIndex={-1} data-testid="swap-columns" type="button" onClick={s.swapColumns}>换列位置</button>
+        <button className="qa-hook" tabIndex={-1} data-testid="ellipsis" type="button" onClick={s.makeEllipsis}>省略场</button>
+        <button className="qa-hook" tabIndex={-1} data-testid="occupancy" type="button" onClick={() => s.setLook("出场")}>出场</button>
+        <button className="qa-hook" tabIndex={-1} data-testid="open-table" type="button" onClick={() => s.setLook("总表")}>总表</button>
+        <button className="qa-hook" tabIndex={-1} data-testid="relations" type="button" onClick={() => s.setLook("关系")}>关系</button>
+        <button className="qa-hook" tabIndex={-1} data-testid="reading-order" type="button" aria-pressed={s.state?.reading_order ? "true" : "false"} onClick={s.toggleReadingOrder}>按读序排</button>
       </span>
       <span className="brand">设定图</span>
       <ThemeToggle />

@@ -41,13 +41,13 @@ export function LeftRail() {
       }}
     >
       <span className="qa-tray" aria-hidden="true">
-        <button className="qa-hook" data-testid="do-search" type="button" onClick={s.search} aria-label="搜">搜</button>
-        <button className="qa-hook" id="rail-create" type="button" data-testid="rail-create" onClick={() => setExpand(true)}>+</button>
+        <button className="qa-hook" tabIndex={-1} data-testid="do-search" type="button" onClick={s.search} aria-label="搜">搜</button>
+        <button className="qa-hook" tabIndex={-1} id="rail-create" type="button" data-testid="rail-create" onClick={() => setExpand(true)}>+</button>
         {!(expand || picked) && (
           <>
-            <input className="qa-hook" data-testid="ent-desire" placeholder="欲望" value={desire} onChange={(e) => setDesire(e.target.value)} />
-            <input className="qa-hook" data-testid="ent-secret" placeholder="秘密" value={secret} onChange={(e) => setSecret(e.target.value)} />
-            <input className="qa-hook" data-testid="ent-speech" placeholder="说话方式" value={speech} onChange={(e) => setSpeech(e.target.value)} />
+            <input className="qa-hook" tabIndex={-1} data-testid="ent-desire" placeholder="欲望" value={desire} onChange={(e) => setDesire(e.target.value)} />
+            <input className="qa-hook" tabIndex={-1} data-testid="ent-secret" placeholder="秘密" value={secret} onChange={(e) => setSecret(e.target.value)} />
+            <input className="qa-hook" tabIndex={-1} data-testid="ent-speech" placeholder="说话方式" value={speech} onChange={(e) => setSpeech(e.target.value)} />
           </>
         )}
       </span>

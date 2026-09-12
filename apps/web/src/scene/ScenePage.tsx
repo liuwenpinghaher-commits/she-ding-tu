@@ -162,7 +162,7 @@ export function ScenePage() {
       )}
       <button data-testid="talk" type="button" onClick={() => s.runTalk("intent", s.intent)}>讨论</button>
       <PlanBlock />
-      <button className="qa-hook" data-testid="fill-fake" type="button" disabled={!s.intent.trim()} title={!s.intent.trim() ? "先写一行本场任务" : "模型填这一场"} aria-label="模型填这一场" onClick={s.fillFake} />
+      <button className="qa-hook" tabIndex={-1} data-testid="fill-fake" type="button" disabled={!s.intent.trim()} title={!s.intent.trim() ? "先写一行本场任务" : "模型填这一场"} aria-label="模型填这一场" onClick={s.fillFake} />
       <button
         data-testid="fill-live"
         type="button"

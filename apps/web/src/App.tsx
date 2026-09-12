@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { StoreProvider, useStore } from "./state/store";
 import { Topbar } from "./shell/Topbar";
 import { LeftRail } from "./shell/LeftRail";
@@ -12,8 +13,22 @@ import { Dialogs } from "./pages/Dialogs";
 import { CommandPalette } from "./shell/CommandPalette";
 import { GuideTour } from "./shell/GuideTour";
 
+function demoteQaHooks(root: ParentNode) {
+  root.querySelectorAll<HTMLElement>(".qa-hook, .qa-tray summary").forEach((el) => {
+    if (el.tabIndex >= 0) el.tabIndex = -1;
+  });
+}
+
 function Shell() {
   const s = useStore();
+  useEffect(() => {
+    const root = document.getElementById("root");
+    if (!root) return;
+    demoteQaHooks(root);
+    const mo = new MutationObserver(() => demoteQaHooks(root));
+    mo.observe(root, { childList: true, subtree: true });
+    return () => mo.disconnect();
+  }, []);
   const r = s.route;
   const fullPage = r.kind === "shelf" || r.kind === "new" || r.kind === "library" || r.kind === "settings" || r.kind === "export";
   const hall = r.kind === "shelf" || r.kind === "new" || r.kind === "library" || r.kind === "settings";

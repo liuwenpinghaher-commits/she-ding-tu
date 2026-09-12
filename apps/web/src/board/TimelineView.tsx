@@ -416,28 +416,29 @@ export function TimelineView() {
     <div className="timeline-view" data-testid="timeline" ref={wrap}>
       <div className="view-header">
         <span className="qa-tray" aria-hidden="true">
-          <button className="qa-hook" type="button" data-testid="tl-scale-book" onClick={() => setVp(defaultViewport(span.min, span.max, vp.width))}>全书</button>
-          <button className="qa-hook" type="button" data-testid="tl-life" onClick={() => setShowLife((v) => !v)}>寿命条</button>
-          <select className="qa-hook" data-testid="tl-card-lines" value={cardLines} onChange={(e) => setCardLines(Number(e.target.value))}>
+          <button className="qa-hook" tabIndex={-1} type="button" data-testid="tl-scale-book" onClick={() => setVp(defaultViewport(span.min, span.max, vp.width))}>全书</button>
+          <button className="qa-hook" tabIndex={-1} type="button" data-testid="tl-life" onClick={() => setShowLife((v) => !v)}>寿命条</button>
+          <select className="qa-hook" tabIndex={-1} data-testid="tl-card-lines" value={cardLines} onChange={(e) => setCardLines(Number(e.target.value))}>
             <option value={1}>1</option>
             <option value={2}>2</option>
             <option value={3}>3</option>
             <option value={4}>4</option>
           </select>
-          <input className="qa-hook" type="checkbox" data-testid="tl-follow" checked={s.followDependents} onChange={(e) => s.setFollowDependents(e.target.checked)} />
-          <button className="qa-hook" type="button" data-testid="tl-resolve-all" onClick={() => s.resolveAllClocks()}>按依赖排好</button>
-          <button className="qa-hook" type="button" data-testid="tl-group-person" onClick={() => setGroup("person")}>按人</button>
-          <button className="qa-hook" type="button" data-testid="tl-group-place" onClick={() => setGroup("place")}>按地点</button>
-          <button className="qa-hook" type="button" data-testid="tl-group-line" onClick={() => setGroup("line")}>按逻辑线</button>
-          <button className="qa-hook" type="button" data-testid="tl-group-color" onClick={() => setGroup("color")}>按色</button>
-          <button className="qa-hook" type="button" data-testid="tl-scale-year" onClick={() => applyScale("year")}>年</button>
-          <button className="qa-hook" type="button" data-testid="tl-scale-month" onClick={() => applyScale("month")}>月</button>
-          <button className="qa-hook" type="button" data-testid="tl-scale-day" onClick={() => applyScale("day")}>日</button>
-          <button className="qa-hook" type="button" data-testid="tl-scale-hour" onClick={() => applyScale("hour")}>时</button>
-          <input className="qa-hook" data-testid="tl-from" placeholder="From" value={fromRaw} onChange={(e) => setFromRaw(e.target.value)} />
-          <input className="qa-hook" data-testid="tl-to" placeholder="To" value={toRaw} onChange={(e) => setToRaw(e.target.value)} />
+          <input className="qa-hook" tabIndex={-1} type="checkbox" data-testid="tl-follow" checked={s.followDependents} onChange={(e) => s.setFollowDependents(e.target.checked)} />
+          <button className="qa-hook" tabIndex={-1} type="button" data-testid="tl-resolve-all" onClick={() => s.resolveAllClocks()}>按依赖排好</button>
+          <button className="qa-hook" tabIndex={-1} type="button" data-testid="tl-group-person" onClick={() => setGroup("person")}>按人</button>
+          <button className="qa-hook" tabIndex={-1} type="button" data-testid="tl-group-place" onClick={() => setGroup("place")}>按地点</button>
+          <button className="qa-hook" tabIndex={-1} type="button" data-testid="tl-group-line" onClick={() => setGroup("line")}>按逻辑线</button>
+          <button className="qa-hook" tabIndex={-1} type="button" data-testid="tl-group-color" onClick={() => setGroup("color")}>按色</button>
+          <button className="qa-hook" tabIndex={-1} type="button" data-testid="tl-scale-year" onClick={() => applyScale("year")}>年</button>
+          <button className="qa-hook" tabIndex={-1} type="button" data-testid="tl-scale-month" onClick={() => applyScale("month")}>月</button>
+          <button className="qa-hook" tabIndex={-1} type="button" data-testid="tl-scale-day" onClick={() => applyScale("day")}>日</button>
+          <button className="qa-hook" tabIndex={-1} type="button" data-testid="tl-scale-hour" onClick={() => applyScale("hour")}>时</button>
+          <input className="qa-hook" tabIndex={-1} data-testid="tl-from" placeholder="From" value={fromRaw} onChange={(e) => setFromRaw(e.target.value)} />
+          <input className="qa-hook" tabIndex={-1} data-testid="tl-to" placeholder="To" value={toRaw} onChange={(e) => setToRaw(e.target.value)} />
           <button
             className="qa-hook"
+            tabIndex={-1}
             type="button"
             data-testid="tl-from-to"
             onClick={() => {

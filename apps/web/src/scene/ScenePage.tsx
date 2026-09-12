@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useStore } from "../state/store";
 import { isPaused, threadSpan } from "../lenses/threads";
 import {
@@ -88,41 +88,8 @@ export function ScenePage() {
       <div data-testid="moment-body" className="probe" aria-hidden="true">{clockProbe || sideRaw}</div>
       <div data-testid="knows-list" className="probe" aria-hidden="true">{JSON.stringify(s.state?.world?.knows || {})}</div>
 
-      <details className="acc" open>
+      <details className="acc acc-scene" open>
         <summary>场页</summary>
-      <section data-testid="sit-blocks" className="sit-blocks">
-        <div data-testid="sit-task">
-          <strong>本场任务</strong> {s.intent || sit.intent || "还没有"}
-          {desireNotes.length > 0 && (
-            <div data-testid="sit-desire" className="sit-note">{desireNotes.join("；")}</div>
-          )}
-        </div>
-        <div data-testid="sit-shift"><strong>这场前后，什么变了</strong> {sit.last_value_shift || <span className="sit-empty">还没写变化</span>}</div>
-        <div data-testid="sit-world"><strong>此刻还开着的事</strong> {sit.stakes.length ? sit.stakes.join("；") : <span className="sit-empty">此刻没有开着的账</span>}</div>
-        <div data-testid="sit-people"><strong>谁知道、谁不知道、谁信错</strong> {[...sit.knowledge_gaps, ...sit.wrong_beliefs].join("；") || <span className="sit-empty">此刻没有开着的账</span>}</div>
-        <div data-testid="sit-reader"><strong>你看见了、场上有人还不知道</strong> {[...sit.reader_knows, ...sit.reader_irony].slice(0, 8).join("；") || <span className="sit-empty">此刻没有开着的账</span>}</div>
-        <div data-testid="sit-promises"><strong>未收伏笔</strong> {sit.open_promises.length ? sit.open_promises.map((p) => p.name).join("、") : "没有未收的"}</div>
-      </section>
-      <div
-        data-testid="promise-suggest"
-        className={!sit.suggestion || ignoreSug ? "probe" : undefined}
-        aria-hidden={!sit.suggestion || ignoreSug ? true : undefined}
-      >
-        {sit.suggestion && !ignoreSug ? (
-          <>
-            对「{sit.suggestion.name}」建议：{promiseOpLabel(sit.suggestion.op)}
-            {sit.suggestion.due ? "（期限已到）" : ""}
-            <button type="button" data-testid="ignore-suggest" onClick={() => setIgnoreSug(true)}>忽略</button>
-          </>
-        ) : (
-          "建议本场对伏笔做哪一件"
-        )}
-      </div>
-      <div className="scene-open">
-        <button type="button" data-testid="scene-dock" onClick={() => s.setOpen(null)}>就地</button>
-        <button type="button" data-testid="scene-side" onClick={() => s.setOpen("side")}>侧开</button>
-        <button type="button" data-testid="scene-full" onClick={() => s.setOpen("full")}>整页</button>
-      </div>
       <div className="field">
         <label>本场任务 <input value={s.intent} onChange={(e) => s.setIntent(e.target.value)} placeholder="本场任务" /></label>
         <label>本场地点 <input value={s.placeId} onChange={(e) => s.setPlaceId(e.target.value)} placeholder="本场地点" /></label>
@@ -161,8 +128,62 @@ export function ScenePage() {
         </div>
       )}
       <button data-testid="talk" type="button" onClick={() => s.runTalk("intent", s.intent)}>讨论</button>
-      <PlanBlock />
       <button className="qa-hook" tabIndex={-1} data-testid="fill-fake" type="button" disabled={!s.intent.trim()} title={!s.intent.trim() ? "先写一行本场任务" : "模型填这一场"} aria-label="模型填这一场" onClick={s.fillFake} />
+      <details className="acc-nested sit-fold" open>
+        <summary>本场规定情境</summary>
+      <section data-testid="sit-blocks" className="sit-blocks">
+        <div data-testid="sit-task">
+          <strong>本场任务</strong> {s.intent || sit.intent || "还没有"}
+          {desireNotes.length > 0 && (
+            <div data-testid="sit-desire" className="sit-note">{desireNotes.join("；")}</div>
+          )}
+        </div>
+        <div data-testid="sit-shift"><strong>这场前后，什么变了</strong> {sit.last_value_shift || <span className="sit-empty">还没写变化</span>}</div>
+        <div data-testid="sit-world"><strong>此刻还开着的事</strong> {sit.stakes.length ? sit.stakes.join("；") : <span className="sit-empty">此刻没有开着的账</span>}</div>
+        <div data-testid="sit-people"><strong>谁知道、谁不知道、谁信错</strong> {[...sit.knowledge_gaps, ...sit.wrong_beliefs].join("；") || <span className="sit-empty">此刻没有开着的账</span>}</div>
+        <div data-testid="sit-reader"><strong>你看见了、场上有人还不知道</strong> {[...sit.reader_knows, ...sit.reader_irony].slice(0, 8).join("；") || <span className="sit-empty">此刻没有开着的账</span>}</div>
+        <div data-testid="sit-promises"><strong>未收伏笔</strong> {sit.open_promises.length ? sit.open_promises.map((p) => p.name).join("、") : "没有未收的"}</div>
+      </section>
+      </details>
+      <div
+        data-testid="promise-suggest"
+        className={!sit.suggestion || ignoreSug ? "probe" : undefined}
+        aria-hidden={!sit.suggestion || ignoreSug ? true : undefined}
+      >
+        {sit.suggestion && !ignoreSug ? (
+          <>
+            对「{sit.suggestion.name}」建议：{promiseOpLabel(sit.suggestion.op)}
+            {sit.suggestion.due ? "（期限已到）" : ""}
+            <button type="button" data-testid="ignore-suggest" onClick={() => setIgnoreSug(true)}>忽略</button>
+          </>
+        ) : (
+          "建议本场对伏笔做哪一件"
+        )}
+      </div>
+      <div className="scene-open">
+        <button type="button" data-testid="scene-dock" onClick={() => s.setOpen(null)}>就地</button>
+        <button type="button" data-testid="scene-side" onClick={() => s.setOpen("side")}>侧开</button>
+        <button type="button" data-testid="scene-full" onClick={() => s.setOpen("full")}>整页</button>
+      </div>
+      <PlanBlock />
+      <button
+        data-testid="revise"
+        type="button"
+        disabled={!canon}
+        onClick={() => { if (s.editingCanon) s.revise(); else s.setEditingCanon(true); }}
+      >{s.editingCanon ? "写入这次改动" : "改这一场"}</button>
+      <div data-testid="revise-msg">{s.reviseMsg}</div>
+      <button data-testid="delete-canon" type="button" disabled={!canon} onClick={s.deleteCanon}>删已正史</button>
+      <button
+        data-testid="delete-draft"
+        type="button"
+        disabled={!draft}
+        title={draft ? "丢掉这场草稿，正史不动" : "没有选中的草稿"}
+        onClick={s.askDeleteDraft}
+      >删草稿</button>
+      </details>
+
+      <div className="commit-dock">
       <button
         data-testid="fill-live"
         type="button"
@@ -186,25 +207,9 @@ export function ScenePage() {
         onClick={s.commit}
       >{s.committing ? "正在写入…" : "写入正史"}</button>
       <p className="muted" data-testid="commit-explain">定稿，后面的场会用到</p>
-      <button
-        data-testid="revise"
-        type="button"
-        disabled={!canon}
-        onClick={() => { if (s.editingCanon) s.revise(); else s.setEditingCanon(true); }}
-      >{s.editingCanon ? "写入这次改动" : "改这一场"}</button>
-      <div data-testid="revise-msg">{s.reviseMsg}</div>
-      <button data-testid="delete-canon" type="button" disabled={!canon} onClick={s.deleteCanon}>删已正史</button>
-      <button
-        data-testid="delete-draft"
-        type="button"
-        disabled={!draft}
-        title={draft ? "丢掉这场草稿，正史不动" : "没有选中的草稿"}
-        onClick={s.askDeleteDraft}
-      >删草稿</button>
-      </details>
+      </div>
 
-      <details className="acc" open>
-        <summary>时间</summary>
+      <AuxAcc title="时间">
       {scene && (
         <div data-testid="scene-clock" className="muted">
           {formatClock(scene.clock_from, craft?.clock_origin_label, craft?.clock_origin_minute, craft?.clock_format)}
@@ -237,10 +242,9 @@ export function ScenePage() {
           return <span key={p.id}>{p.name}这场{ageAtClock(scene.clock_from, born)} </span>;
         })}
       </div>
-      </details>
+      </AuxAcc>
 
-      <details className="acc" open>
-        <summary>因果</summary>
+      <AuxAcc title="因果">
       <div className="field">
         <label>因为哪一场
           <input list="cause-list" data-testid="cause-beat" value={s.causeBeat} onChange={(e) => s.setCauseBeat(e.target.value)} />
@@ -259,14 +263,13 @@ export function ScenePage() {
         <p className="muted">本场默认谁会看见：{peopleHere.map((p) => p.name).join("、") || "还没有人在场"}</p>
       </div>
       <ThreadBlock />
-      </details>
+      </AuxAcc>
 
-      <details className="acc" open>
-        <summary>账目</summary>
+      <AuxAcc title="账目">
       <DeltaBlock present={present} ents={ents} deltas={deltas} clockFrom={scene?.clock_from || 0} originLabel={craft?.clock_origin_label} originMinute={craft?.clock_origin_minute} format={craft?.clock_format} />
       <KnowBlock people={peopleHere} ents={ents} knows={knows} deltas={deltas} />
       <PromiseBlock pops={pops} />
-      </details>
+      </AuxAcc>
       {s.presencePicker && (
         <div>
           {ents.filter((e) => e.kind === "person").map((e) => (
@@ -275,6 +278,25 @@ export function ScenePage() {
         </div>
       )}
     </aside>
+  );
+}
+
+function AuxAcc({ title, children }: { title: string; children: ReactNode }) {
+  const [expanded, setExpanded] = useState(false);
+  return (
+    <details
+      className={`acc acc-aux${expanded ? " is-open" : ""}`}
+      open
+      onFocusCapture={() => setExpanded(true)}
+    >
+      <summary
+        onClick={(e) => {
+          e.preventDefault();
+          setExpanded((v) => !v);
+        }}
+      >{title}</summary>
+      {children}
+    </details>
   );
 }
 

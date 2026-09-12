@@ -732,13 +732,44 @@ details summary { cursor: pointer; }
   background: var(--bg-subtle);
   border-radius: var(--radius-1);
   padding: 0 var(--space-2) var(--space-2);
-  flex: 1 1 0;
-  min-height: 72px;
+  min-height: 0;
   overflow: auto;
 }
+.acc-scene {
+  flex: 1 1 auto;
+  min-height: 12rem;
+  overflow: auto;
+}
+.acc-aux {
+  flex: 0 0 auto;
+  max-height: 2.75rem;
+  overflow: auto;
+}
+.acc-aux.is-open {
+  max-height: min(42vh, 22rem);
+}
+.commit-dock {
+  flex: 0 0 auto;
+  position: sticky;
+  bottom: 0;
+  z-index: 3;
+  background: var(--bg-panel);
+  border-top: 1px solid var(--line);
+  padding: var(--space-2) 0 var(--space-1);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.commit-dock .primary { align-self: stretch; }
 .acc-nested {
   background: var(--bg-panel);
   margin: var(--space-2) 0;
+}
+.sit-fold > summary {
+  font-size: var(--text-aux-size);
+  color: var(--text-aux);
+  cursor: pointer;
+  padding: var(--space-1) 0;
 }
 .acc > summary {
   font-weight: 600;

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useStore } from "../state/store";
 import { KIND_LABEL, keysFor, testIdFor } from "./f10";
+import { Modal } from "./Modal";
 
 export function DossierPage({ mode = "dialog" }: { mode?: "dialog" | "side" | "full" }) {
   const s = useStore();
@@ -29,9 +30,9 @@ export function DossierPage({ mode = "dialog" }: { mode?: "dialog" | "side" | "f
     if (mode === "full") return <div className="page dossier-full">{loading}</div>;
     if (mode === "side") return <div className="look-rail show dossier-side">{loading}</div>;
     return (
-      <div className="dialog-back">
-        <div className="dialog">{loading}</div>
-      </div>
+      <Modal open onClose={() => s.setDossierOpen(false)}>
+        {loading}
+      </Modal>
     );
   }
   const kind = payload?.kind || "person";
@@ -169,8 +170,8 @@ export function DossierPage({ mode = "dialog" }: { mode?: "dialog" | "side" | "f
   if (mode === "full") return <div className="page dossier-full">{body}</div>;
   if (mode === "side") return <div className="look-rail show dossier-side">{body}</div>;
   return (
-    <div className="dialog-back">
-      <div className="dialog">{body}</div>
-    </div>
+    <Modal open onClose={() => s.setDossierOpen(false)}>
+      {body}
+    </Modal>
   );
 }

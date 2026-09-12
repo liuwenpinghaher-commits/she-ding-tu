@@ -293,7 +293,8 @@ function SceneCardView({
               const name = labelOf(p.entity_id);
               const on = store.selectedChip?.entityId === p.entity_id && store.selectedChip.sceneId === sc.id;
               return (
-                <span
+                <button
+                  type="button"
                   key={p.entity_id}
                   className={`chip${on ? " on" : ""}`}
                   data-testid={`chip-${name}`}
@@ -302,7 +303,7 @@ function SceneCardView({
                     e.stopPropagation();
                     if (chipDrag.current) { chipDrag.current = false; return; }
                     store.setSelectedChip({ entityId: p.entity_id, sceneId: sc.id, draft: sc.draft });
-                    store.openDossier(name);
+                    store.setDrawer("right");
                   }}
                   onDragStart={(e) => {
                     e.stopPropagation();
@@ -310,7 +311,7 @@ function SceneCardView({
                     e.dataTransfer.setData("text/plain", `presence:${p.entity_id}:${sc.id}:${sc.draft ? "1" : "0"}`);
                   }}
                   onDragEnd={() => { window.setTimeout(() => { chipDrag.current = false; }, 0); }}
-                >{name}</span>
+                >{name}</button>
               );
             })}
           </div>

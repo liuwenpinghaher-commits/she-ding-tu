@@ -1889,7 +1889,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         setCmdOpen((v) => !v);
         return;
       }
-      if (cmdOpen) return;
+      if (cmdOpen && e.key !== "Escape") return;
       const modal = document.querySelector(".dialog-back, dialog[open]");
       const typing = ["INPUT", "TEXTAREA", "SELECT"].includes((e.target as HTMLElement)?.tagName);
       if (modal && !typing && e.key !== "Escape") return;
@@ -1902,11 +1902,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       if (!typing && e.key === "]") setWindow({ start: (state?.window_start || 0) + 1 });
       if (e.key === "Escape" && !typing) {
         if (cmdOpen) { setCmdOpen(false); return; }
+        if (exportOpen) { setExportOpen(false); return; }
+        if (pasteOpen) { setPasteOpen(false); return; }
+        if (craftOpen) { setCraftOpen(false); return; }
+        if (deleteDraftAsk) { setDeleteDraftAsk(null); return; }
+        if (delBookOpen) { setDelBookOpen(false); return; }
+        if (dossierOpen) { setDossierOpen(false); return; }
+        if (state?.pending) { void cancelChange(); return; }
         if (route.kind === "scene" || q.open === "full") setOpen("side");
         else if (q.open === "side") setOpen(null);
         else if (q.look) setLook(null);
         else if (q.line) setLine(null);
-        else if (dossierOpen) setDossierOpen(false);
       }
       if (!typing && !cmdOpen && (e.key === "ArrowRight" || e.key === "ArrowLeft")) {
         e.preventDefault();
@@ -1945,7 +1951,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [undo, setWindow, state, q.line, q.look, q.open, route.kind, setLine, setLook, setOpen, dossierOpen, cmdOpen, selectScene, selectedChip, removePresence]);
+  }, [undo, setWindow, state, q.line, q.look, q.open, route.kind, setLine, setLook, setOpen, dossierOpen, cmdOpen, exportOpen, pasteOpen, craftOpen, deleteDraftAsk, delBookOpen, cancelChange, selectScene, selectedChip, removePresence]);
 
   const scenes = useMemo<SceneCard[]>(() => {
     const committed = (state?.committed || []).map(asScene);

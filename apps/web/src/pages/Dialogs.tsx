@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useStore } from "../state/store";
 import { DossierPage } from "./DossierPage";
+import { Modal } from "./Modal";
 
 function delBookImpacts(s: ReturnType<typeof useStore>): string[] {
   const name = s.delBookName;
@@ -42,7 +43,7 @@ export function Dialogs() {
         </div>
       )}
 
-      <dialog id="confirm-dlg" data-testid="confirm-change" open={!!pending}>
+      <Modal open={!!pending} onClose={() => { setChoice(null); void s.cancelChange(); }} testid="confirm-change">
         <h3>确认变更</h3>
         <p className="muted" data-testid="confirm-explain">时间结构要改，选一种办法</p>
         <ul data-testid="impact-list">
@@ -69,11 +70,10 @@ export function Dialogs() {
           onClick={() => { if (choice) { s.confirmChange(choice); setChoice(null); } }}
         >确认变更</button>
         <button data-testid="confirm-cancel" type="button" onClick={() => { setChoice(null); void s.cancelChange(); }}>取消</button>
-      </dialog>
+      </Modal>
 
-      {s.craftOpen && (
-        <div className="dialog-back">
-          <div className="dialog" data-testid="craft-dialog">
+      <Modal open={s.craftOpen} onClose={() => s.setCraftOpen(false)}>
+          <div data-testid="craft-dialog">
             <h3>书页</h3>
             <label>主脑 <input data-testid="craft-premise" value={craftPremise} onChange={(e) => setCraftPremise(e.target.value)} /></label>
             {chaps.map((ch, i) => (
@@ -104,12 +104,9 @@ export function Dialogs() {
             {s.composeOut ? <pre data-testid="compose-out">{s.composeOut}</pre> : null}
             <button data-testid="craft-close" type="button" onClick={() => s.setCraftOpen(false)}>关闭</button>
           </div>
-        </div>
-      )}
+      </Modal>
 
-      {s.exportOpen && (
-        <div className="dialog-back">
-          <div className="dialog">
+      <Modal open={s.exportOpen} onClose={() => s.setExportOpen(false)}>
             <h3>导出</h3>
             <p>这份文件改了不会写回正史。要改回来改分场条。</p>
             <p className="muted" data-testid="export-count">
@@ -134,13 +131,10 @@ export function Dialogs() {
             >下载 .md</button>
             <pre data-testid="export-out">{s.exportOut}</pre>
             <button data-testid="export-close" type="button" onClick={() => s.setExportOpen(false)}>关闭</button>
-          </div>
-        </div>
-      )}
+      </Modal>
 
-      {s.pasteOpen && (
-        <div className="dialog-back">
-          <div className="dialog" data-testid="paste-dialog">
+      <Modal open={s.pasteOpen} onClose={() => s.setPasteOpen(false)}>
+          <div data-testid="paste-dialog">
             <h3>丢一段草稿</h3>
             <textarea data-testid="paste-text" className="grow" value={s.pasteText} onChange={(e) => s.setPasteText(e.target.value)} />
             <button data-testid="paste-run" type="button" onClick={s.runPaste}>拆开看</button>
@@ -158,22 +152,17 @@ export function Dialogs() {
             })}
             <button data-testid="paste-close" type="button" onClick={() => s.setPasteOpen(false)}>关闭</button>
           </div>
-        </div>
-      )}
+      </Modal>
 
-      {s.deleteDraftAsk && (
-        <div className="dialog-back">
-          <div className="dialog" data-testid="delete-draft-confirm">
+      {!!s.deleteDraftAsk && (
+      <Modal open onClose={s.cancelDeleteDraft} testid="delete-draft-confirm">
             <h3>丢掉这场草稿？</h3>
             <p>只删草稿，正史不动。不能从这里恢复。</p>
             <button data-testid="delete-draft-ok" className="primary" type="button" onClick={() => void s.confirmDeleteDraft()}>确认丢掉</button>
             <button data-testid="delete-draft-cancel" type="button" onClick={s.cancelDeleteDraft}>取消</button>
-          </div>
-        </div>
+      </Modal>
       )}
-      {s.delBookOpen && (
-        <div className="dialog-back">
-          <div className="dialog" data-testid="del-book">
+      <Modal open={s.delBookOpen} onClose={() => s.setDelBookOpen()} testid="del-book">
             <h3>删除这本书</h3>
             <p>不能撤销。手打书名确认。</p>
             <ul data-testid="del-book-impacts">
@@ -182,9 +171,7 @@ export function Dialogs() {
             <input data-testid="del-book-type" value={s.delBookType} onChange={(e) => s.setDelBookType(e.target.value)} />
             <button data-testid="del-book-ok" type="button" disabled={s.delBookType !== s.delBookName} onClick={() => s.deleteBook(s.delBookName, s.delBookType)}>确认删除</button>
             <button type="button" onClick={() => s.setDelBookOpen()}>取消</button>
-          </div>
-        </div>
-      )}
+      </Modal>
       {s.route.kind !== "dossier" && <DossierPage />}
     </>
   );

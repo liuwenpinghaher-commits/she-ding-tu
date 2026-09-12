@@ -49,6 +49,32 @@ export function attrLabel(attr: string): string {
   return attr;
 }
 
+export function stakeLine(raw: string, ents: Entity[]): string {
+  const m = raw.match(/^([^.]+)\.([^=]+)=(.*)$/);
+  if (!m) return sitNameIds(raw, ents);
+  const who = entName(m[1], ents);
+  const val = entName(m[3], ents);
+  const attr = m[2];
+  if (attr === "holder") return `${who}在${val}手上`;
+  if (attr === "where") return `${who}在${val}`;
+  return `${who}的${attrLabel(attr)}是${val}`;
+}
+
+export function sitNameIds(raw: string, ents: Entity[]): string {
+  let out = raw;
+  for (const e of ents) {
+    if (e.id && e.name && e.id !== e.name) out = out.split(e.id).join(e.name);
+  }
+  out = out.replace(/([^\s.；;]+)\.([^=\s]+)=([^\s；;]+)/g, (_, a, attr, v) => stakeLine(`${a}.${attr}=${v}`, ents));
+  return out;
+}
+
+export function sitKnowLine(raw: string, ents: Entity[]): string {
+  const m = raw.match(/^(\S+)\s+不知道\s+(.+)$/);
+  if (m) return `${entName(m[1], ents)}不知道${stakeLine(m[2], ents)}`;
+  return sitNameIds(raw, ents);
+}
+
 export function deltaLine(
   d: Delta,
   ents: Entity[],

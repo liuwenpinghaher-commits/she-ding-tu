@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useStore } from "../state/store";
 import { isPaused, threadSpan } from "../lenses/threads";
 import {
@@ -12,6 +12,8 @@ import {
   promiseIllegal,
   promiseLine,
   promiseOpLabel,
+  sitKnowLine,
+  stakeLine,
 } from "./human";
 import { formatClock } from "../lenses/window";
 import { ageAtClock, parseBornClock } from "../board/ages";
@@ -32,6 +34,10 @@ export function ScenePage() {
   const s = useStore();
   const [ignoreSug, setIgnoreSug] = useState(false);
   const [, setLockTick] = useState(0);
+  const [auxOpen, setAuxOpen] = useState<string | null>(null);
+  useEffect(() => {
+    if (s.selectedChip) setAuxOpen("账目");
+  }, [s.selectedChip]);
   const draft = !!s.state?.selected;
   const canonId = s.state?.selected_canon || "";
   const canon = !draft && !!(s.state?.committed || []).some((b) => b.id === canonId);
@@ -90,6 +96,7 @@ export function ScenePage() {
 
       <details className="acc acc-scene" open>
         <summary>场页</summary>
+      {s.selectedChip && <ChipInspect />}
       <div className="field">
         <label>本场任务 <input value={s.intent} onChange={(e) => s.setIntent(e.target.value)} placeholder="本场任务" /></label>
         <label>本场地点 <input value={s.placeId} onChange={(e) => s.setPlaceId(e.target.value)} placeholder="本场地点" /></label>
@@ -139,9 +146,9 @@ export function ScenePage() {
           )}
         </div>
         <div data-testid="sit-shift"><strong>这场前后，什么变了</strong> {sit.last_value_shift || <span className="sit-empty">还没写变化</span>}</div>
-        <div data-testid="sit-world"><strong>此刻还开着的事</strong> {sit.stakes.length ? sit.stakes.join("；") : <span className="sit-empty">此刻没有开着的账</span>}</div>
-        <div data-testid="sit-people"><strong>谁知道、谁不知道、谁信错</strong> {[...sit.knowledge_gaps, ...sit.wrong_beliefs].join("；") || <span className="sit-empty">此刻没有开着的账</span>}</div>
-        <div data-testid="sit-reader"><strong>你看见了、场上有人还不知道</strong> {[...sit.reader_knows, ...sit.reader_irony].slice(0, 8).join("；") || <span className="sit-empty">此刻没有开着的账</span>}</div>
+        <div data-testid="sit-world"><strong>此刻还开着的事</strong> {sit.stakes.length ? sit.stakes.map((x) => stakeLine(x, ents)).join("；") : <span className="sit-empty">此刻没有开着的账</span>}</div>
+        <div data-testid="sit-people"><strong>谁知道、谁不知道、谁信错</strong> {[...sit.knowledge_gaps, ...sit.wrong_beliefs].map((x) => sitKnowLine(x, ents)).join("；") || <span className="sit-empty">还没写谁知道什么</span>}</div>
+        <div data-testid="sit-reader"><strong>你看见了、场上有人还不知道</strong> {[...sit.reader_knows, ...sit.reader_irony].slice(0, 8).map((x) => sitKnowLine(x, ents)).join("；") || <span className="sit-empty">这场没有读者比角色多知道的事</span>}</div>
         <div data-testid="sit-promises"><strong>未收伏笔</strong> {sit.open_promises.length ? sit.open_promises.map((p) => p.name).join("、") : "没有未收的"}</div>
       </section>
       </details>
@@ -209,7 +216,7 @@ export function ScenePage() {
       <p className="muted" data-testid="commit-explain">定稿，后面的场会用到</p>
       </div>
 
-      <AuxAcc title="时间">
+      <AuxAcc title="时间" forceOpen={auxOpen === "时间"}>
       {scene && (
         <div data-testid="scene-clock" className="muted">
           {formatClock(scene.clock_from, craft?.clock_origin_label, craft?.clock_origin_minute, craft?.clock_format)}
@@ -244,7 +251,7 @@ export function ScenePage() {
       </div>
       </AuxAcc>
 
-      <AuxAcc title="因果">
+      <AuxAcc title="因果" forceOpen={auxOpen === "因果"}>
       <div className="field">
         <label>因为哪一场
           <input list="cause-list" data-testid="cause-beat" value={s.causeBeat} onChange={(e) => s.setCauseBeat(e.target.value)} />
@@ -265,7 +272,7 @@ export function ScenePage() {
       <ThreadBlock />
       </AuxAcc>
 
-      <AuxAcc title="账目">
+      <AuxAcc title="账目" forceOpen={auxOpen === "账目"}>
       <DeltaBlock present={present} ents={ents} deltas={deltas} clockFrom={scene?.clock_from || 0} originLabel={craft?.clock_origin_label} originMinute={craft?.clock_origin_minute} format={craft?.clock_format} />
       <KnowBlock people={peopleHere} ents={ents} knows={knows} deltas={deltas} />
       <PromiseBlock pops={pops} />
@@ -281,8 +288,15 @@ export function ScenePage() {
   );
 }
 
-function AuxAcc({ title, children }: { title: string; children: ReactNode }) {
+function AuxAcc({
+  title, children, forceOpen,
+}: {
+  title: string; children: ReactNode; forceOpen?: boolean;
+}) {
   const [expanded, setExpanded] = useState(false);
+  useEffect(() => {
+    if (forceOpen) setExpanded(true);
+  }, [forceOpen]);
   return (
     <details
       className={`acc acc-aux${expanded ? " is-open" : ""}`}
@@ -297,6 +311,26 @@ function AuxAcc({ title, children }: { title: string; children: ReactNode }) {
       >{title}</summary>
       {children}
     </details>
+  );
+}
+
+function ChipInspect() {
+  const s = useStore();
+  const chip = s.selectedChip;
+  const ents = s.state?.all_entities || s.state?.entities || [];
+  const scene = s.selectedScene;
+  if (!chip) return null;
+  const name = ents.find((e) => e.id === chip.entityId || e.name === chip.entityId)?.name || chip.entityId;
+  const knows = (scene?.knowledge_writes || []).filter((k) => k.person_id === chip.entityId || k.person_id === name);
+  const deltas = (scene?.deltas || []).filter((d) => d.entity_id === chip.entityId || d.entity_id === name || d.value === chip.entityId || d.value === name);
+  const book = s.state?.book || "";
+  return (
+    <section className="chip-inspect" data-testid="chip-inspect">
+      <h3>{name}这一场</h3>
+      <p data-testid="chip-inspect-know">{knows.length ? knows.map((k) => knowLine(k, ents)).join("；") : "这场还没写他知道什么"}</p>
+      <p data-testid="chip-inspect-delta">{deltas.length ? deltas.map((d) => deltaLine(d, ents)).join("；") : "这场还没有关于他的变化"}</p>
+      <a href={`#/b/${encodeURIComponent(book)}/e/${encodeURIComponent(name)}`} data-testid="chip-dossier">档案</a>
+    </section>
   );
 }
 

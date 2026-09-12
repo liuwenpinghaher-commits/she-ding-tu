@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useStore } from "../state/store";
+import { Modal } from "../pages/Modal";
 import { readThemeFromDom, THEME_EVENT, toggleTheme, type Theme } from "./theme";
 
 type Item = { group: string; label: string; run: () => void; hint?: string; kw?: string };
@@ -117,8 +118,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
   const groups = ["跳", "写", "看", "结构", "书"];
   let idx = -1;
   return (
-    <div className="dialog-back" data-testid="cmd-palette" onClick={onClose}>
-      <div className="dialog" onClick={(e) => e.stopPropagation()}>
+    <Modal open onClose={onClose} testid="cmd-palette">
         <h3>命令</h3>
         <input autoFocus placeholder="搜" value={q} onChange={(e) => setQ(e.target.value)} data-testid="cmd-q" />
         {shown.length === 0 && <p className="muted" data-testid="cmd-empty">没有这条命令</p>}
@@ -147,7 +147,6 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
           );
         })}
         <button type="button" onClick={onClose}>关闭</button>
-      </div>
-    </div>
+    </Modal>
   );
 }

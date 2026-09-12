@@ -54,7 +54,10 @@ function Shell() {
       {r.kind === "settings" && <SettingsPage />}
       {r.kind === "dossier" && <DossierPage mode="full" />}
       {showBoard && s.state?.book && r.kind !== "dossier" && (
-        <div className={`work${s.drawer === "left" ? " drawer-left" : ""}${s.drawer === "right" ? " drawer-right" : ""}`}>
+        <div
+          className={`work${s.drawer === "left" ? " drawer-left" : ""}${s.drawer === "right" ? " drawer-right" : ""}`}
+          {...(s.exportOpen || s.pasteOpen || s.craftOpen || s.cmdOpen || !!s.deleteDraftAsk || s.delBookOpen || s.dossierOpen || !!s.state?.pending ? { inert: "" } : {})}
+        >
           <button type="button" className="drawer-back" aria-label="关掉侧栏" onClick={() => s.setDrawer(null)} />
           <LeftRail />
           <Workspace />

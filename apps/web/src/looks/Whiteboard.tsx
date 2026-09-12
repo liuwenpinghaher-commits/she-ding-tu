@@ -56,7 +56,7 @@ export function Whiteboard({ open }: { open: boolean }) {
       <div>
         <strong>白板</strong>
         <span className="muted"> 灵感层，不进正史，不算进算出这一刻。</span>
-        <button type="button" data-testid="wb-back" onClick={() => s.setLook("时间轴")}>回时间轴</button>
+        <button type="button" data-testid="wb-back" onClick={() => s.setLook("分场条")}>回分场条</button>
         <button
           type="button"
           data-testid="wb-add"

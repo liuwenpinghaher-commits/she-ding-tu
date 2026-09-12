@@ -13,7 +13,7 @@ export function TableLook() {
 
   return (
     <div id="table-view" data-testid="table-view">
-      <button type="button" data-testid="table-back" onClick={() => s.setLook("时间轴")}>回时间轴</button>
+      <button type="button" data-testid="table-back" onClick={() => s.setLook("分场条")}>回分场条</button>
       <p className="muted">草稿可改格。正史的动作/任务须先点「改这一场」。读序可以轻改。</p>
       <div className="look-toolbar">
         <button

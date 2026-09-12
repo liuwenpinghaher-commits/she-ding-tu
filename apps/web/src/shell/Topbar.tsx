@@ -196,6 +196,13 @@ export function Topbar() {
           data-guide="g5"
           onClick={s.writeNext}
         >{s.writeBusy ? "正在写下…" : "写下一场"}</button>
+        <button
+          type="button"
+          data-testid="write-parallel"
+          disabled={!s.intent.trim() || !book || s.writeBusy}
+          title={!s.intent.trim() ? "没有本场任务不准写" : "在本列再写一场"}
+          onClick={s.writeParallel}
+        >本列再写一场</button>
         {s.notice && <p className="compose-hint" data-testid="compose-hint" role="status">{s.notice}</p>}
       </div>
       <div className="icon-row" data-testid="quick-actions">
@@ -226,7 +233,6 @@ export function Topbar() {
           >导出</button>
           <button type="button" data-testid="open-cmd" onClick={() => s.setCmdOpen(true)}>命令 ⌘K</button>
           <button type="button" data-testid="plant-promise" onClick={s.plantPromise}>伏笔</button>
-          <button type="button" onClick={s.writeParallel}>在本列再写一场</button>
           <button type="button" onClick={s.addColumn}>加列</button>
           <button type="button" onClick={s.goLibrary}>设定库</button>
           <button type="button" onClick={() => s.setLook("进度")}>支线进度</button>

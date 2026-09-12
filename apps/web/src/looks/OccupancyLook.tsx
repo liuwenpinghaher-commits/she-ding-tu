@@ -31,7 +31,7 @@ export function OccupancyLook({ open, embedded }: { open: boolean; embedded?: bo
   return (
     <div data-testid="flyout" className={embedded ? "" : `look-rail${open ? " show" : ""}`}>
       {!embedded && <button type="button" data-testid="flyout-close" onClick={() => s.setLook("时间轴")}>收起</button>}
-      {embedded && <button type="button" data-testid="flyout-close" onClick={() => s.setLook("时间轴")}>回时间轴</button>}
+      {embedded && <button type="button" data-testid="flyout-close" onClick={() => s.setLook("分场条")}>回分场条</button>}
       <p className="muted">改在场回分场条拖标记，或去关系格点。格上不画逻辑线色。</p>
       {entities.length === 0 && <p>先建人物或地点</p>}
       <select value={kind} onChange={(e) => setKind(e.target.value)}>

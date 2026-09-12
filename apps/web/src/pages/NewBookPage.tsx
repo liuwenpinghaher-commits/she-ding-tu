@@ -26,18 +26,17 @@ export function NewBookPage() {
       <div className="field">
         <label>一句主脑 <input data-testid="nb-premise" value={premise} onChange={(e) => setPremise(e.target.value)} /></label>
       </div>
-      <div className="field">
-        <label>故事时间起点 <input data-testid="nb-clock" value={clock} onChange={(e) => setClock(e.target.value)} /></label>
-        <label>起点对应分钟 <input data-testid="nb-minute" value={minute} onChange={(e) => setMinute(e.target.value)} /></label>
-        <label>一格多少分钟 <input data-testid="nb-tick" value={tick} onChange={(e) => setTick(e.target.value)} /></label>
-        <label>显示格式
-          <select data-testid="nb-format" value={format} onChange={(e) => setFormat(e.target.value)}>
-            <option value="day_clock">第几天几点</option>
-            <option value="label">只显示标签</option>
-            <option value="minutes">显示分钟数</option>
-          </select>
-        </label>
-      </div>
+      <p className="muted">故事时间的起点、一格多少分钟在书的设定里改。</p>
+      <span className="qa-tray" aria-hidden="true">
+        <input className="qa-hook" tabIndex={-1} data-testid="nb-clock" value={clock} onChange={(e) => setClock(e.target.value)} />
+        <input className="qa-hook" tabIndex={-1} data-testid="nb-minute" value={minute} onChange={(e) => setMinute(e.target.value)} />
+        <input className="qa-hook" tabIndex={-1} data-testid="nb-tick" value={tick} onChange={(e) => setTick(e.target.value)} />
+        <select className="qa-hook" tabIndex={-1} data-testid="nb-format" value={format} onChange={(e) => setFormat(e.target.value)}>
+          <option value="day_clock">第几天几点</option>
+          <option value="label">只显示标签</option>
+          <option value="minutes">显示分钟数</option>
+        </select>
+      </span>
       {err && <p className="err">{err}</p>}
       <button
         className="primary"

@@ -63,6 +63,8 @@ export interface Store {
   sit: SitPacket;
   selectedChip: { entityId: string; sceneId: string; draft: boolean } | null;
   setSelectedChip: (c: { entityId: string; sceneId: string; draft: boolean } | null) => void;
+  drawer: "left" | "right" | null;
+  setDrawer: (d: "left" | "right" | null) => void;
   intent: string;
   placeId: string;
   sceneTitle: string;
@@ -355,6 +357,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, []);
   const [sit, setSit] = useState<SitPacket>(EMPTY_SIT);
   const [selectedChip, setSelectedChip] = useState<{ entityId: string; sceneId: string; draft: boolean } | null>(null);
+  const [drawer, setDrawer] = useState<"left" | "right" | null>(null);
   const refreshGen = useRef(0);
   const booksGen = useRef(0);
   const editorSel = useRef<string | null>(null);
@@ -1990,6 +1993,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     sit,
     selectedChip,
     setSelectedChip,
+    drawer,
+    setDrawer,
     intent,
     placeId,
     sceneTitle,

@@ -34,6 +34,13 @@ function Shell() {
   const hall = r.kind === "shelf" || r.kind === "new" || r.kind === "library" || r.kind === "settings";
   const showBoard = r.kind === "board" || r.kind === "scene" || r.kind === "dossier" || (!fullPage && !!s.state?.book);
   const chrome = s.sceneChrome;
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 900px)");
+    const on = () => { if (!mq.matches) s.setDrawer(null); };
+    on();
+    mq.addEventListener("change", on);
+    return () => mq.removeEventListener("change", on);
+  }, [s.setDrawer]);
 
   return (
     <div className={`app chrome-${chrome}${hall ? " hall" : ""}`}>
@@ -47,7 +54,8 @@ function Shell() {
       {r.kind === "settings" && <SettingsPage />}
       {r.kind === "dossier" && <DossierPage mode="full" />}
       {showBoard && s.state?.book && r.kind !== "dossier" && (
-        <div className="work">
+        <div className={`work${s.drawer === "left" ? " drawer-left" : ""}${s.drawer === "right" ? " drawer-right" : ""}`}>
+          <button type="button" className="drawer-back" aria-label="关掉侧栏" onClick={() => s.setDrawer(null)} />
           <LeftRail />
           <Workspace />
           <ScenePage />

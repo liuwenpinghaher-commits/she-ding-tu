@@ -74,6 +74,24 @@ export function Topbar() {
       </span>
       <span className="brand">设定图</span>
       <ThemeToggle />
+      {!hall && (
+        <>
+          <button
+            type="button"
+            className="drawer-btn"
+            data-testid="open-left-rail"
+            aria-pressed={s.drawer === "left" ? "true" : "false"}
+            onClick={() => s.setDrawer(s.drawer === "left" ? null : "left")}
+          >设定</button>
+          <button
+            type="button"
+            className="drawer-btn"
+            data-testid="open-right-rail"
+            aria-pressed={s.drawer === "right" ? "true" : "false"}
+            onClick={() => s.setDrawer(s.drawer === "right" ? null : "right")}
+          >场页</button>
+        </>
+      )}
       <select
         data-testid="book-list"
         aria-label="切换书"

@@ -861,8 +861,55 @@ textarea.grow { min-height: 4.5em; }
 [data-testid="cmd-palette"] .dialog button.ghost { display: block; width: 100%; text-align: left; margin: 2px 0; border-radius: var(--radius-1); }
 [data-testid="cmd-palette"] .dialog input { width: 100%; font-size: 16px; padding: var(--space-2) var(--space-3); }
 [data-testid="cmd-palette"] .dialog h4 { font-size: var(--text-aux-size); color: var(--text-aux); font-weight: 600; margin: var(--space-3) 0 var(--space-1); }
+.drawer-btn, .drawer-back { display: none; }
+@media (max-width: 900px) {
+  html, body { overflow-x: hidden; }
+  .app { height: auto; min-height: 100%; overflow-x: hidden; }
+  .work {
+    display: flex;
+    flex-direction: column;
+    grid-template-columns: none;
+    min-height: 60vh;
+  }
+  .left-rail, .right-rail {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    z-index: 22;
+    width: min(22rem, 88vw);
+    max-width: 100%;
+    box-shadow: var(--shadow-2);
+    transition: transform 160ms ease;
+    overflow: auto;
+  }
+  .left-rail {
+    left: 0;
+    transform: translateX(-105%);
+  }
+  .right-rail {
+    right: 0;
+    left: auto;
+    width: min(25rem, 92vw);
+    transform: translateX(105%);
+  }
+  .work.drawer-left .left-rail,
+  .work.drawer-right .right-rail { transform: none; }
+  .work.drawer-left .drawer-back,
+  .work.drawer-right .drawer-back {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 21;
+    background: var(--scrim);
+    border: 0;
+    padding: 0;
+    cursor: pointer;
+  }
+  .app:not(.hall) .drawer-btn { display: inline-flex; }
+  .compose-cluster { min-width: 0; flex: 1 1 100%; }
+}
 @media (prefers-reduced-motion: reduce) {
-  .look-rail, button { transition: none; }
+  .look-rail, button, .left-rail, .right-rail { transition: none; }
 }
 .tab-bar {
   display: flex; gap: 2px; align-items: flex-end; padding: 0 var(--space-2);

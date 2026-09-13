@@ -62,13 +62,17 @@ export async function openStripboard(page: Page) {
 /** 切到时间轴。新书默认是分场条，测钟面时先点过来。 */
 export async function openTimeline(page: Page) {
   await openWorkspaceTab(page, "时间轴");
-  await expect(page.getByTestId("timeline")).toBeVisible();
+  await expect(page.getByTestId("timeline")).toBeVisible({ timeout: 15000 });
 }
 
 /** 写下草稿后回到时间轴，等条出现。写下一场会切到分场条。 */
 export async function writeDraftBar(page: Page, intent: string) {
   await page.getByTestId("intent").fill(intent);
   await page.getByTestId("write-next").click();
+  // click() 不等 onClick 的 API；写下完成后才把 look 打回分场条。
+  // 先等这条落地，再切时间轴，避免 in-flight 的 hash 把 timeline 卸掉。
+  await expect(page.getByTestId("compose-hint")).toContainText(/草稿/, { timeout: 20000 });
+  await expect(page.getByTestId("stripboard")).toBeVisible({ timeout: 15000 });
   await openTimeline(page);
   const bar = page.locator(".tl-bar.draft").first();
   await bar.waitFor();

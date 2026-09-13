@@ -46,8 +46,8 @@ test("K2 右栏空态用人话占位", async ({ page }) => {
   await page.getByTestId("create-book").click();
   await waitBookLabel(page, book);
   await expect(page.getByTestId("sit-world")).toContainText("此刻没有开着的账");
-  await expect(page.getByTestId("sit-people")).toContainText("此刻没有开着的账");
-  await expect(page.getByTestId("sit-reader")).toContainText("此刻没有开着的账");
+  await expect(page.getByTestId("sit-people")).toContainText("还没写谁知道什么");
+  await expect(page.getByTestId("sit-reader")).toContainText("这场没有读者比角色多知道的事");
   await expect(page.getByTestId("sit-shift")).toContainText("还没写变化");
   await expect(page.getByTestId("sit-world")).not.toContainText("未写转折");
   await page.getByTestId("intent").fill("阿福发现刀");

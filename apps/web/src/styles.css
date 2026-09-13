@@ -1043,7 +1043,7 @@ textarea.grow { min-height: 4.5em; }
 .tab-add-menu button {
   display: block; width: 100%; text-align: left; border-radius: 0;
 }
-.swatches { display: flex; flex-wrap: wrap; gap: var(--space-1); align-items: center; }
+.swatches { display: flex; flex-wrap: wrap; gap: var(--space-1); align-items: center; flex: 0 0 auto; padding: var(--space-1) 0; position: relative; z-index: 4; }
 .swatches .swatch,
 .swatches input[type="color"] {
   box-sizing: border-box;

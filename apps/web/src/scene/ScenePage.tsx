@@ -190,6 +190,7 @@ export function ScenePage() {
       >删草稿</button>
       </details>
 
+      {scene && <ColorBlock book={s.state?.book || ""} sceneId={scene.id} onChange={() => setLockTick((n) => n + 1)} />}
       <div className="commit-dock">
       <button
         data-testid="fill-live"
@@ -233,7 +234,16 @@ export function ScenePage() {
           </label>
         </div>
       )}
-      {scene && <ColorBlock book={s.state?.book || ""} sceneId={scene.id} onChange={() => setLockTick((n) => n + 1)} />}
+      {scene && (
+        <a
+          href="#item-colors"
+          className="muted"
+          onClick={(e) => {
+            e.preventDefault();
+            document.getElementById("item-colors")?.scrollIntoView({ block: "nearest" });
+          }}
+        >条目色</a>
+      )}
       {scene && (
         <GapBlock
           book={s.state?.book || ""}
@@ -345,7 +355,7 @@ function ColorBlock({ book, sceneId, onChange }: { book: string; sceneId: string
   const current = itemColor(book, sceneId);
   const extra = customColors(book);
   return (
-    <div className="swatches" data-testid="item-colors">
+    <div className="swatches" id="item-colors" data-testid="item-colors">
       <span className="muted">条目色</span>
       {AEON_SWATCHES.map((c) => (
         <button

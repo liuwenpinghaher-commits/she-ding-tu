@@ -3,7 +3,7 @@ import { openTimeline, openWorkspaceTab, test, writeDraftBar, waitBookLabel } fr
 
 test.describe.configure({ timeout: 120000 });
 
-test("打开书第一眼是时间轴，能缩放、切分场条、双击建草稿、分组、分屏", async ({ page }) => {
+test("打开书第一眼是分场条，切到时间轴能缩放、切分场条、双击建草稿、分组、分屏", async ({ page }) => {
   const book = "aeon-" + Date.now();
   await page.goto("/");
   await page.getByTestId("book-name").fill(book);
@@ -72,11 +72,13 @@ test("打开书第一眼是时间轴，能缩放、切分场条、双击建草�
   await expect(page.getByTestId("split-lock")).toBeVisible();
 });
 
-test("打开渡口第一眼是按钟的条，按人分组能看见阿禾阿莲", async ({ page }) => {
+test("打开渡口第一眼是分场条，切到时间轴按人分组能看见阿禾阿莲", async ({ page }) => {
   await page.goto("/");
   await page.getByTestId("book-name").fill("渡口");
   await page.getByTestId("open-book").click();
   await waitBookLabel(page, "渡口");
+  await expect(page.getByTestId("stripboard")).toBeVisible();
+  await expect(page.getByTestId("timeline")).toHaveCount(0);
   await openTimeline(page);
   await expect(page.locator(".tl-bar").first()).toBeVisible();
   const chrome = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--chrome").trim());

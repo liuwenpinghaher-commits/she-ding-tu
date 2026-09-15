@@ -91,9 +91,51 @@ pub struct PlanBone {
     pub meet: Option<String>,
 }
 
+fn block_or_empty(parts: &[String]) -> String {
+    let joined = parts
+        .iter()
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+        .collect::<Vec<_>>()
+        .join("；");
+    if joined.is_empty() {
+        "（空）".into()
+    } else {
+        joined
+    }
+}
+
+/// 铺场嘱咐只列区间人话，禁止把 SpanPacket / world_at JSON 整包塞进去。
+pub fn plan_user_prompt(goal_intent: &str, facts: &[String], span: &SpanPacket) -> String {
+    let fact_list = facts
+        .iter()
+        .filter(|f| !f.trim().is_empty())
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    let promises: Vec<String> = span.open_promises.iter().map(|p| p.name.clone()).collect();
+    format!(
+        "目标场任务：{goal_intent}\n\
+这一截已经为真、正在起作用的事（总述必须说到其中一件正在起作用的事，用这件事本身说，不要空喊加强冲突）：\n{fact_list}\n\
+区间规定情境（只列人话，禁止整份 world_at JSON）：\n\
+1. 区间：{}–{}\n\
+2. 世界账：{}\n\
+3. 知情差：{}\n\
+4. 未收伏笔：{}\n\
+5. 中间已有场：{}\n",
+        span.clock_from,
+        span.clock_to,
+        block_or_empty(&span.states),
+        block_or_empty(&span.knowledge_gaps),
+        block_or_empty(&promises),
+        block_or_empty(&span.beats_between),
+    )
+}
+
 pub fn plan_system_prompt() -> &'static str {
     "你在建议两场之间要加几场戏。不要指定必须写哪一场。不要生成对白。建议不进历史。\
-每个骨架必须写必要性：这场不存在，目标场哪里塌。并行必须写交汇点。\
+每个骨架必须写三格：这场没有则目标场塌在哪（necessity）、串或并（serial）、与哪一场相撞（meet；并必填，串可空）。\
+不要预生成对白细稿。细稿若另生成必须标明按旧世界生成。\
 总述必须锚着区间规定情境里的事实。空话不要。\
 只输出 JSON：{\"summary\":\"...\",\"bones\":[{\"serial\":true,\"intent\":\"本场任务\",\"presence\":[\"人名\"],\"promise_op\":null,\"necessity\":\"这场没有则目标场塌在哪\",\"meet\":null}]}"
 }
@@ -212,5 +254,24 @@ mod tests {
     fn drop_parallel_without_meet() {
         let raw = r#"{"summary":"刀在抽屉","bones":[{"serial":false,"intent":"阿福走开","presence":["阿福"],"necessity":"没有这场目标会塌"}]}"#;
         assert!(parse_plan_content(raw, &["刀在抽屉".into()]).is_err());
+    }
+
+    #[test]
+    fn plan_prompt_no_world_json() {
+        let span = SpanPacket {
+            clock_from: 10,
+            clock_to: 20,
+            states: vec!["刀.holder=抽屉".into()],
+            knowledge_gaps: vec!["阿莲 不知道 刀.holder=抽屉".into()],
+            beats_between: vec!["b1:阿福看见刀".into()],
+            ..SpanPacket::default()
+        };
+        let p = plan_user_prompt("揭穿", &["刀.holder=抽屉".into()], &span);
+        assert!(p.contains("1. 区间"));
+        assert!(p.contains("2. 世界账"));
+        assert!(p.contains("刀.holder=抽屉"));
+        assert!(p.contains("禁止整份 world_at JSON"));
+        assert!(!p.contains("\"states\""));
+        assert!(!p.contains("区间规定情境：\n{"));
     }
 }

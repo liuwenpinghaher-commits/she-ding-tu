@@ -96,6 +96,13 @@ export function ScenePage() {
 
       <details className="acc acc-scene" open>
         <summary>场页</summary>
+      <div className="muted" data-testid="three-clocks">
+        <div data-testid="three-clock-story">故事时 {scene
+          ? `${formatClock(scene.clock_from, craft?.clock_origin_label, craft?.clock_origin_minute, craft?.clock_format)} – ${formatClock(scene.clock_to, craft?.clock_origin_label, craft?.clock_origin_minute, craft?.clock_format)}`
+          : "还没选场"}</div>
+        <div data-testid="three-clock-telling">读序 {s.tellingOrd.trim() || (scene?.telling_ord != null ? String(scene.telling_ord) : "未标")}</div>
+        <div data-testid="three-clock-commit">第几次写入 {canon && scene?.commit_seq != null ? `第 ${scene.commit_seq} 次` : "还没写入正史"}</div>
+      </div>
       {s.selectedChip && <ChipInspect />}
       <div className="field">
         <label>本场任务 <input value={s.intent} onChange={(e) => s.setIntent(e.target.value)} placeholder="本场任务" /></label>
@@ -103,14 +110,11 @@ export function ScenePage() {
       </div>
       <div className="field">
         {locked && <p className="muted">这场已是正史。要点「改这一场」才动。第几次写入正史不会重编号。</p>}
-        {canon && scene?.commit_seq != null && (
-          <p className="commit-seq" data-testid="commit-seq">第 {scene.commit_seq} 次写入正史</p>
-        )}
         <label>场次 <input data-testid="scene-title" value={s.sceneTitle} readOnly={locked} onChange={(e) => s.setSceneTitle(e.target.value)} /></label>
       </div>
       <div className="field">
         <div className="field-head"><span>这场前后，什么变了</span><button type="button" data-testid="talk-shift" onClick={() => s.runTalk("value_shift", s.valueShift)}>讨论</button></div>
-        <input data-testid="value-shift" value={s.valueShift} readOnly={locked} onChange={(e) => s.setValueShift(e.target.value)} placeholder="这场前后，什么变了" />
+        <input data-testid="value-shift" value={s.valueShift} readOnly={locked} onChange={(e) => s.setValueShift(e.target.value)} placeholder="信任→破裂" />
       </div>
       <div data-testid="tracks" />
       <GrowField label="动作" testid="do-text" talkId="talk-do" field="do_text" value={s.doText} onChange={s.setDoText} ents={ents} locked={locked} guide="g7" />
@@ -139,6 +143,7 @@ export function ScenePage() {
       <details className="acc-nested sit-fold" open>
         <summary>本场规定情境</summary>
       <section data-testid="sit-blocks" className="sit-blocks">
+        {s.sitError && <p className="err" data-testid="sit-error">{s.sitError}</p>}
         <div data-testid="sit-task">
           <strong>本场任务</strong> {s.intent || sit.intent || "还没有"}
           {desireNotes.length > 0 && (
@@ -146,10 +151,42 @@ export function ScenePage() {
           )}
         </div>
         <div data-testid="sit-shift"><strong>这场前后，什么变了</strong> {sit.last_value_shift || <span className="sit-empty">还没写变化</span>}</div>
-        <div data-testid="sit-world"><strong>此刻还开着的事</strong> {sit.stakes.length ? sit.stakes.map((x) => stakeLine(x, ents)).join("；") : <span className="sit-empty">此刻没有开着的账</span>}</div>
+        {s.state?.warnings?.some((w) => w.code === "consecutive_empty_shift" && w.beat_id === scene?.id) && (
+          <button
+            type="button"
+            className="warn-bar"
+            data-testid="idle-shift-bar"
+            onClick={() => {
+              const ordered = [...s.scenes].sort((a, b) => a.clock_from - b.clock_from);
+              const i = ordered.findIndex((x) => x.id === scene?.id);
+              const prev = i > 0 ? ordered[i - 1] : null;
+              if (prev) s.selectScene(prev.id, prev.draft);
+            }}
+          >连续空转。上场也没写变化。点这里看上场。仍可写入正史。</button>
+        )}
+        <div data-testid="sit-world"><strong>此刻还开着的事</strong> <span className="sit-note">当场利害（张力的材料）</span> {sit.stakes.length ? sit.stakes.map((x) => stakeLine(x, ents)).join("；") : <span className="sit-empty">此刻没有开着的账</span>}</div>
         <div data-testid="sit-people"><strong>谁知道、谁不知道、谁信错</strong> {[...sit.knowledge_gaps, ...sit.wrong_beliefs].map((x) => sitKnowLine(x, ents)).join("；") || <span className="sit-empty">还没写谁知道什么</span>}</div>
         <div data-testid="sit-reader"><strong>你看见了、场上有人还不知道</strong> {[...sit.reader_knows, ...sit.reader_irony].slice(0, 8).map((x) => sitKnowLine(x, ents)).join("；") || <span className="sit-empty">这场没有读者比角色多知道的事</span>}</div>
-        <div data-testid="sit-promises"><strong>未收伏笔</strong> {sit.open_promises.length ? sit.open_promises.map((p) => p.name).join("、") : "没有未收的"}</div>
+        <div data-testid="sit-promises">
+          <strong>未收伏笔</strong>{" "}
+          {sit.open_promises.length
+            ? sit.open_promises.map((p, i) => {
+              const overdue = p.deadline_clock != null && scene != null && p.deadline_clock <= scene.clock_from;
+              const handled = (scene?.promise_ops || []).some((op) => op.promise_id === p.id && (op.op === "payoff" || op.op === "void"));
+              return (
+                <span key={p.id || p.name}>
+                  {i ? "、" : ""}
+                  <span className={overdue && !handled ? "overdue" : undefined} data-testid={overdue && !handled ? "promise-overdue" : undefined}>
+                    {p.name}{overdue && !handled ? "（期限已过，读者还欠这一响）" : ""}
+                  </span>
+                </span>
+              );
+            })
+            : "没有未收的"}
+          {sit.open_promises_more > 0 && (
+            <div className="sit-note" data-testid="promises-more">另有 {sit.open_promises_more} 条未收，见各档案页</div>
+          )}
+        </div>
       </section>
       </details>
       <div
@@ -178,7 +215,12 @@ export function ScenePage() {
         type="button"
         disabled={!canon}
         onClick={() => { if (s.editingCanon) s.revise(); else s.setEditingCanon(true); }}
-      >{s.editingCanon ? "写入这次改动" : "改这一场"}</button>
+      >
+        {s.editingCanon ? "写入这次改动" : "改这一场"}
+        {canon && scene?.commit_seq != null && (
+          <span className="seq-badge" data-testid="commit-seq">第 {scene.commit_seq} 次写入正史</span>
+        )}
+      </button>
       <div data-testid="revise-msg">{s.reviseMsg}</div>
       <button data-testid="delete-canon" type="button" disabled={!canon} onClick={s.deleteCanon}>删已正史</button>
       <button
@@ -201,6 +243,12 @@ export function ScenePage() {
         onClick={s.fillLive}
       >{s.fillLiveBusy ? "正在填…" : "模型填这一场"}</button>
       {s.opError && <p className="err" data-testid="op-error">{s.opError}</p>}
+      {s.notice && s.notice.includes("这篇像复述") && (
+        <p className="warn-bar" data-testid="literary-thin">这篇像复述，仍可改后写入正史</p>
+      )}
+      {s.state?.world_error && (
+        <p className="err" data-testid="world-error">{s.state.world_error}</p>
+      )}
       {emptyWorld && draft && (
         <p className="commit-gap" data-testid="commit-empty-world">下一场的世界账还是空的。要让刀在抽屉成为世界上为真，写一条本场变化。</p>
       )}
@@ -223,6 +271,9 @@ export function ScenePage() {
           {formatClock(scene.clock_from, craft?.clock_origin_label, craft?.clock_origin_minute, craft?.clock_format)}
           {" – "}
           {formatClock(scene.clock_to, craft?.clock_origin_label, craft?.clock_origin_minute, craft?.clock_format)}
+          <div data-testid="who-learned" className="muted">
+            谁在这场学会：{(scene.knowledge_writes || []).map((k) => k.person_id).filter(Boolean).join("、") || "还没有人在这场学会新事实"}
+          </div>
           <label className="follow-toggle">
             <input
               type="checkbox"
@@ -438,13 +489,19 @@ function PlanBlock() {
       {s.planNotice && <p className="muted" data-testid="plan-notice">{s.planNotice}</p>}
       {(s.planBones || []).map((b, i) => (
         <article key={i} className="book-card" data-testid={`plan-bone-${i}`}>
-          <p>{b.serial ? "串" : "并"} · {b.intent}</p>
+          <p data-testid={`plan-bone-kind-${i}`}>预场 / 须再填三轨</p>
+          <p data-testid={`plan-bone-serial-${i}`}>{b.serial === false ? "并" : "串"}</p>
+          <p data-testid={`plan-bone-collapse-${i}`}>这场没有，目标场会塌在：{b.necessity || "还没写"}</p>
+          <p data-testid={`plan-bone-meet-${i}`}>相撞：{b.meet || (b.serial === false ? "并行必须写交汇点" : "无")}</p>
+          <p>{b.intent}</p>
           {b.presence?.length ? <p className="muted">谁在：{b.presence.join("、")}</p> : null}
-          {b.necessity ? <p>{b.necessity}</p> : null}
+          {b.detail ? <p className="muted" data-testid={`plan-bone-detail-${i}`}>细稿（按旧世界生成）：{b.detail}</p> : null}
         </article>
       ))}
       {s.planBones.length > 0 && (
         <div>
+          <p className="muted" data-testid="plan-legacy">骨架不预生成明细。细稿可选，按旧世界生成。</p>
+          <button type="button" data-testid="plan-detail" onClick={s.planDetail}>生成细稿（按旧世界生成）</button>
           <button type="button" data-testid="plan-apply-tail" onClick={() => s.planApply("tail")}>落在最后（预场草稿）</button>
           <button type="button" data-testid="plan-apply-mid" onClick={() => s.planApply("mid")}>落在中间</button>
           <p className="muted" data-testid="plan-mid-why">插在中间须先确认变更，才会落成预场草稿。建议不进模型填下一场。</p>

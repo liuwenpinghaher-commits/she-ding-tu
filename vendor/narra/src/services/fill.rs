@@ -31,6 +31,7 @@ pub fn fill_system_prompt() -> &'static str {
 只根据本场任务和规定情境写这一场。按在场人物分轨：每个人自己的动作、对白、内心。\
 道具、器物（thing）不分轨：不要把它们写成 tracks 里的 person_id，不要给它们对白或内心；它们只可以出现在人物的动作里被拿、被看见。\
 稿子里要发生一件事：价值转折，或知情差被用上，或对伏笔做一件事。不要复述世界清单。\
+禁止复述世界账。必须写出价值转折、或一次伏笔操作、或一处知情差对戏。\
 不要指定下一场。不要说已经写入正史。\
 只输出一个 JSON 对象，键为 tracks（数组，每项 person_id、do_text、say_text、think_text）、value_shift。也可附 do_text/say_text/think_text 整场摘要。不要Markdown围栏外的解释。"
 }
@@ -116,14 +117,82 @@ pub fn fill_cast_suffix(speakers: &[String], props: &[String]) -> String {
     )
 }
 
+fn block_or_empty(parts: &[String]) -> String {
+    let joined = parts
+        .iter()
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+        .collect::<Vec<_>>()
+        .join("；");
+    if joined.is_empty() {
+        "（空）".into()
+    } else {
+        joined
+    }
+}
+
+pub fn packet_six_blocks(intent: &str, pkt: &ScenePacket) -> String {
+    let shift = pkt
+        .last_value_shift
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .unwrap_or("（空）");
+    let world = block_or_empty(&pkt.stakes);
+    let mut people = pkt.knowledge_gaps.clone();
+    people.extend(pkt.wrong_beliefs.iter().cloned());
+    let people_s = block_or_empty(&people);
+    let mut reader = pkt.reader_knows.clone();
+    reader.extend(pkt.reader_irony.iter().cloned());
+    let reader_s = block_or_empty(&reader);
+    let promises: Vec<String> = pkt.open_promises.iter().map(|p| p.name.clone()).collect();
+    let promises_s = block_or_empty(&promises);
+    format!(
+        "本场规定情境（只这六块，禁止整份世界 JSON，禁止 world_at）：\n\
+1. 本场任务：{intent}\n\
+2. 上场价值转折：{shift}\n\
+3. 世界账：{world}\n\
+4. 人物账：{people_s}\n\
+5. 读者账：{reader_s}\n\
+6. 未收伏笔：{promises_s}\n"
+    )
+}
+
 pub fn fill_user_prompt(intent: &str, pkt: &ScenePacket) -> Result<String, String> {
     if intent.trim().is_empty() {
         return Err("没有本场任务不准填".into());
     }
-    let pkt_json = serde_json::to_string_pretty(pkt).map_err(|e| e.to_string())?;
-    Ok(format!(
-        "本场任务：{intent}\n\n本场规定情境（JSON）：\n{pkt_json}\n"
-    ))
+    Ok(format!("本场任务：{intent}\n\n{}", packet_six_blocks(intent, pkt)))
+}
+
+/// 模型稿像复述这一刻：没有价值转折、没有点到伏笔名、对白/内心也没碰到知情差。
+/// 不挡生成，只给界面标黄。人直接手写正史仍走 L30。
+pub fn literary_thin(fields: &FillFields, pkt: &ScenePacket) -> bool {
+    let no_shift = fields
+        .value_shift
+        .as_deref()
+        .map(str::trim)
+        .unwrap_or("")
+        .is_empty();
+    let blob = format!(
+        "{}{}{}",
+        fields.do_text.as_deref().unwrap_or(""),
+        fields.say_text.as_deref().unwrap_or(""),
+        fields.think_text.as_deref().unwrap_or("")
+    );
+    let no_promise = !pkt.open_promises.iter().any(|p| {
+        (!p.name.trim().is_empty() && blob.contains(&p.name))
+            || (!p.id.trim().is_empty() && blob.contains(&p.id))
+    });
+    let no_gap = !pkt
+        .knowledge_gaps
+        .iter()
+        .chain(pkt.wrong_beliefs.iter())
+        .any(|g| {
+            let frag: String = g.chars().take(6).collect();
+            frag.chars().count() >= 2 && blob.contains(&frag)
+        });
+    no_shift && no_promise && no_gap
 }
 
 pub fn parse_fill_content(raw: &str) -> Result<FillFields, String> {
@@ -217,10 +286,10 @@ kind=break 是穿帮关切，drama 是平在哪，option 是可选方向。\
 }
 
 pub fn talk_user_prompt(field: &str, draft_text: &str, pkt: &ScenePacket, presence: &[String]) -> String {
-    let pkt_json = serde_json::to_string_pretty(pkt).unwrap_or_else(|_| "{}".into());
     format!(
-        "正在讨论的格子：{field}\n当前草稿：{draft_text}\n在场：{}\n规定情境：\n{pkt_json}\n",
-        presence.join("、")
+        "正在讨论的格子：{field}\n当前草稿：{draft_text}\n在场：{}\n禁止整份世界 JSON，禁止 world_at。\n{}\n",
+        presence.join("、"),
+        packet_six_blocks(&pkt.intent, pkt)
     )
 }
 
@@ -331,6 +400,52 @@ mod tests {
     fn reject_empty() {
         assert!(parse_fill_content("{}").is_err());
         assert!(fill_user_prompt("  ", &ScenePacket::default()).is_err());
+    }
+
+    #[test]
+    fn prompt_six_blocks_no_world_json() {
+        let pkt = ScenePacket {
+            intent: "找刀".into(),
+            stakes: vec!["刀.holder=抽屉".into()],
+            knowledge_gaps: vec!["阿莲 不知道 刀.holder=抽屉".into()],
+            last_value_shift: Some("刀被阿福看见".into()),
+            ..ScenePacket::default()
+        };
+        let p = fill_user_prompt("找刀", &pkt).unwrap();
+        assert!(p.contains("1. 本场任务"));
+        assert!(p.contains("2. 上场价值转折"));
+        assert!(p.contains("3. 世界账"));
+        assert!(p.contains("4. 人物账"));
+        assert!(p.contains("5. 读者账"));
+        assert!(p.contains("6. 未收伏笔"));
+        assert!(!p.contains("world_at"));
+        assert!(!p.contains("\"states\""));
+        assert!(!p.contains("本场规定情境（JSON）"));
+        assert!(fill_system_prompt().contains("禁止复述世界账"));
+        let talk = talk_user_prompt("intent", "找刀", &pkt, &["阿莲".into()]);
+        assert!(talk.contains("1. 本场任务"));
+        assert!(talk.contains("禁止 world_at"));
+        assert!(!talk.contains("本场规定情境（JSON）"));
+        assert!(!talk.contains("\"stakes\""));
+    }
+
+    #[test]
+    fn literary_thin_when_no_turn() {
+        let pkt = ScenePacket {
+            knowledge_gaps: vec!["阿莲 不知道 刀.holder=抽屉".into()],
+            ..ScenePacket::default()
+        };
+        let thin = FillFields {
+            do_text: Some("走进屋里".into()),
+            ..FillFields::default()
+        };
+        assert!(literary_thin(&thin, &pkt));
+        let ok = FillFields {
+            do_text: Some("走进屋里".into()),
+            value_shift: Some("信任→破裂".into()),
+            ..FillFields::default()
+        };
+        assert!(!literary_thin(&ok, &pkt));
     }
 
     #[test]

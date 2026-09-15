@@ -38,6 +38,7 @@ export type SitPacket = {
   reader_knows: string[];
   reader_irony: string[];
   open_promises: { name: string; id?: string; deadline_clock?: number | null }[];
+  open_promises_more: number;
   suggestion: { promise_id: string; op: string; name: string; due: boolean } | null;
 };
 
@@ -50,6 +51,7 @@ const EMPTY_SIT: SitPacket = {
   reader_knows: [],
   reader_irony: [],
   open_promises: [],
+  open_promises_more: 0,
   suggestion: null,
 };
 
@@ -61,6 +63,7 @@ export interface Store {
   banner: string;
   sidebar: string;
   sit: SitPacket;
+  sitError: string;
   selectedChip: { entityId: string; sceneId: string; draft: boolean } | null;
   setSelectedChip: (c: { entityId: string; sceneId: string; draft: boolean } | null) => void;
   drawer: "left" | "right" | null;
@@ -138,6 +141,7 @@ export interface Store {
   notice: string;
   setNotice: (v: string) => void;
   queuedPresence: string[];
+  appearNext: (entityId: string) => void;
   toggleComposePerson: (entityId: string) => void;
   plantPromise: () => void;
   fillLive: () => Promise<void>;
@@ -147,11 +151,12 @@ export interface Store {
   cancelDeleteDraft: () => void;
   editingCanon: boolean;
   setEditingCanon: (v: boolean) => void;
-  planBones: Array<{ serial?: boolean; intent: string; presence?: string[]; necessity?: string }>;
+  planBones: Array<{ serial?: boolean; intent: string; presence?: string[]; necessity?: string; meet?: string | null; detail?: string }>;
   planNotice: string;
   deleteEntity: (id: string) => Promise<void>;
   planSuggest: () => Promise<void>;
   planApply: (mode: "tail" | "mid") => Promise<void>;
+  planDetail: () => void;
   setIntent: (v: string) => void;
   setPlaceId: (v: string) => void;
   setSceneTitle: (v: string) => void;
@@ -340,10 +345,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const queuedPresenceRef = useRef<string[]>([]);
   const [deleteDraftAsk, setDeleteDraftAsk] = useState<string | null>(null);
   const [editingCanon, setEditingCanon] = useState(false);
-  const [planBones, setPlanBones] = useState<Array<{ serial?: boolean; intent: string; presence?: string[]; necessity?: string }>>([]);
+  const [planBones, setPlanBones] = useState<Array<{ serial?: boolean; intent: string; presence?: string[]; necessity?: string; meet?: string | null; detail?: string }>>([]);
   const [planNotice, setPlanNotice] = useState("");
   const pendingPlanRef = useRef<{
-    bones: Array<{ serial?: boolean; intent: string; presence?: string[]; necessity?: string }>;
+    bones: Array<{ serial?: boolean; intent: string; presence?: string[]; necessity?: string; meet?: string | null; detail?: string }>;
     goalId: string;
   } | null>(null);
 
@@ -356,6 +361,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     return msg;
   }, []);
   const [sit, setSit] = useState<SitPacket>(EMPTY_SIT);
+  const [sitError, setSitError] = useState("");
   const [selectedChip, setSelectedChip] = useState<{ entityId: string; sceneId: string; draft: boolean } | null>(null);
   const [drawer, setDrawer] = useState<"left" | "right" | null>(null);
   const refreshGen = useRef(0);
@@ -384,6 +390,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const applyState = useCallback((st: UiState) => {
     setState(st);
+    if (st.world_error) setNotice(st.world_error);
     const sel = st.selected
       ? st.drafts.find((d) => d.id === st.selected)
       : null;
@@ -459,9 +466,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           reader_irony?: string[];
         };
         suggestion?: { promise_id?: string; op?: string } | null;
+        open_promises_more?: number;
       }>("/api/circumstances");
       if (r.empty && !r.packet) {
         setSit(EMPTY_SIT);
+        setSitError("");
         return;
       }
       const pkt = r.packet;
@@ -496,10 +505,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         reader_knows: pkt?.reader_knows || [],
         reader_irony: pkt?.reader_irony || [],
         open_promises: opens,
+        open_promises_more: r.open_promises_more || 0,
         suggestion: sug,
       });
-    } catch {
+      setSitError("");
+    } catch (e) {
       setSit(EMPTY_SIT);
+      const raw = e instanceof Error ? e.message : "算出这一刻失败";
+      setSitError(`这一刻没算成：${raw}。不会改去问模型现在世界怎样。`);
     }
   }, []);
 
@@ -891,8 +904,21 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       method: "POST",
       body: JSON.stringify({ id: name, kind, name, profile }),
     });
+    setToast(`${name}已写入设定。写一场让它出场。`);
+    setNotice("已写入设定，还没上场。打开档案可点「写一场让它出场」。不会自动进这场在场。");
     await refresh();
   }, [refresh]);
+
+  const appearNext = useCallback((entityId: string) => {
+    const id = entityId.trim();
+    if (!id) return;
+    if (!queuedPresenceRef.current.includes(id)) {
+      queuedPresenceRef.current = [...queuedPresenceRef.current, id];
+      setQueuedPresence(queuedPresenceRef.current);
+    }
+    setNotice("先写一行本场任务，点写下一场，会把它带进这场在场。");
+    requestAnimationFrame(() => document.querySelector<HTMLInputElement>("[data-testid=intent]")?.focus());
+  }, []);
 
   const addPresence = useCallback(async (entityId: string, sceneId?: string) => {
     const id = sceneId || state?.selected || state?.selected_canon;
@@ -1041,7 +1067,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setPlanNotice("正在想…");
     try {
       const r = await api<{
-        bones?: Array<{ serial?: boolean; intent: string; presence?: string[]; necessity?: string }>;
+        bones?: Array<{ serial?: boolean; intent: string; presence?: string[]; necessity?: string; meet?: string | null; detail?: string }>;
         notice?: string;
         need_structure?: boolean;
         summary?: string;
@@ -1057,6 +1083,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setPlanNotice(e instanceof Error ? e.message : "铺场建议失败");
     }
   }, [state?.selected, state?.selected_canon, intent]);
+
+  const planDetail = useCallback(() => {
+    if (!planBones.length) {
+      setPlanNotice("先建议这一段怎么铺。细稿可选，按旧世界生成，不算进算出这一刻。");
+      return;
+    }
+    setPlanBones((rows) => rows.map((b) => ({
+      ...b,
+      detail: b.detail || "（按旧世界生成）尚未写出对白。点「模型填这一场」时只吃规定情境六块。",
+    })));
+    setPlanNotice("细稿按旧世界生成，不算进算出这一刻，不指定写哪一场。点「模型填这一场」才进讨论框。");
+  }, [planBones.length]);
 
   const planApply = useCallback(async (mode: "tail" | "mid") => {
     const id = state?.selected || state?.selected_canon;
@@ -1277,7 +1315,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setOpError("");
     setNotice("正在让模型填这场…");
     try {
-      const r = await api<{ do_text?: string; say_text?: string; think_text?: string }>("/api/fill-live", {
+      const r = await api<{
+        do_text?: string;
+        say_text?: string;
+        think_text?: string;
+        literary_thin?: boolean;
+        literary_notice?: string;
+      }>("/api/fill-live", {
         method: "POST",
         body: JSON.stringify({ id }),
       });
@@ -1291,7 +1335,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setDiscussOpen(true);
       setFillPending(true);
       setModelSuggest(true);
-      setNotice("模型稿在讨论框里。点「放到这个格子」才进草稿，定稿还要再点写入正史。");
+      setNotice(
+        r.literary_thin
+          ? (r.literary_notice || "这篇像复述，仍可改后写入正史")
+          : "模型稿在讨论框里。点「放到这个格子」才进草稿，定稿还要再点写入正史。",
+      );
     } catch (e) {
       const msg = e instanceof Error ? e.message : "模型没填成";
       setNotice(msg);
@@ -1997,6 +2045,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     banner,
     sidebar,
     sit,
+    sitError,
     selectedChip,
     setSelectedChip,
     drawer,
@@ -2066,6 +2115,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     notice,
     setNotice,
     queuedPresence,
+    appearNext,
     toggleComposePerson,
     plantPromise,
     fillLive,
@@ -2080,6 +2130,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     deleteEntity,
     planSuggest,
     planApply,
+    planDetail,
     setIntent: (v) => { dirty.current.add("intent"); setIntent(v); },
     setPlaceId: (v) => { dirty.current.add("place"); setPlaceId(v); },
     setSceneTitle: (v) => { dirty.current.add("title"); setSceneTitle(v); },

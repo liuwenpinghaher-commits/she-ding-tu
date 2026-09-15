@@ -25,12 +25,14 @@ use narra::services::chapter_compose::{
 use narra::services::craft::{self, BookCraft, ExportBeat};
 use narra::services::fill::{
     chat_completions_url, extract_chat_content, fill_cast_suffix, fill_system_prompt,
-    fill_user_prompt, packet_facts, parse_fill_content, parse_talk_content, scrub_thing_fields,
-    talk_system_prompt, talk_user_prompt,
+    fill_user_prompt, literary_thin, packet_facts, parse_fill_content, parse_talk_content,
+    scrub_thing_fields, talk_system_prompt, talk_user_prompt,
 };
 use narra::services::materialize::invalidate_interval;
 use narra::services::relations;
-use narra::services::span::{parse_plan_content, plan_system_prompt, span_circumstances, PlanBone};
+use narra::services::span::{
+    parse_plan_content, plan_system_prompt, plan_user_prompt, span_circumstances, PlanBone,
+};
 use narra::services::world::{
     apply_track_flatten, Beat, BeatDraft, BeatThread, Canon, Column, Delta, Entity, KnowledgeWrite,
     PersonTrack, Presence, Promise, PromiseOp, StoryThread, KIND_FACTION, KIND_PERSON, KIND_PLACE,
@@ -315,6 +317,8 @@ struct UiState {
     committed: Vec<narra::services::world::Beat>,
     drafts: Vec<UiDraft>,
     world: Option<World>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    world_error: Option<String>,
     pending: Option<Pending>,
     selected: Option<String>,
     selected_canon: Option<String>,
@@ -1674,21 +1678,36 @@ fn collect_warnings(
     drafts: &[UiDraft],
 ) -> Vec<BeatWarning> {
     let mut out = Vec::new();
+    let mut rows: Vec<(i64, String, bool)> = Vec::new();
     for b in committed {
-        if empty_shift_warn(&b.kind, b.value_shift.as_deref()) {
+        let empty = empty_shift_warn(&b.kind, b.value_shift.as_deref());
+        if empty {
             out.push(BeatWarning {
                 beat_id: b.id.clone(),
                 code: "empty_value_shift".into(),
                 message: "未写转折".into(),
             });
         }
+        rows.push((b.clock_from, b.id.clone(), empty));
     }
     for d in drafts {
-        if empty_shift_warn(&d.draft.kind, d.draft.value_shift.as_deref()) {
+        let empty = empty_shift_warn(&d.draft.kind, d.draft.value_shift.as_deref());
+        if empty {
             out.push(BeatWarning {
                 beat_id: d.id.clone(),
                 code: "empty_value_shift".into(),
                 message: "未写转折".into(),
+            });
+        }
+        rows.push((d.draft.clock_from, d.id.clone(), empty));
+    }
+    rows.sort_by_key(|r| (r.0, r.1.clone()));
+    for i in 1..rows.len() {
+        if rows[i].2 && rows[i - 1].2 {
+            out.push(BeatWarning {
+                beat_id: rows[i].1.clone(),
+                code: "consecutive_empty_shift".into(),
+                message: "连续空转".into(),
             });
         }
     }
@@ -2098,7 +2117,13 @@ async fn snapshot(sess: &BookSess, name: &str, data_root: &std::path::Path) -> R
         sess.selected_col.as_deref(),
         sess.window_start,
     );
-    let world = sess.book.world_at(t, None).await.ok();
+    let (world, world_error) = match sess.book.world_at(t, None).await {
+        Ok(w) => (Some(w), None),
+        Err(e) => (
+            None,
+            Some(format!("算出这一刻失败：{e}。不会改去问模型现在世界怎样。")),
+        ),
+    };
     let committed: Vec<_> = canon
         .beats
         .iter()
@@ -2129,6 +2154,7 @@ async fn snapshot(sess: &BookSess, name: &str, data_root: &std::path::Path) -> R
         committed,
         drafts: sess.drafts.clone(),
         world,
+        world_error,
         pending: sess.pending.clone(),
         selected: sess.selected.clone(),
         selected_canon: sess.selected_canon.clone(),
@@ -5176,6 +5202,12 @@ async fn circumstances(
         pkt = apply_person_lens(pkt, &world, p);
     }
     let suggestion = suggest_promise_op(&pkt.open_promises, &draft);
+    let total_open = canon
+        .promises
+        .iter()
+        .filter(|p| p.status == "open")
+        .count();
+    let more = total_open.saturating_sub(pkt.open_promises.len());
     Ok(Json(serde_json::json!({
         "packet": pkt,
         "suggestion": suggestion,
@@ -5183,6 +5215,8 @@ async fn circumstances(
         "structure_suggestions_in_packet": false,
         "lens_person": lens,
         "world_unchanged": true,
+        "open_promises_more": more,
+        "open_promises_total": total_open,
     })))
 }
 
@@ -5507,6 +5541,7 @@ async fn fill_live(
     sess.fill_pending = Some(suggested.clone());
     persist_drafts(&app.data_root, &name, &sess.drafts);
     let pkt_json = serde_json::to_value(&pkt).unwrap_or(serde_json::json!({}));
+    let thin = literary_thin(&fields, &pkt);
     Ok(Json(serde_json::json!({
         "do_text": suggested.do_text,
         "say_text": suggested.say_text,
@@ -5519,6 +5554,12 @@ async fn fill_live(
         "model_input": pkt_json,
         "model_input_has_suggestion": false,
         "model_input_has_structure": false,
+        "literary_thin": thin,
+        "literary_notice": if thin {
+            "这篇像复述，仍可改后写入正史"
+        } else {
+            ""
+        },
     })))
 }
 
@@ -6282,18 +6323,7 @@ async fn plan_suggest(
         facts.push(p.name.clone());
     }
     facts.push(goal_draft.intent.clone());
-    let fact_list = facts
-        .iter()
-        .filter(|f| !f.trim().is_empty())
-        .cloned()
-        .collect::<Vec<_>>()
-        .join("\n");
-    let user = format!(
-        "目标场任务：{}\n这一截已经为真、正在起作用的事（总述必须说到其中一件正在起作用的事，用这件事本身说，不要空喊加强冲突）：\n{}\n区间规定情境：\n{}\n",
-        goal_draft.intent,
-        fact_list,
-        serde_json::to_string_pretty(&span).unwrap_or_else(|_| "{}".into())
-    );
+    let user = plan_user_prompt(&goal_draft.intent, &facts, &span);
     let content = call_chat(plan_system_prompt(), &user).await?;
     let (summary, bones) =
         parse_plan_content(&content, &facts).map_err(|e| (StatusCode::BAD_GATEWAY, e))?;

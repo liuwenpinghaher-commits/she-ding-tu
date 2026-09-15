@@ -29,6 +29,7 @@ export function Dialogs() {
   const [choice, setChoice] = useState<string | null>(null);
   useEffect(() => { setChoice(null); }, [pending?.op, pending?.suggestions?.map((x) => x.id).join(",")]);
   const [craftPremise, setCraftPremise] = useState(s.state?.craft?.premise || "");
+  const [craftMemo, setCraftMemo] = useState(s.state?.craft?.structure_memo || "");
   const [chaps, setChaps] = useState<{ title: string; start_column: string }[]>(s.state?.craft?.chapters || []);
 
   return (
@@ -45,7 +46,7 @@ export function Dialogs() {
 
       <Modal open={!!pending} onClose={() => { setChoice(null); void s.cancelChange(); }} testid="confirm-change">
         <h3>确认变更</h3>
-        <p className="muted" data-testid="confirm-explain">时间结构要改，选一种办法</p>
+        <p className="muted" data-testid="confirm-explain">这些列的故事时间会改，后面已正史场要重查穿帮。Narra 此刻未改。选一种办法</p>
         <ul data-testid="impact-list">
           {(pending?.impacts || []).map((t, i) => <li key={i}>{t}</li>)}
         </ul>
@@ -76,6 +77,25 @@ export function Dialogs() {
           <div data-testid="craft-dialog">
             <h3>书页</h3>
             <label>主脑 <input data-testid="craft-premise" value={craftPremise} onChange={(e) => setCraftPremise(e.target.value)} /></label>
+            <p className="muted" data-testid="craft-memo-why">结构备忘是工具箱，不挡写入、不进规定情境、不指定写哪一场。</p>
+            <label>可选结构备忘
+              <textarea
+                data-testid="craft-memo"
+                className="grow"
+                rows={4}
+                value={craftMemo}
+                onChange={(e) => setCraftMemo(e.target.value)}
+                placeholder="三幕或七步可勾在这里。永不进算出这一刻。"
+              />
+            </label>
+            <button
+              type="button"
+              data-testid="craft-memo-3act"
+              onClick={() => {
+                if (craftMemo.trim()) return;
+                setCraftMemo("第一幕：\n第二幕：\n第三幕：");
+              }}
+            >填入三幕提纲</button>
             {chaps.map((ch, i) => (
               <div key={i}>
                 <input data-testid={`craft-title-${i}`} value={ch.title} onChange={(e) => {
@@ -89,7 +109,7 @@ export function Dialogs() {
               </div>
             ))}
             <button data-testid="craft-add-chapter" type="button" onClick={() => setChaps([...chaps, { title: "", start_column: s.state?.columns[0]?.id || "col0" }])}>加一回</button>
-            <button data-testid="craft-save" className="primary" type="button" onClick={() => s.saveCraft({ ...s.state?.craft, premise: craftPremise, chapters: chaps })}>写入书页</button>
+            <button data-testid="craft-save" className="primary" type="button" onClick={() => s.saveCraft({ ...s.state?.craft, premise: craftPremise, chapters: chaps, structure_memo: craftMemo })}>写入书页</button>
             {chaps.map((ch, i) => (
               <button
                 key={`compose-${i}`}

@@ -38,6 +38,9 @@ pub struct BookCraft {
     pub export_order: String,
     #[serde(default)]
     pub export_extras: String,
+    /// 可选结构备忘（三幕/七步）。不进算出这一刻，不指挥每一场。
+    #[serde(default)]
+    pub structure_memo: String,
 }
 
 impl BookCraft {
@@ -221,6 +224,7 @@ pub fn forbids_beat_advice(text: &str) -> bool {
 /// 去空回、补 id；同一列只留最后一回。不写 Narra，不算进算出这一刻。
 pub fn normalize(mut craft: BookCraft) -> BookCraft {
     craft.premise = craft.premise.trim().to_string();
+    craft.structure_memo = craft.structure_memo.trim().to_string();
     let mut seen: HashSet<String> = HashSet::new();
     let mut chapters: Vec<CraftChapter> = Vec::new();
     for (i, mut ch) in craft.chapters.into_iter().enumerate() {

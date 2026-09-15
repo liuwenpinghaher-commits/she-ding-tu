@@ -86,8 +86,8 @@ export function TabBar() {
               aria-current={tab.kind === currentKind && tab.id === currentId ? "page" : undefined}
               onClick={() => activate(tab)}
               onDoubleClick={() => setEditing(tab.id)}
-              title="双击改名"
-            >{tab.title}</button>
+              title={tab.kind === "时间轴" ? "可选看法，按旧世界生成。双击改名" : "双击改名"}
+            >{tab.title}{tab.kind === "时间轴" ? <span className="tab-legacy" data-testid="tl-legacy" aria-hidden="true">按旧世界生成</span> : null}</button>
           )}
           <button
             type="button"

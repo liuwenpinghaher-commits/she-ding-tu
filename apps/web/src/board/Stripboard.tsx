@@ -252,9 +252,6 @@ function SceneCardView({
         <>
           <div data-testid="card-title">{sceneHeading(sc)}</div>
           {sc.title && sc.title !== "下一场" && sc.title !== sceneHeading(sc) ? <div>{sc.title}</div> : null}
-          {!sc.draft && sc.commit_seq != null && (
-            <div className="commit-seq">第 {sc.commit_seq} 次写入</div>
-          )}
           {density <= 4 && (
             <div className="line-meta">
               {th && density <= 4 && <span className="line-name" style={{ color }}>{th.name}</span>}
@@ -283,7 +280,11 @@ function SceneCardView({
           {density >= 5 && extra > 0 && (
             <span className="plus-n" data-testid="thread-plus">+{extra}</span>
           )}
+          {density <= 4 && sc.value_shift && <div data-testid="card-shift">{sc.value_shift}</div>}
           {density <= 4 && warn?.code === "empty_value_shift" && <div data-testid="unwritten-shift">还没写变化</div>}
+          {density <= 4 && (sc.deltas || []).slice(0, 3).map((d, i) => (
+            <div key={i} className="card-delta" data-testid={i === 0 ? "card-delta" : undefined}>{d.entity_id}.{d.attr}={d.value}</div>
+          ))}
           {density <= 2 && sc.do_text && <div data-testid="card-do">{sc.do_text}</div>}
           {density <= 2 && sc.say_text && <div data-testid="card-say">{sc.say_text}</div>}
           {density <= 2 && sc.think_text && <div data-testid="card-think">{sc.think_text}</div>}

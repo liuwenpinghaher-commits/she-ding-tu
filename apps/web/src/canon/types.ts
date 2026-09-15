@@ -155,6 +155,7 @@ export interface BookCraft {
   export_include_draft?: boolean;
   export_order?: string;
   export_extras?: string;
+  structure_memo?: string;
 }
 
 export interface BookCard {
@@ -241,6 +242,7 @@ export interface UiState {
   committed: Beat[];
   drafts: UiDraft[];
   world?: World | null;
+  world_error?: string | null;
   pending?: Pending | null;
   selected?: string | null;
   selected_canon?: string | null;

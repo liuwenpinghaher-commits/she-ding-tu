@@ -125,7 +125,21 @@ export function DossierPage({ mode = "dialog" }: { mode?: "dialog" | "side" | "f
       </section>
       <section>
         <h3>出场（只读）</h3>
-        {(payload?.appearances || payload?.beats || []).length === 0 && <p className="muted">还没上过场</p>}
+        {(payload?.appearances || payload?.beats || []).length === 0 && (
+          <div data-testid="not-appeared">
+            <p className="muted">尚未出场</p>
+            <button
+              type="button"
+              data-testid="appear-next"
+              onClick={() => {
+                const id = payload?.id || s.dossierName;
+                if (id) s.appearNext(id);
+                s.setDossierOpen(false);
+                s.goBoard();
+              }}
+            >写一场让它出场</button>
+          </div>
+        )}
         {(payload?.appearances || payload?.beats || []).map((a) => (
           <button
             key={a.id}

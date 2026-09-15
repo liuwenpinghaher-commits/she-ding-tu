@@ -414,6 +414,7 @@ export function TimelineView() {
 
   return (
     <div className="timeline-view" data-testid="timeline" ref={wrap}>
+      <p className="muted" data-testid="tl-view-note">时间轴是可选看法，按旧世界生成。打开书默认分场条。已正史改钟须确认变更。</p>
       <div className="view-header">
         <span className="qa-tray" aria-hidden="true">
           <button className="qa-hook" tabIndex={-1} type="button" data-testid="tl-scale-book" onClick={() => setVp(defaultViewport(span.min, span.max, vp.width))}>全书</button>

@@ -15,7 +15,7 @@ def req(method, path, body=None, expect=None):
     r = urllib.request.Request(B + path, data=data, method=method)
     r.add_header("Content-Type", "application/json")
     try:
-        with urllib.request.urlopen(r, timeout=180) as resp:
+        with urllib.request.urlopen(r, timeout=240) as resp:
             raw = resp.read().decode()
             if (resp.headers.get("content-type") or "").startswith("application/json"):
                 return json.loads(raw)

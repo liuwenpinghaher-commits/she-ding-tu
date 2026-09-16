@@ -844,7 +844,7 @@ mod tests {
         }
 
         async fn get_fact_text(&self, target: &RecordId) -> Result<String, NarraError> {
-            Ok(format!("fact about {}", target))
+            Ok(format!("fact about {}", target.to_sql()))
         }
 
         async fn estimate_scenes_since(
@@ -896,8 +896,8 @@ mod tests {
         Character {
             id: RecordId::new("character", id),
             name: name.to_string(),
-            aliases: vec![],
-            roles: vec![],
+            aliases: Default::default(),
+            roles: Default::default(),
             profile: std::collections::HashMap::new(),
             created_at: Default::default(),
             updated_at: Default::default(),
@@ -1125,7 +1125,7 @@ mod tests {
         }
 
         async fn get_fact_text(&self, target: &RecordId) -> Result<String, NarraError> {
-            Ok(format!("fact about {}", target))
+            Ok(format!("fact about {}", target.to_sql()))
         }
 
         async fn estimate_scenes_since(

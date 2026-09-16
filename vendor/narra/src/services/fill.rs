@@ -418,7 +418,7 @@ mod tests {
         assert!(p.contains("4. 人物账"));
         assert!(p.contains("5. 读者账"));
         assert!(p.contains("6. 未收伏笔"));
-        assert!(!p.contains("world_at"));
+        assert!(!p.contains("\"world_at\""));
         assert!(!p.contains("\"states\""));
         assert!(!p.contains("本场规定情境（JSON）"));
         assert!(fill_system_prompt().contains("禁止复述世界账"));

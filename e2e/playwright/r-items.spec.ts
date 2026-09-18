@@ -183,7 +183,7 @@ test("R11 粘贴建议标目标字段", async ({ page }) => {
   await page.getByTestId("paste-run").click();
   const btn = page.getByTestId("paste-apply-paste0");
   await expect(btn).toBeVisible();
-  await expect(btn).toContainText("放到");
+  await expect(btn).toContainText("写入此框");
   await expect(btn).toContainText(/动作|对白/);
 });
 

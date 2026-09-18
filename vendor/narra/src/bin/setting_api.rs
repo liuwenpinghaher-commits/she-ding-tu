@@ -24,9 +24,10 @@ use narra::services::chapter_compose::{
 };
 use narra::services::craft::{self, BookCraft, ExportBeat};
 use narra::services::fill::{
-    chat_completions_url, extract_chat_content, fill_cast_suffix, fill_system_prompt,
-    fill_user_prompt, literary_thin, packet_facts, parse_fill_content, parse_talk_content,
-    scrub_thing_fields, talk_system_prompt, talk_user_prompt,
+    chat_completions_url, classify_paste_field, clip_export_field, extract_chat_content,
+    fill_cast_suffix, fill_system_prompt, fill_user_prompt_with_desires, literary_thin,
+    packet_facts, parse_fill_content, parse_talk_content, scrub_thing_fields, talk_system_prompt,
+    talk_user_prompt,
 };
 use narra::services::materialize::invalidate_interval;
 use narra::services::relations;
@@ -1384,11 +1385,7 @@ fn refuse_empty_cast(
 }
 
 fn paste_field_of(text: &str) -> String {
-    if text.contains('：') || text.contains(':') {
-        "say_text".into()
-    } else {
-        "do_text".into()
-    }
+    classify_paste_field(text)
 }
 
 fn delete_canon_impacts(canon: &Canon, beat: &Beat) -> Vec<String> {
@@ -3487,9 +3484,9 @@ async fn export_md(
                     b.intent,
                     b.place_id.as_deref().unwrap_or("（未标）"),
                     b.value_shift.as_deref().unwrap_or("（无）"),
-                    b.do_text.as_deref().unwrap_or(""),
-                    b.say_text.as_deref().unwrap_or(""),
-                    b.think_text.as_deref().unwrap_or(""),
+                    clip_export_field(b.do_text.as_deref().unwrap_or(""), 40),
+                    clip_export_field(b.say_text.as_deref().unwrap_or(""), 40),
+                    clip_export_field(b.think_text.as_deref().unwrap_or(""), 40),
                 ),
             }
         })
@@ -3511,9 +3508,9 @@ async fn export_md(
                     b.intent,
                     b.place_id.as_deref().unwrap_or("（未标）"),
                     b.value_shift.as_deref().unwrap_or("（无）"),
-                    b.do_text.as_deref().unwrap_or(""),
-                    b.say_text.as_deref().unwrap_or(""),
-                    b.think_text.as_deref().unwrap_or(""),
+                    clip_export_field(b.do_text.as_deref().unwrap_or(""), 40),
+                    clip_export_field(b.say_text.as_deref().unwrap_or(""), 40),
+                    clip_export_field(b.think_text.as_deref().unwrap_or(""), 40),
                 ),
             });
         }
@@ -5487,7 +5484,21 @@ async fn fill_live(
     speakers.dedup();
     props.sort();
     props.dedup();
-    let mut user = fill_user_prompt(&draft0.intent, &pkt).map_err(|e| (StatusCode::BAD_REQUEST, e))?;
+    let mut desires: Vec<String> = Vec::new();
+    for p in draft0.presences.iter().filter(|pr| pr.role == ROLE_PRESENT) {
+        if let Some(e) = canon.entity(&p.entity_id) {
+            if e.kind == KIND_PERSON {
+                if let Some(d) = e.profile.get("desire") {
+                    let d = d.trim();
+                    if !d.is_empty() {
+                        desires.push(format!("{}想要{d}", e.name));
+                    }
+                }
+            }
+        }
+    }
+    let mut user = fill_user_prompt_with_desires(&draft0.intent, &pkt, &desires)
+        .map_err(|e| (StatusCode::BAD_REQUEST, e))?;
     user.push_str(&fill_cast_suffix(&speakers, &props));
     drop(g);
     let content = call_chat(fill_system_prompt(), &user).await?;

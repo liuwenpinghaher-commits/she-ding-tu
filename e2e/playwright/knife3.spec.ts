@@ -61,7 +61,7 @@ test("K3 写入正史解释语", async ({ page }) => {
   await page.getByTestId("write-next").click();
   await page.locator(".card.draft").first().click();
   await page.getByTestId("fill-fake").click({ force: true });
-  await expect(page.getByTestId("write-box")).toHaveText("放到这个格子（还没定稿）");
+  await expect(page.getByTestId("write-box")).toHaveText("写入此框（仍是草稿）");
   await expect(page.getByTestId("thread-unlined")).toContainText("可以不贴");
   await expect(page.getByTestId("scene-threads")).toContainText("还没贴到某一条故事线（可以不贴）");
 });

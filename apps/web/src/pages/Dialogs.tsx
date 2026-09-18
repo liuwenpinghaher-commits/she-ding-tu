@@ -156,18 +156,20 @@ export function Dialogs() {
       <Modal open={s.pasteOpen} onClose={() => s.setPasteOpen(false)}>
           <div data-testid="paste-dialog">
             <h3>丢一段草稿</h3>
-            <textarea data-testid="paste-text" className="grow" value={s.pasteText} onChange={(e) => s.setPasteText(e.target.value)} />
+            <p className="muted">建议落到哪一场哪一格。点「写入此框」才进草稿，写入正史仍须另点。</p>
+            <textarea data-testid="paste-text" className="grow" placeholder="贴一段，拆开后仍要一场一场放进格子" value={s.pasteText} onChange={(e) => s.setPasteText(e.target.value)} />
             <button data-testid="paste-run" type="button" onClick={s.runPaste}>拆开看</button>
-            {(s.state?.paste_suggestions || []).map((p) => {
-              const field = p.field === "say_text" ? "对白" : p.field === "think_text" ? "内心" : p.field === "intent" ? "本场任务" : "动作";
-              const snippet = (p.text || "").replace(/\s+/g, " ").slice(0, 24);
+            {(s.state?.paste_suggestions || []).map((row) => {
+              const field = row.field === "say_text" ? "对白" : row.field === "think_text" ? "内心" : row.field === "intent" ? "本场任务" : row.field === "value_shift" ? "价值转折" : "动作";
+              const snippet = (row.text || "").replace(/\s+/g, " ").slice(0, 24);
+              const where = row.target_label || "当前草稿";
               return (
                 <button
-                  key={p.id}
+                  key={row.id}
                   type="button"
-                  data-testid={`paste-apply-${p.id}`}
-                  onClick={() => s.applyPaste(p.id)}
-                >放到{field}：{snippet}{p.text.length > 24 ? "…" : ""}</button>
+                  data-testid={`paste-apply-${row.id}`}
+                  onClick={() => s.applyPaste(row.id)}
+                >写入此框 · {where} · {field}：{snippet}{row.text.length > 24 ? "…" : ""}</button>
               );
             })}
             <button data-testid="paste-close" type="button" onClick={() => s.setPasteOpen(false)}>关闭</button>

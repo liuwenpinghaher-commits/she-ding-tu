@@ -13,7 +13,7 @@ test("K1 新书默认落在分场条", async ({ page }) => {
   await expect(page.getByTestId("timeline")).toHaveCount(0);
   await expect(page.getByTestId("tab-分场条")).toBeVisible();
   await expect(page.getByTestId("open-timeline")).toBeVisible();
-  await expect(page.getByTestId("strip-empty")).toContainText("这场要办成什么");
+  await expect(page.getByTestId("strip-empty")).toContainText("本场任务");
   await page.getByTestId("open-timeline").click();
   await expect(page.getByTestId("timeline")).toBeVisible();
   await page.getByTestId("tab-分场条").click();

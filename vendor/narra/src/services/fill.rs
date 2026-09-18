@@ -28,10 +28,12 @@ impl FillFields {
 
 pub fn fill_system_prompt() -> &'static str {
     "你在给一场戏填草稿，不是写入历史。\
-只根据本场任务和规定情境写这一场。按在场人物分轨：每个人自己的动作、对白、内心。\
+只根据本场任务和规定情境写这一场。先写在场人物要什么。按在场人物分轨：每个人自己的动作、对白、内心。\
 道具、器物（thing）不分轨：不要把它们写成 tracks 里的 person_id，不要给它们对白或内心；它们只可以出现在人物的动作里被拿、被看见。\
-稿子里要发生一件事：价值转折，或知情差被用上，或对伏笔做一件事。不要复述世界清单。\
-禁止复述世界账。必须写出价值转折、或一次伏笔操作、或一处知情差对戏。\
+稿子里要发生一件事：价值转折，或知情差被用上。不要复述世界清单。\
+禁止复述世界账。必须写出价值转折、或一处知情差对戏。\
+读者账只给作者看反讽：不许写进不知情人的对白和内心。\
+未收伏笔只是欠账清单，不是命令；不要兑现从未埋设或不在清单里的伏笔。\
 不要指定下一场。不要说已经写入正史。\
 只输出一个 JSON 对象，键为 tracks（数组，每项 person_id、do_text、say_text、think_text）、value_shift。也可附 do_text/say_text/think_text 整场摘要。不要Markdown围栏外的解释。"
 }
@@ -154,15 +156,60 @@ pub fn packet_six_blocks(intent: &str, pkt: &ScenePacket) -> String {
 3. 世界账：{world}\n\
 4. 人物账：{people_s}\n\
 5. 读者账：{reader_s}\n\
-6. 未收伏笔：{promises_s}\n"
+6. 未收伏笔：{promises_s}\n\
+规则：读者账不算世界上为真，不许写进不知情人的嘴和脑子。未收伏笔不是必须做的那一件。建议的那一件不要写进稿。\n"
     )
 }
 
 pub fn fill_user_prompt(intent: &str, pkt: &ScenePacket) -> Result<String, String> {
+    fill_user_prompt_with_desires(intent, pkt, &[])
+}
+
+pub fn fill_user_prompt_with_desires(
+    intent: &str,
+    pkt: &ScenePacket,
+    desires: &[String],
+) -> Result<String, String> {
     if intent.trim().is_empty() {
         return Err("没有本场任务不准填".into());
     }
-    Ok(format!("本场任务：{intent}\n\n{}", packet_six_blocks(intent, pkt)))
+    let want = if desires.is_empty() {
+        "（档案还没写欲望）".to_string()
+    } else {
+        desires.join("；")
+    };
+    Ok(format!(
+        "先写人物要什么：{want}\n本场任务：{intent}\n\n{}",
+        packet_six_blocks(intent, pkt)
+    ))
+}
+
+pub fn classify_paste_field(text: &str) -> String {
+    let t = text.trim();
+    if t.contains("本场任务") || t.starts_with("任务：") || t.starts_with("任务:") {
+        return "intent".into();
+    }
+    if t.contains("内心") || t.contains("心想") || t.starts_with("想：") || t.starts_with("想:") {
+        return "think_text".into();
+    }
+    if t.contains("价值转折") || t.contains('→') {
+        return "value_shift".into();
+    }
+    if t.contains('「') || t.contains('」') || t.contains('：') || t.contains(':') {
+        return "say_text".into();
+    }
+    "do_text".into()
+}
+
+pub fn clip_export_field(text: &str, n: usize) -> String {
+    let chars: Vec<char> = text.chars().collect();
+    if chars.len() <= n {
+        text.to_string()
+    } else {
+        let mut s: String = chars.into_iter().take(n).collect();
+        s.push('…');
+        s
+    }
 }
 
 /// 模型稿像复述这一刻：没有价值转折、没有点到伏笔名、对白/内心也没碰到知情差。
@@ -412,16 +459,27 @@ mod tests {
             ..ScenePacket::default()
         };
         let p = fill_user_prompt("找刀", &pkt).unwrap();
+        assert!(p.contains("先写人物要什么"));
         assert!(p.contains("1. 本场任务"));
         assert!(p.contains("2. 上场价值转折"));
         assert!(p.contains("3. 世界账"));
         assert!(p.contains("4. 人物账"));
         assert!(p.contains("5. 读者账"));
         assert!(p.contains("6. 未收伏笔"));
+        assert!(p.contains("不许写进不知情人的嘴和脑子"));
         assert!(!p.contains("\"world_at\""));
         assert!(!p.contains("\"states\""));
         assert!(!p.contains("本场规定情境（JSON）"));
         assert!(fill_system_prompt().contains("禁止复述世界账"));
+        assert!(fill_system_prompt().contains("不许写进不知情人的对白和内心"));
+        assert!(!fill_system_prompt().contains("或一次伏笔操作"));
+        let with_d = fill_user_prompt_with_desires("找刀", &pkt, &["阿莲想要过河".into()]).unwrap();
+        assert!(with_d.contains("阿莲想要过河"));
+        assert_eq!(classify_paste_field("心想别开抽屉"), "think_text");
+        assert_eq!(classify_paste_field("「东西呢」"), "say_text");
+        assert_eq!(classify_paste_field("本场任务：找刀"), "intent");
+        assert_eq!(classify_paste_field("推门进去"), "do_text");
+        assert_eq!(clip_export_field("一二三四五", 3), "一二三…");
         let talk = talk_user_prompt("intent", "找刀", &pkt, &["阿莲".into()]);
         assert!(talk.contains("1. 本场任务"));
         assert!(talk.contains("禁止 world_at"));

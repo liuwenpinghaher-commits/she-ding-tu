@@ -15,6 +15,7 @@ import {
   sitKnowLine,
   stakeLine,
 } from "./human";
+import { desireLines, plantedPromiseIds, threeQuestionLines } from "./storyCard";
 import { formatClock } from "../lenses/window";
 import { ageAtClock, parseBornClock } from "../board/ages";
 import { AEON_SWATCHES } from "../lenses/threads";
@@ -72,16 +73,22 @@ export function ScenePage() {
     const colScene = s.scenes.find((x) => x.column_id === colId && !x.draft) || null;
     return presentOn(colScene, ents).filter((e) => e.kind === "person");
   })();
-  const desireNotes = desirePeople
-    .map((p) => {
-      const d = (p.profile?.desire || "").trim();
-      return d ? `${p.name}想要${d}` : "";
-    })
-    .filter(Boolean);
+  const desireNotes = desireLines(desirePeople);
 
   const commitDisabled = !draft || !s.intent.trim() || blocking.length > 0 || s.committing;
   const locked = canon && !s.editingCanon;
   const sit = s.sit;
+  const planted = plantedPromiseIds(s.scenes);
+  const promiseSug = sit.suggestion && !(sit.suggestion.op === "payoff" && !planted.has(sit.suggestion.promise_id))
+    ? sit.suggestion
+    : null;
+  const threeQ = threeQuestionLines({
+    intent: s.intent || sit.intent || "",
+    desires: desireNotes,
+    people: peopleHere,
+    scenes: s.scenes,
+    current: scene,
+  });
   const sideRaw = s.sidebar || "";
   const clockProbe = /t=\d/.test(sideRaw) ? sideRaw : (s.state?.world ? `t=${s.state.world.t}` : "");
   const sideLooksLikeClock = /^(这一列故事时间 )?t=/.test(sideRaw.trim());
@@ -105,7 +112,7 @@ export function ScenePage() {
       </div>
       {s.selectedChip && <ChipInspect />}
       <div className="field">
-        <label>本场任务 <input value={s.intent} onChange={(e) => s.setIntent(e.target.value)} placeholder="本场任务" /></label>
+        <label>本场任务 <input value={s.intent} onChange={(e) => s.setIntent(e.target.value)} placeholder="谁想要什么，这场要改变什么" /></label>
         <label>本场地点 <input value={s.placeId} onChange={(e) => s.setPlaceId(e.target.value)} placeholder="本场地点" /></label>
       </div>
       <div className="field">
@@ -135,7 +142,7 @@ export function ScenePage() {
               {s.fillChunks.think_text && <button type="button" data-testid="fill-apply-think" onClick={() => s.applyFillPart("think_text")}>用内心</button>}
             </div>
           )}
-          <button data-testid="write-box" type="button" disabled={!s.talkPending && !s.fillPending} onClick={s.writeBox}>放到这个格子（还没定稿）</button>
+          <button data-testid="write-box" type="button" disabled={!s.talkPending && !s.fillPending} onClick={s.writeBox}>写入此框（仍是草稿）</button>
         </div>
       )}
       <button data-testid="talk" type="button" onClick={() => s.runTalk("intent", s.intent)}>讨论</button>
@@ -144,11 +151,16 @@ export function ScenePage() {
         <summary>本场规定情境</summary>
       <section data-testid="sit-blocks" className="sit-blocks">
         {s.sitError && <p className="err" data-testid="sit-error">{s.sitError}</p>}
+        <div data-testid="sit-three-q" className="sit-three">
+          <div>进场前信什么：{threeQ.believe}</div>
+          <div>这信从哪场来：{threeQ.from}</div>
+          <div>这场要什么：{threeQ.want}</div>
+        </div>
         <div data-testid="sit-task">
-          <strong>本场任务</strong> {s.intent || sit.intent || "还没有"}
           {desireNotes.length > 0 && (
             <div data-testid="sit-desire" className="sit-note">{desireNotes.join("；")}</div>
           )}
+          <strong>本场任务</strong> {s.intent || sit.intent || "还没有"}
         </div>
         <div data-testid="sit-shift"><strong>这场前后，什么变了</strong> {sit.last_value_shift || <span className="sit-empty">还没写变化</span>}</div>
         {s.state?.warnings?.some((w) => w.code === "consecutive_empty_shift" && w.beat_id === scene?.id) && (
@@ -191,13 +203,13 @@ export function ScenePage() {
       </details>
       <div
         data-testid="promise-suggest"
-        className={!sit.suggestion || ignoreSug ? "probe" : undefined}
-        aria-hidden={!sit.suggestion || ignoreSug ? true : undefined}
+        className={!promiseSug || ignoreSug ? "probe" : undefined}
+        aria-hidden={!promiseSug || ignoreSug ? true : undefined}
       >
-        {sit.suggestion && !ignoreSug ? (
+        {promiseSug && !ignoreSug ? (
           <>
-            对「{sit.suggestion.name}」建议：{promiseOpLabel(sit.suggestion.op)}
-            {sit.suggestion.due ? "（期限已到）" : ""}
+            对「{promiseSug.name}」建议：{promiseOpLabel(promiseSug.op)}
+            {promiseSug.due ? "（期限已到）" : ""}
             <button type="button" data-testid="ignore-suggest" onClick={() => setIgnoreSug(true)}>忽略</button>
           </>
         ) : (

@@ -817,6 +817,8 @@ button.big { font-size: var(--text-title); padding: 10px 18px; }
 .err { color: var(--err); }
 .toast-inline { color: var(--brand); }
 .sit-note { color: var(--text-aux); font-size: var(--text-aux-size); margin-top: 2px; font-weight: 400; }
+.sit-three { margin-bottom: 6px; }
+.sit-three div { color: var(--text); }
 .commit-gap { background: var(--warn-bg); color: var(--warn); padding: 6px 8px; border-radius: var(--radius-1); }
 .app.hall .win-seg,
 .app.hall .compose-cluster,

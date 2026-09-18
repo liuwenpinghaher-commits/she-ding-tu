@@ -4,6 +4,7 @@ import { threadColor, unlinedCount } from "../lenses/threads";
 import { readableColMax } from "../lenses/window";
 import { ThemeToggle } from "./ThemeToggle";
 import { GuideStartButton } from "./GuideTour";
+import { desireLines } from "../scene/storyCard";
 
 export function Topbar() {
   const s = useStore();
@@ -35,6 +36,13 @@ export function Topbar() {
   const atEnd = start + n >= total;
   const catalog = s.state?.threads || [];
   const unlined = unlinedCount(s.scenes);
+
+  const ents = s.state?.all_entities || s.state?.entities || [];
+  const presentIds = new Set((s.selectedScene?.presences || []).map((x) => x.entity_id));
+  if (!s.selectedScene) {
+    for (const id of s.queuedPresence) presentIds.add(id);
+  }
+  const desireNotes = desireLines(ents.filter((e) => e.kind === "person" && (presentIds.has(e.id) || presentIds.has(e.name))));
 
   const createBook = () => { const n = takeName(); if (n) s.createBook(n); };
   const openTyped = () => { const n = takeName(); if (n) s.openBook(n); };
@@ -148,10 +156,11 @@ export function Topbar() {
       </div>
       <div className="compose-cluster" data-testid="scene-compose" data-guide="compose">
         <label className="compose-field">
-          <span>这场要办成什么</span>
+          <span>本场任务</span>
+          {desireNotes.length > 0 && <span className="sit-note" data-testid="compose-desire">{desireNotes.join("；")}</span>}
           <input
             data-testid="intent"
-            placeholder="本场任务"
+            placeholder="谁想要什么，这场要改变什么"
             value={s.intent}
             onChange={(e) => s.setIntent(e.target.value)}
           />
@@ -212,7 +221,7 @@ export function Topbar() {
           data-testid="paste"
           title="丢一段草稿，拆开后仍要一场一场放进格子"
           onClick={() => { s.setPasteOpen(true); s.setNotice("贴进来的还是草稿"); }}
-        >贴草稿</button>
+        >丢一段草稿</button>
         <GuideStartButton testid="guide-help" label="引导" />
       </div>
       <details className="ops-menu" data-testid="ops-menu">

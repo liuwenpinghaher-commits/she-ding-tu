@@ -50,8 +50,8 @@ export const GUIDE_STEPS: GuideStep[] = [
   },
   {
     id: "G4",
-    title: "写下这场要办成什么",
-    bubble: "这场要办成什么？写成一句，例如『阿福发现刀在抽屉』。",
+    title: "写下本场任务",
+    bubble: "本场任务先写谁想要什么。写成一句，例如『阿福想把刀藏住』。",
     anchor: "[data-guide=compose], [data-testid=intent]",
   },
   {
@@ -69,7 +69,7 @@ export const GUIDE_STEPS: GuideStep[] = [
   {
     id: "G7",
     title: "填动作，或让模型先填",
-    bubble: "写他做了什么。对白和心里想的可空。也可以点『模型填这一场』，满意再放进格子。",
+    bubble: "写他做了什么。对白和心里想的可空。也可以点『模型填这一场』，满意再点写入此框。",
     anchor: "[data-guide=g7], [data-testid=do-text], [data-testid=fill-live]",
   },
   {

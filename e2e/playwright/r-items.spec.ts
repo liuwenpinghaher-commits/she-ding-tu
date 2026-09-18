@@ -289,4 +289,6 @@ test("R16 本场任务显示人物渴望旁注", async ({ page }) => {
   await waitBookLabel(page, book);
   await page.locator(".card.draft").first().click();
   await expect(page.getByTestId("sit-desire")).toContainText("过河");
+  await expect(page.getByTestId("sit-three-q")).toContainText("这场要什么");
+  await expect(page.getByTestId("sit-three-q")).toContainText("过河");
 });

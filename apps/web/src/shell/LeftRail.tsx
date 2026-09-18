@@ -45,7 +45,7 @@ export function LeftRail() {
         <button className="qa-hook" tabIndex={-1} id="rail-create" type="button" data-testid="rail-create" onClick={() => setExpand(true)}>+</button>
         {!(expand || picked) && (
           <>
-            <input className="qa-hook" tabIndex={-1} data-testid="ent-desire" placeholder="欲望" value={desire} onChange={(e) => setDesire(e.target.value)} />
+            <input className="qa-hook" tabIndex={-1} data-testid="ent-desire" placeholder="想要什么（写下一场会出现在本场任务前）" value={desire} onChange={(e) => setDesire(e.target.value)} />
             <input className="qa-hook" tabIndex={-1} data-testid="ent-secret" placeholder="秘密" value={secret} onChange={(e) => setSecret(e.target.value)} />
             <input className="qa-hook" tabIndex={-1} data-testid="ent-speech" placeholder="说话方式" value={speech} onChange={(e) => setSpeech(e.target.value)} />
           </>
@@ -101,7 +101,7 @@ export function LeftRail() {
       </div>
       {(expand || picked) && (
         <div className="rail-extras">
-          <input data-testid="ent-desire" placeholder="欲望" value={desire} onChange={(e) => setDesire(e.target.value)} />
+          <input data-testid="ent-desire" placeholder="想要什么（写下一场会出现在本场任务前）" value={desire} onChange={(e) => setDesire(e.target.value)} />
           <input data-testid="ent-secret" placeholder="秘密" value={secret} onChange={(e) => setSecret(e.target.value)} />
           <input data-testid="ent-speech" placeholder="说话方式" value={speech} onChange={(e) => setSpeech(e.target.value)} />
         </div>

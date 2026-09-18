@@ -12,6 +12,7 @@ import {
 import { formatClock, windowSlice } from "../lenses/window";
 import type { SceneCard, StoryThread } from "../canon/types";
 import { sceneHeading } from "../scene/human";
+import { clipPlayable } from "../scene/storyCard";
 
 function toothClass(
   col: { id: string; clock_from: number; clock_to: number },
@@ -147,7 +148,7 @@ export function Stripboard() {
       </div>
       <div id="cols" className="stripboard" data-testid="stripboard" data-guide="g2">
         {s.scenes.length === 0 && (
-          <p className="strip-empty" data-testid="strip-empty">先写这场要办成什么，再点写下一场。</p>
+          <p className="strip-empty" data-testid="strip-empty">先写本场任务（谁想要什么），再点写下一场。</p>
         )}
         {visible.map((c, i) => {
           const here = s.scenes.filter((sc) => sc.column_id === c.id);
@@ -285,9 +286,9 @@ function SceneCardView({
           {density <= 4 && (sc.deltas || []).slice(0, 3).map((d, i) => (
             <div key={i} className="card-delta" data-testid={i === 0 ? "card-delta" : undefined}>{d.entity_id}.{d.attr}={d.value}</div>
           ))}
-          {density <= 2 && sc.do_text && <div data-testid="card-do">{sc.do_text}</div>}
-          {density <= 2 && sc.say_text && <div data-testid="card-say">{sc.say_text}</div>}
-          {density <= 2 && sc.think_text && <div data-testid="card-think">{sc.think_text}</div>}
+          {density <= 2 && sc.do_text && <div data-testid="card-do">{clipPlayable(sc.do_text)}</div>}
+          {density <= 2 && sc.say_text && <div data-testid="card-say">{clipPlayable(sc.say_text)}</div>}
+          {density <= 2 && sc.think_text && <div data-testid="card-think">{clipPlayable(sc.think_text)}</div>}
           {density >= 5 && warn && <span data-testid="warn-dot">·</span>}
           <div>
             {sc.presences.map((p) => {

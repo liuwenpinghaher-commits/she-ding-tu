@@ -9,7 +9,7 @@ describe("引导主线", () => {
     assert.equal(GUIDE_STEPS.some((s) => s.id === "G11" && s.main === false), true);
     assert.ok(GUIDE_MAIN[0].bubble.includes("这是你的书单"));
     assert.ok(GUIDE_MAIN[2].bubble.includes("中间是这场戏的桌子"));
-    assert.ok(GUIDE_MAIN[4].bubble.includes("这场要办成什么"));
+    assert.ok(GUIDE_MAIN[4].bubble.includes("谁想要什么"));
   });
 
   it("开始、下一步、上一步、跳过", () => {

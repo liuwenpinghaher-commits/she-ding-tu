@@ -476,7 +476,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const pkt = r.packet;
       const bits = ["本场规定情境"];
       const last = (st?.committed || []).slice(-1)[0];
-      if (last) bits.push("上场 " + [last.value_shift, last.intent, last.do_text].filter(Boolean).join(" "));
+      if (last) bits.push("上场 " + [last.value_shift, last.intent].filter(Boolean).join(" "));
       if (pkt?.last_value_shift) bits.push("上场 " + pkt.last_value_shift);
       if (pkt?.knowledge_gaps?.length) bits.push("知情 " + pkt.knowledge_gaps.join("；"));
       if (pkt?.stakes?.length) bits.push(pkt.stakes.join("；"));
@@ -1250,7 +1250,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       dirty.current.delete("say");
       dirty.current.delete("think");
       await refresh();
-      setToast("已放到这个格子，仍是草稿");
+      setToast("已写入此框，仍是草稿");
       return;
     }
     if (!talkPending) return;
@@ -1271,7 +1271,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setTalkPending(null);
     setDiscussDraft("");
     setDiscussOpen(false);
-    setToast("已放到这个格子，仍是草稿");
+    setToast("已写入此框，仍是草稿");
     await refresh();
   }, [state?.selected, fillPending, talkPending, intent, refresh]);
 
@@ -1338,7 +1338,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setNotice(
         r.literary_thin
           ? (r.literary_notice || "这篇像复述，仍可改后写入正史")
-          : "模型稿在讨论框里。点「放到这个格子」才进草稿，定稿还要再点写入正史。",
+          : "模型稿在讨论框里。点「写入此框」才进草稿，定稿还要再点写入正史。",
       );
     } catch (e) {
       const msg = e instanceof Error ? e.message : "模型没填成";
@@ -1411,7 +1411,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (field === "say_text") setSayText(chunk);
     if (field === "think_text") setThinkText(chunk);
     await api("/api/drafts/patch", { method: "POST", body: JSON.stringify({ id, [field]: chunk }) });
-    setToast("已放到这个格子，仍是草稿");
+    setToast("已写入此框，仍是草稿");
   }, [state?.selected, fillChunks]);
 
   const addDelta = useCallback(async (entity_id: string, attr: string, value: string, clock_from = 0) => {

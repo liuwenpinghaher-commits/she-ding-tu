@@ -120,7 +120,10 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
   return (
     <Modal open onClose={onClose} testid="cmd-palette">
         <h3>命令</h3>
-        <input autoFocus placeholder="搜" value={q} onChange={(e) => setQ(e.target.value)} data-testid="cmd-q" />
+        <label className="field">
+          <span>搜命令</span>
+          <input autoFocus placeholder="书架、写下一场、分场条" value={q} onChange={(e) => setQ(e.target.value)} data-testid="cmd-q" aria-label="搜命令" />
+        </label>
         {shown.length === 0 && <p className="muted" data-testid="cmd-empty">没有这条命令</p>}
         {groups.map((g) => {
           const rows = shown.filter((it) => it.group === g);

@@ -13,6 +13,7 @@ import {
   promiseLine,
   promiseOpLabel,
   sitKnowLine,
+  sitNameIds,
   stakeLine,
 } from "./human";
 import { desireLines, plantedPromiseIds, threeQuestionLines } from "./storyCard";
@@ -92,7 +93,7 @@ export function ScenePage() {
   const sideRaw = s.sidebar || "";
   const clockProbe = /t=\d/.test(sideRaw) ? sideRaw : (s.state?.world ? `t=${s.state.world.t}` : "");
   const sideLooksLikeClock = /^(这一列故事时间 )?t=/.test(sideRaw.trim());
-  const sidebarText = !sideRaw || sideLooksLikeClock ? "本场规定情境" : sideRaw;
+  const sidebarText = !sideRaw || sideLooksLikeClock ? "本场规定情境" : sitNameIds(sideRaw, ents);
 
   return (
     <aside className={`right-rail scene-${chrome}`}>
@@ -425,6 +426,7 @@ function ColorBlock({ book, sceneId, onChange }: { book: string; sceneId: string
           key={c.hex}
           type="button"
           title={c.name}
+          aria-label={c.name}
           data-testid={`swatch-${c.name}`}
           className={`swatch${current === c.hex ? " on" : ""}`}
           style={{ background: c.hex }}
@@ -435,6 +437,7 @@ function ColorBlock({ book, sceneId, onChange }: { book: string; sceneId: string
         <button
           key={hex}
           type="button"
+          aria-label={`自定义色 ${hex}`}
           className={`swatch${current === hex ? " on" : ""}`}
           style={{ background: hex }}
           onClick={() => { setItemColor(book, sceneId, hex); onChange(); }}
@@ -658,7 +661,7 @@ function DeltaBlock({
       {deltas.length === 0 && <p className="muted">还没有本场变化</p>}
       <div data-testid="delta-list" tabIndex={0}>
         {deltas.map((d, i) => (
-          <div key={i}>{deltaLine(d, ents, originLabel, originMinute, format)} · {d.entity_id} {d.attr} {d.value}</div>
+          <div key={i}>{deltaLine(d, ents, originLabel, originMinute, format)}</div>
         ))}
       </div>
       {s.undoStack.length > 0 && (
@@ -715,7 +718,7 @@ function KnowBlock({
     <section data-testid="know-block">
       <h3>知情</h3>
       <div data-testid="know-write-list">
-        {knows.map((k, i) => <div key={i}>{knowLine(k, ents)} · {k.person_id} {k.fact}</div>)}
+        {knows.map((k, i) => <div key={i}>{knowLine(k, ents)}</div>)}
       </div>
       <input list="know-who-list" data-testid="know-who" placeholder="谁" value={knowWho} onChange={(e) => setKnowWho(e.target.value)} />
       <datalist id="know-who-list">{people.map((p) => <option key={p.id} value={p.name} />)}</datalist>

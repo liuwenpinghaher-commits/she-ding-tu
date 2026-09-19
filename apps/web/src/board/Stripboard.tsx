@@ -10,8 +10,8 @@ import {
   threadSpan,
 } from "../lenses/threads";
 import { formatClock, windowSlice } from "../lenses/window";
-import type { SceneCard, StoryThread } from "../canon/types";
-import { sceneHeading } from "../scene/human";
+import type { Entity, SceneCard, StoryThread } from "../canon/types";
+import { deltaLine, sceneHeading } from "../scene/human";
 import { clipPlayable } from "../scene/storyCard";
 
 function toothClass(
@@ -205,7 +205,7 @@ function SceneCardView({
   catalog: StoryThread[];
   line: string | null;
   who: string | null;
-  ents: { id: string; name: string }[];
+  ents: Entity[];
   density: number;
   selected: boolean;
   warn?: { code: string };
@@ -284,7 +284,7 @@ function SceneCardView({
           {density <= 4 && sc.value_shift && <div data-testid="card-shift">{sc.value_shift}</div>}
           {density <= 4 && warn?.code === "empty_value_shift" && <div data-testid="unwritten-shift">还没写变化</div>}
           {density <= 4 && (sc.deltas || []).slice(0, 3).map((d, i) => (
-            <div key={i} className="card-delta" data-testid={i === 0 ? "card-delta" : undefined}>{d.entity_id}.{d.attr}={d.value}</div>
+            <div key={i} className="card-delta" data-testid={i === 0 ? "card-delta" : undefined}>{deltaLine(d, ents)}</div>
           ))}
           {density <= 2 && sc.do_text && <div data-testid="card-do">{clipPlayable(sc.do_text)}</div>}
           {density <= 2 && sc.say_text && <div data-testid="card-say">{clipPlayable(sc.say_text)}</div>}

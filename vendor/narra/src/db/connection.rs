@@ -121,8 +121,13 @@ pub async fn init_db(config: &DbConfig, data_path: &Path) -> Result<NarraDb, Nar
                 .as_deref()
                 .map(String::from)
                 .unwrap_or_else(|| data_path.to_string_lossy().into_owned());
-            let surreal_config = surrealdb::opt::Config::new()
-                .capabilities(Capabilities::all().with_all_experimental_features_allowed());
+            // 看法/正史都不走 LIVE SELECT。关掉通知通道，少挂一套
+            // notify sender↔router_loop 接收端，关书时 router 更容易退出。
+            let surreal_config = surrealdb::opt::Config::new().capabilities(
+                Capabilities::all()
+                    .with_all_experimental_features_allowed()
+                    .with_live_query_notifications(false),
+            );
             // TODO-SURREAL3: endpoint is still `rocksdb:{path}`; hermes confirm kv-rocksdb
             // still accepts this scheme (docs.rs 3.2.4 embedding examples use RocksDb::new).
             let db = Surreal::<Any>::init();

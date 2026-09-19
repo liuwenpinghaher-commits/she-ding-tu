@@ -412,7 +412,7 @@ fn empty_sess(book: SettingBook) -> BookSess {
 }
 
 /// 把还在内存里的书草稿/设定写回盘，再整表取出。调用方随后 drop 引擎。
-fn persist_and_take_all(root: &std::path::Path, g: &mut Inner) -> Vec<BookSess> {
+fn persist_and_take_all(root: &std::path::Path, g: &mut Inner) -> Vec<(String, BookSess)> {
     g.current = None;
     g.books
         .drain()
@@ -420,27 +420,84 @@ fn persist_and_take_all(root: &std::path::Path, g: &mut Inner) -> Vec<BookSess> 
             persist_drafts(root, &name, &sess.drafts);
             persist_craft(root, &name, &sess.craft);
             persist_threads(root, &name, &sess.threads);
-            sess
+            (name, sess)
         })
         .collect()
 }
 
-/// 关掉一本已取出的书：丢掉 `Surreal` 句柄。
-///
-/// v3 没有公开 `Surreal::shutdown`。3.1.0 修了 #7304 之后，官方关闭路径就是
-/// 最后一个客户端 Drop（嵌入式 RocksDB 的 fd/线程随 Drop 释放）。
-/// `invalidate()` 只清登录态，不能拿来关引擎。
-///
-/// Drop 嵌式 RocksDB 会同步堵线程。必须放进 `spawn_blocking`，否则 tokio
-/// 工作线程卡住，下一本 `open_book_dir` / `/api/state` 一起饿死，e2e 的
-/// `book-label` 5s 就空。
-async fn release_book_engine(sess: BookSess) {
-    let _ = tokio::task::spawn_blocking(move || drop(sess)).await;
+fn count_fds_pointing_at(path: &std::path::Path) -> u32 {
+    let needle = path.to_string_lossy();
+    let Ok(dir) = std::fs::read_dir("/proc/self/fd") else {
+        return 0;
+    };
+    dir.flatten()
+        .filter(|ent| {
+            std::fs::read_link(ent.path())
+                .map(|t| t.to_string_lossy().contains(needle.as_ref()))
+                .unwrap_or(false)
+        })
+        .count() as u32
 }
 
-async fn release_book_engines(sessions: Vec<BookSess>) {
-    for sess in sessions {
-        release_book_engine(sess).await;
+/// 3.2.4 嵌入式关闭链（源码级）：
+/// `Surreal::Drop`（surrealdb-3.2.4/src/lib.rs）只 `try_send(SessionId::Drop)`；
+/// kvs 句柄在 `run_router` 的 `RouterState.kvs: Arc<Datastore>` 里
+/// （engine/local/native.rs）。最后一个客户端 Inner 被 Drop → `Router.sender`
+/// 与 `SessionClone.sender` 关掉 → `router_loop` 的 `route_rx`/`session_rx`
+/// `recv` 失败 `break` → `canceller.cancel()` + `tasks.resolve()` →
+/// **这时才** `router_state.kvs.shutdown()`（同文件 `run_router` 末尾）。
+/// `rocksdb:low/high` 是进程级 Env 线程池，关书后仍是 8 条，不能当信号。
+/// 可靠信号：这本书 `world.db` 目录上的 fd 归零（LOCK/SST 已放）。
+async fn wait_book_files_released(db_path: &std::path::Path) {
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(8);
+    loop {
+        if count_fds_pointing_at(db_path) == 0 {
+            tokio::time::sleep(std::time::Duration::from_millis(30)).await;
+            if count_fds_pointing_at(db_path) == 0 {
+                return;
+            }
+        }
+        if std::time::Instant::now() >= deadline {
+            eprintln!(
+                "release_book_engine: fd wait timeout path={} still={} ",
+                db_path.display(),
+                count_fds_pointing_at(db_path)
+            );
+            return;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+    }
+}
+
+fn malloc_trim_best_effort() {
+    #[cfg(target_os = "linux")]
+    unsafe {
+        extern "C" {
+            fn malloc_trim(pad: usize) -> i32;
+        }
+        let _ = malloc_trim(0);
+    }
+}
+
+/// 关掉一本已取出的书：丢掉 `Surreal` 句柄，等到该书 `world.db` 的 fd 放完。
+async fn release_book_engine(sess: BookSess, db_path: &std::path::Path) {
+    let db_arc = sess.book.db();
+    let holders = std::sync::Arc::strong_count(&db_arc).saturating_sub(1);
+    drop(db_arc);
+    if holders > 1 {
+        eprintln!(
+            "release_book_engine: NarraDb Arc holders={holders} (expected 1); RocksDB may not shut down"
+        );
+    }
+    drop(sess);
+    wait_book_files_released(db_path).await;
+    malloc_trim_best_effort();
+}
+
+async fn release_book_engines(root: &std::path::Path, sessions: Vec<(String, BookSess)>) {
+    for (name, sess) in sessions {
+        let path = book_db_path(root, &name);
+        release_book_engine(sess, &path).await;
     }
 }
 
@@ -1729,7 +1786,7 @@ async fn create_book(
         let mut g = app.inner.lock().await;
         persist_and_take_all(&app.data_root, &mut g)
     };
-    release_book_engines(stale).await;
+    release_book_engines(&app.data_root, stale).await;
     let book = open_book_dir(&app.data_root, &name)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
@@ -1791,7 +1848,7 @@ async fn open_book(
             let mut g = app.inner.lock().await;
             persist_and_take_all(&app.data_root, &mut g)
         };
-        release_book_engines(stale).await;
+        release_book_engines(&app.data_root, stale).await;
         let book = open_book_dir(&app.data_root, &name)
             .await
             .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
@@ -1926,7 +1983,8 @@ async fn delete_book(
         sess
     };
     if let Some(sess) = sess {
-        release_book_engine(sess).await;
+        let path = book_db_path(&app.data_root, &name);
+        release_book_engine(sess, &path).await;
     }
     let dir = app.data_root.join(&name);
     if dir.exists() {

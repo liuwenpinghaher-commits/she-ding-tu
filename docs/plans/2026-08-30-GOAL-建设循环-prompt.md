@@ -5,7 +5,7 @@
 工作目录必须是：
 
 ```text
-/Users/miaoma/Downloads/写作设定项目
+<repo-root>
 ```
 
 在本目录开 Grok Build CLI（TUI）。确认 `goal.enabled` 为开。需要无人值守时先 `/always-approve`。然后：
@@ -307,7 +307,7 @@ E2E 暴露方案空洞时 **必须改方案再测**，这是本 goal 的设计�
 
 ## 硬边界（全程）
 
-- 仓：`/Users/miaoma/Downloads/写作设定项目`。GitHub：`https://github.com/liuwenpinghaher-commits/she-ding-tu`（private）。**每完成一个切片（含阶段 A 矩阵、blocked 现场）必须 `git commit` + `git push origin HEAD`。** 不要 `--force`、不要 `--no-verify`、不要 amend 已推送的提交。不要把 `.env`、本机世界文件、`vendor/narra/target/`、`*_autosave.nnz` 加进去。
+- 仓：`<repo-root>`。GitHub：`https://github.com/liuwenpinghaher-commits/she-ding-tu`（private）。**每完成一个切片（含阶段 A 矩阵、blocked 现场）必须 `git commit` + `git push origin HEAD`。** 不要 `--force`、不要 `--no-verify`、不要 amend 已推送的提交。不要把 `.env`、本机世界文件、`vendor/narra/target/`、`*_autosave.nnz` 加进去。
 - 改 `vendor/narra` 达到 v1，不要仓外再写 Python `fold` 当真源。
 - 禁止 `import scribe3`，禁止读铜炉 Surreal，禁止 `SCRIBE3_*` / `s3_*`。
 - 禁止 Graphiti / EverOS / Semantica / HyperMem / TiMem 当世界真源。

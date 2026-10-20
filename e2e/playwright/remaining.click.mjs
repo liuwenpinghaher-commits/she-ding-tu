@@ -1,7 +1,10 @@
 /** 剩余 todo：4.2–4.11、5.1/5.4/5.6、6.2。4.3-live 只探密钥。 */
 import { chromium } from "@playwright/test";
 import { spawnSync } from "node:child_process";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 const base = process.env.SETTING_URL || "http://127.0.0.1:8787";
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage();
 const out = {};
@@ -444,7 +447,7 @@ const worldAfterDossier = await page.evaluate(async () => (await (await fetch("/
 const scan = spawnSync(
   "rg",
   ["-n", "import scribe3|SCRIBE3_|s3_|vis-timeline|Graphiti|EverOS|Semantica|HyperMem|TiMem", "--glob", "!vendor/narra/target/**", "--glob", "!e2e/node_modules/**", "--glob", "!**/.git/**"],
-  { cwd: "/Users/miaoma/Downloads/写作设定项目", encoding: "utf8" }
+  { cwd: ROOT, encoding: "utf8" }
 );
 out["6.2"] = {
   committedBeforeTooth,

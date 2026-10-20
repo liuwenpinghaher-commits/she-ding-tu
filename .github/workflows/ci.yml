@@ -1,0 +1,153 @@
+name: CI
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  web-build:
+    name: Web Frontend Build & Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: apps/web/package-lock.json
+
+      - name: Install dependencies
+        working-directory: apps/web
+        run: npm ci
+
+      - name: Run frontend unit tests
+        working-directory: apps/web
+        run: npm test
+
+      - name: Build production frontend
+        working-directory: apps/web
+        run: npm run build
+
+      - name: Upload built web dist
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-dist
+          path: apps/web/dist
+          retention-days: 3
+
+  rust-api:
+    name: Rust API Check & Library Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install system build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            pkg-config libssl-dev protobuf-compiler clang libclang-dev cmake ripgrep
+
+      - name: Run boundary & sanitization scan
+        run: bash scripts/boundary_scan.sh
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo registry and target
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "vendor/narra -> target"
+
+      - name: Check setting-api binary
+        working-directory: vendor/narra
+        run: cargo check --bin setting-api
+
+      - name: Run Narra world engine library tests
+        working-directory: vendor/narra
+        run: cargo test --lib
+
+  e2e:
+    name: Playwright Full-Stack E2E Tests
+    runs-on: ubuntu-latest
+    needs: [web-build, rust-api]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            pkg-config libssl-dev protobuf-compiler clang libclang-dev cmake ripgrep python3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: e2e/package-lock.json
+
+      - name: Download built web dist
+        uses: actions/download-artifact@v4
+        with:
+          name: web-dist
+          path: apps/web/dist
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo registry and target
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "vendor/narra -> target"
+
+      - name: Build setting-api release binary
+        working-directory: vendor/narra
+        run: cargo build --release --bin setting-api
+
+      - name: Install Playwright & Chromium
+        working-directory: e2e
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Start isolated setting-api & seed benchmark book (渡口)
+        run: |
+          mkdir -p /tmp/she-ding-tu-ci-data/books
+          SETTING_BIND=127.0.0.1:18787 \
+          SETTING_DATA=/tmp/she-ding-tu-ci-data/books \
+          SETTING_WEB_DIR="${GITHUB_WORKSPACE}/apps/web/dist" \
+          ./vendor/narra/target/release/setting-api > /tmp/she-ding-tu-ci-data/api.log 2>&1 &
+          echo $! > /tmp/she-ding-tu-ci-data/api.pid
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:18787/health >/dev/null 2>&1; then
+              break
+            fi
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:18787/health
+          SETTING_URL=http://127.0.0.1:18787 python3 scripts/rebuild_ferry.py
+
+      - name: Run Playwright E2E suite
+        working-directory: e2e
+        env:
+          SETTING_URL: http://127.0.0.1:18787
+        run: npx playwright test --workers=1
+
+      - name: Stop isolated setting-api
+        if: always()
+        run: |
+          if [ -f /tmp/she-ding-tu-ci-data/api.pid ]; then
+            kill "$(cat /tmp/she-ding-tu-ci-data/api.pid)" 2>/dev/null || true
+          fi

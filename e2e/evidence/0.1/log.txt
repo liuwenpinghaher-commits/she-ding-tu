@@ -1,4 +1,4 @@
-   Compiling narra v0.1.0 (/Users/miaoma/Downloads/写作设定项目/vendor/narra)
+   Compiling narra v0.1.0 (<repo-root>/vendor/narra)
 warning: type `FoldState` is more private than the item `fold_incremental`
    --> src/services/world.rs:404:1
     |

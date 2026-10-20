@@ -1,10 +1,13 @@
 /** 渡口全书：点击走完 v1 全部能力，正史留在 data/books/渡口。 */
 import { chromium } from "@playwright/test";
 import { writeFileSync, mkdirSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const base = process.env.SETTING_URL || "http://127.0.0.1:8787";
 const BOOK = "渡口";
-const REPORT = process.env.SETTING_DATA_REPORT || "/Users/miaoma/Downloads/写作设定项目/data/books/渡口";
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
+const REPORT = process.env.SETTING_DATA_REPORT || resolve(ROOT, "data/books/渡口");
 const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage();
 page.setDefaultTimeout(20000);

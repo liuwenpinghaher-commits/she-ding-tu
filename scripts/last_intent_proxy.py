@@ -12,7 +12,7 @@ from urllib.request import Request, urlopen
 
 UPSTREAM = os.environ.get("SETTING_UPSTREAM", "http://127.0.0.1:8788")
 BIND = os.environ.get("SETTING_PROXY_BIND", "127.0.0.1:8790")
-DATA = Path(os.environ.get("SETTING_DATA", "/home/ubuntu/projects/she-ding-tu/data/books"))
+DATA = Path(os.environ.get("SETTING_DATA", str(Path(__file__).resolve().parents[1] / "data" / "books")))
 HOP = {
     "connection",
     "keep-alive",

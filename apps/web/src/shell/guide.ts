@@ -1,6 +1,6 @@
 /** 引导主线 G0–G9；G10/G11 占位可续加。不算世界上为真。 */
 
-import { loadJson, saveJson } from "./localPrefs";
+import { loadJson, saveJson } from "./localPrefs.ts";
 
 export type GuideId = "G0" | "G1" | "G2" | "G3" | "G4" | "G5" | "G6" | "G7" | "G8" | "G9" | "G10" | "G11";
 

@@ -737,7 +737,7 @@ async fn s2_dual_write_official_scene_and_alias_search() {
 }
 
 #[tokio::test]
-async fn s3_windows_and_knows_not_json_are_source() {
+async fn sec3_windows_and_knows_not_json_are_source() {
     let (_h, book) = book().await;
     book.commit(afu_sees_knife()).await.unwrap();
     book.db()
@@ -765,7 +765,7 @@ async fn s3_windows_and_knows_not_json_are_source() {
 }
 
 #[tokio::test]
-async fn s3_wrong_belief_listed_and_recall_blocked() {
+async fn sec3_wrong_belief_listed_and_recall_blocked() {
     let (_h, book) = book().await;
     book.commit(afu_sees_knife()).await.unwrap();
     let wrong = BeatDraft {
@@ -833,7 +833,7 @@ async fn s3_wrong_belief_listed_and_recall_blocked() {
 }
 
 #[tokio::test]
-async fn s3_night_sail_blocked_when_rule_strict() {
+async fn sec3_night_sail_blocked_when_rule_strict() {
     let (_h, book) = book().await;
     let mut rule = book
         .load_canon()

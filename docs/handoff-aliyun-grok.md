@@ -34,10 +34,10 @@
 
 ## 腾讯部署（验收机，不是你这台阿里云）
 
-- SSH 主机：`scribe3-demo`（`ubuntu@82.157.130.140`）。本机 `~/.ssh/config` 绑网卡 `en0`。
-- 仓路径：`/home/ubuntu/projects/she-ding-tu`。**不是** `/opt/scribe3`，**不是** `/home/admin/projects/she-ding-tu`。
-- 服务：入口 `127.0.0.1:8787`（nginx），后面是 `setting-api` `127.0.0.1:8788`。未挂公网。打开页面：本机或阿里云 `ssh -L 8787:127.0.0.1:8787 scribe3-demo`，再访 `http://127.0.0.1:8787`。应看到 Vite `#root` + `/assets/*`，书架能打开《渡口》（五场已正史 + 一场草稿），卡上有最后一场名。
-- 重启：`/home/ubuntu/projects/she-ding-tu/logs/restart.sh`（只在机上）。
+- SSH 主机：`<deploy-host>`（`<deploy-user>@<deploy-host>`）。本机 `~/.ssh/config` 绑网卡 `en0`。
+- 仓路径：`<repo-root>`。**不是** `/opt/scribe3`，**不是** `<legacy-repo-root>`。
+- 服务：入口 `127.0.0.1:8787`（nginx），后面是 `setting-api` `127.0.0.1:8788`。未挂公网。打开页面：本机或阿里云 `ssh -L 8787:127.0.0.1:8787 <deploy-host>`，再访 `http://127.0.0.1:8787`。应看到 Vite `#root` + `/assets/*`，书架能打开《渡口》（五场已正史 + 一场草稿），卡上有最后一场名。
+- 重启：`<repo-root>/logs/restart.sh`（只在机上）。
 - 构建：`apps/web` 里 `npm ci && npm run build`，再在 `vendor/narra` 编 `setting-api`（crates 走中科大镜像即可，不要让腾讯直连 GitHub）。
 - **腾讯不要直连 GitHub**（慢/不稳）。代码更新由 Mac 跳板：Mac 先 `git push` 到 GitHub，再 `rsync` 或 `git bundle` 经 SSH 送到腾讯；不要在腾讯 `git pull github.com`。不要动腾讯上已有的 `127.0.0.1:1088`（去阿里云的跳板）和 `127.0.0.1:18080`。
 - `.env` 只在各机上，不进 git。数据按书隔离在 `data/books/<书名>/`。不要覆盖/删《渡口》正史。

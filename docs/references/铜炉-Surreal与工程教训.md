@@ -2,7 +2,7 @@
 
 设定图**不** `import scribe3`、不连铜炉库、不复用 `SCRIBE3_*` / `s3_*`。本文只列机制与路径，供 fork Narra 时对照。产品面仍认 [`../设定图-v1.md`](../设定图-v1.md)。落地认 [`../plans/2026-08-30-设定图-Narra底座.md`](../plans/2026-08-30-设定图-Narra底座.md) 与完整方案 §8.13。
 
-铜炉根：`/Users/miaoma/Downloads/写作 3.0`。官方文档副本：同仓 `docs/external/surrealdb-docs/`。
+铜炉根：`<scribe3-repo>`。官方文档副本：同仓 `docs/external/surrealdb-docs/`。
 
 ---
 

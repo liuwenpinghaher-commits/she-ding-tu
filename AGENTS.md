@@ -10,7 +10,7 @@
 
 ## 硬边界
 
-- 与铜炉（`/Users/miaoma/Downloads/写作 3.0`，scribe3）**无关**。两套分开做，以后再决定要不要整合。
+- 与铜炉（`<scribe3-repo>`，scribe3）**无关**。两套分开做，以后再决定要不要整合。
 - 禁止 `import scribe3`，禁止读铜炉 Surreal，禁止复用 `SCRIBE3_*` / `s3_*`。
 - 禁止把 Graphiti / EverOS / Semantica / HyperMem / TiMem 当世界真源或主写路径。
 - 禁止三个开源并排当三份库。**Narra（fork `vendor/narra`）是唯一世界库**，见 [`docs/plans/2026-08-30-设定图-Narra底座.md`](docs/plans/2026-08-30-设定图-Narra底座.md)。NN 只借交互、禁止复制源码，见 [`docs/references/narrative-node.md`](docs/references/narrative-node.md)。StoryLine 不当宿主。禁止再开一份设定图五表 / Python `fold` 当第二真源。
